@@ -17,6 +17,21 @@ interface Response {
     assign: boolean;
 }
 
+const DraggableLatex = ({ latex, defaultPosition, setLatexPosition }: { latex: string, defaultPosition: {x: number, y: number}, setLatexPosition: (pos: {x: number, y: number}) => void }) => {
+    const nodeRef = useRef<HTMLDivElement>(null);
+    return (
+        <Draggable
+            nodeRef={nodeRef}
+            defaultPosition={defaultPosition}
+            onStop={(e, data) => setLatexPosition({ x: data.x, y: data.y })}
+        >
+            <div ref={nodeRef} className="absolute p-2 text-white rounded shadow-md">
+                <div className="latex-content">{latex}</div>
+            </div>
+        </Draggable>
+    );
+};
+
 export default function Home() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
@@ -233,15 +248,12 @@ export default function Home() {
             />
 
             {latexExpression && latexExpression.map((latex, index) => (
-                <Draggable
+                <DraggableLatex
                     key={index}
+                    latex={latex}
                     defaultPosition={latexPosition}
-                    onStop={(e, data) => setLatexPosition({ x: data.x, y: data.y })}
-                >
-                    <div className="absolute p-2 text-white rounded shadow-md">
-                        <div className="latex-content">{latex}</div>
-                    </div>
-                </Draggable>
+                    setLatexPosition={setLatexPosition}
+                />
             ))}
         </>
     );
