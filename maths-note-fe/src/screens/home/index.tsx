@@ -4,17 +4,26 @@ import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import Draggable from 'react-draggable';
 import {SWATCHES} from '@/constants';
+
+declare global {
+    interface Window {
+        MathJax: any;
+    }
+}
+
 // import {LazyBrush} from 'lazy-brush';
 
 interface GeneratedResult {
     expression: string;
     answer: string;
+    type?: string;
 }
 
 interface Response {
     expr: string;
     result: string;
     assign: boolean;
+    type?: string;
 }
 
 const DraggableLatex = ({ latex, defaultPosition, setLatexPosition }: { latex: string, defaultPosition: {x: number, y: number}, setLatexPosition: (pos: {x: number, y: number}) => void }) => {
@@ -52,13 +61,13 @@ export default function Home() {
         if (latexExpression.length > 0 && window.MathJax) {
             setTimeout(() => {
                 window.MathJax.Hub.Queue(["Typeset", window.MathJax.Hub]);
-            }, 0);
+            }, 0)
         }
     }, [latexExpression]);
 
     useEffect(() => {
         if (result) {
-            renderLatexToCanvas(result.expression, result.answer);
+            renderLatexToCanvas(result.expression, result.answer, result.type);
         }
     }, [result]);
 
@@ -93,6 +102,9 @@ export default function Home() {
         script.onload = () => {
             window.MathJax.Hub.Config({
                 tex2jax: {inlineMath: [['$', '$'], ['\\(', '\\)']]},
+                CommonHTML: { linebreaks: { automatic: true } },
+                "HTML-CSS": { linebreaks: { automatic: true } },
+                SVG: { linebreaks: { automatic: true } }
             });
         };
 
@@ -102,8 +114,15 @@ export default function Home() {
 
     }, []);
 
-    const renderLatexToCanvas = (expression: string, answer: string) => {
-        const latex = `\\(\\LARGE{${expression} = ${answer}}\\)`;
+    const renderLatexToCanvas = (expression: string, answer: string, type?: string) => {
+        let latex = '';
+        if (type === 'text') {
+            // Render normal text without MathJax math wrappers so it wraps naturally in standard fonts
+            latex = `${expression} = ${answer}`;
+        } else {
+            // Render beautiful MathJax syntax for equations! 
+            latex = `\\(${expression} = ${answer}\\)`;
+        }
         setLatexExpression([...latexExpression, latex]);
 
         // Clear the main canvas
@@ -205,7 +224,8 @@ export default function Home() {
                 setTimeout(() => {
                     setResult({
                         expression: data.expr,
-                        answer: data.result
+                        answer: data.result,
+                        type: data.type
                     });
                 }, 1000);
             });

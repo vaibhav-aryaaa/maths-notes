@@ -8,5 +8,9 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": ""
+  "description": "",
+  "dependencies": {
+    "@types/mathjax": "^0.0.40",
+    "mathjax": "^4.1.1"
+  }
 }

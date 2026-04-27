@@ -131,3 +131,10 @@
     @apply font-sans;
     }
 }
+
+.latex-content {
+    font-size: 2rem;
+    max-width: 90vw;
+    white-space: pre-wrap;
+    word-break: break-word; /* Let it wrap gracefully */
+}
