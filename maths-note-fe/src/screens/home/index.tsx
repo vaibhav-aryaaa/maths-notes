@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import Draggable from 'react-draggable';
 import {SWATCHES} from '@/constants';
+import { Eraser, Pen } from 'lucide-react';
 
 declare global {
     interface Window {
@@ -87,6 +88,7 @@ const DraggableResultCard = ({ result, defaultPosition, setPosition }: { result:
 export default function Home() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
+    const [isEraser, setIsEraser] = useState(false);
     const [color, setColor] = useState('rgb(255, 255, 255)');
     const [reset, setReset] = useState(false);
     const [dictOfVars, setDictOfVars] = useState({});
@@ -183,7 +185,14 @@ export default function Home() {
         if (canvas) {
             const ctx = canvas.getContext('2d');
             if (ctx) {
-                ctx.strokeStyle = color;
+                if (isEraser) {
+                    ctx.globalCompositeOperation = 'destination-out';
+                    ctx.lineWidth = 20; // Thicker line for erasing
+                } else {
+                    ctx.globalCompositeOperation = 'source-over';
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 3;
+                }
                 ctx.lineTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
                 ctx.stroke();
             }
@@ -283,6 +292,15 @@ export default function Home() {
             </div>
 
             <div className='absolute z-50 top-4 right-4 flex gap-4'>
+                <Button
+                    onClick={() => setIsEraser(!isEraser)}
+                    className={`bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 text-white transition-all shadow-lg ${isEraser ? 'bg-white/30 border-white' : ''}`}
+                    variant='default'
+                    title="Toggle Eraser"
+                >
+                    {isEraser ? <Pen size={18} className="mr-2" /> : <Eraser size={18} className="mr-2" />}
+                    {isEraser ? 'Draw' : 'Erase'}
+                </Button>
                 <Button
                     onClick={() => setReset(true)}
                     className='bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 text-white transition-all shadow-lg'
