@@ -156,6 +156,39 @@
     }
 }
 
+@keyframes float-1 {
+    0%, 100% { transform: translateY(0px) rotate(0deg) scale(1); }
+    50% { transform: translateY(-30px) rotate(10deg) scale(1.1); }
+}
+
+@keyframes float-2 {
+    0%, 100% { transform: translateY(0px) rotate(0deg) scale(1); }
+    50% { transform: translateY(30px) rotate(-10deg) scale(0.9); }
+}
+
+@keyframes float-3 {
+    0%, 100% { transform: translateX(0px) rotate(0deg); }
+    50% { transform: translateX(20px) translateY(-20px) rotate(5deg); }
+}
+
+.floating-symbol {
+    @apply absolute font-bold select-none opacity-20 text-white/10;
+}
+
+.symbol-1 { animation: float-1 8s ease-in-out infinite; }
+.symbol-2 { animation: float-2 10s ease-in-out infinite; }
+.symbol-3 { animation: float-3 12s ease-in-out infinite; }
+
+.font-playfair {
+    font-family: 'Playfair Display', serif;
+}
+
+.animation-delay-1000 { animation-delay: 1s; }
+.animation-delay-2000 { animation-delay: 2s; }
+.animation-delay-3000 { animation-delay: 3s; }
+.animation-delay-4000 { animation-delay: 4s; }
+.animation-delay-5000 { animation-delay: 5s; }
+
 .scanning-laser {
     position: absolute;
     left: 0;

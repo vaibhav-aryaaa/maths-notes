@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import Draggable from 'react-draggable';
 import {SWATCHES} from '@/constants';
-import { Eraser, Pen } from 'lucide-react';
+import { Eraser, Pen, ImagePlus } from 'lucide-react';
 
 declare global {
     interface Window {
@@ -87,6 +87,7 @@ const DraggableResultCard = ({ result, defaultPosition, setPosition }: { result:
 
 export default function Home() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [isEraser, setIsEraser] = useState(false);
     const [color, setColor] = useState('rgb(255, 255, 255)');
@@ -146,11 +147,72 @@ export default function Home() {
             });
         };
 
+        const handlePaste = (e: ClipboardEvent) => {
+            const items = e.clipboardData?.items;
+            if (items) {
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf('image') !== -1) {
+                        const blob = items[i].getAsFile();
+                        if (blob) {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                                if (event.target?.result) {
+                                    drawImageOnCanvas(event.target.result as string);
+                                }
+                            };
+                            reader.readAsDataURL(blob);
+                        }
+                        break;
+                    }
+                }
+            }
+        };
+
+        window.addEventListener('paste', handlePaste);
+
         return () => {
             document.head.removeChild(script);
+            window.removeEventListener('paste', handlePaste);
         };
 
     }, []);
+
+    const drawImageOnCanvas = (imageUrl: string) => {
+        const canvas = canvasRef.current;
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                const img = new Image();
+                img.onload = () => {
+                    const scale = Math.min(
+                        (canvas.width * 0.8) / img.width, 
+                        (canvas.height * 0.8) / img.height, 
+                        1
+                    );
+                    const w = img.width * scale;
+                    const h = img.height * scale;
+                    const x = (canvas.width - w) / 2;
+                    const y = (canvas.height - h) / 2;
+                    
+                    ctx.drawImage(img, x, y, w, h);
+                };
+                img.src = imageUrl;
+            }
+        }
+    };
+
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                if (event.target?.result) {
+                    drawImageOnCanvas(event.target.result as string);
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
 
 
@@ -264,8 +326,9 @@ export default function Home() {
                 }
             }, 1000);
 
-            } catch (error) {
+            } catch (error: any) {
                 console.error("Failed to run AI", error);
+                alert(`AI API Error: ${error.response?.data?.message || error.message || "Failed to process image"}. You may have hit a rate limit. Please wait a moment and try again.`);
             } finally {
                 setIsScanning(false);
             }
@@ -276,6 +339,15 @@ export default function Home() {
         <>
             {/* Agent Memory Side Panel */}
             <div className="absolute top-0 left-0 w-64 h-full bg-black/50 backdrop-blur-md border-r border-white/20 p-5 z-40 text-white shadow-2xl transition-all duration-300">
+                {/* SolveIQ Logo Branding */}
+                <div className="flex items-center gap-2 mb-6 pb-4 border-b border-white/10">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-cyan-400 flex items-center justify-center text-white font-black text-sm shadow-lg shadow-blue-500/30">
+                        S
+                    </div>
+                    <span className="text-xl font-extrabold tracking-tight">
+                        solve<span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">IQ</span>
+                    </span>
+                </div>
                 <h2 className="text-lg font-bold mb-4 tracking-wider uppercase text-gray-300 border-b border-white/10 pb-2">Agent Memory</h2>
                 {Object.keys(dictOfVars).length === 0 ? (
                     <p className="text-gray-400 text-sm">No variables detected yet. Draw an equation like "x = 5" to store state.</p>
@@ -292,6 +364,22 @@ export default function Home() {
             </div>
 
             <div className='absolute z-50 top-4 right-4 flex gap-4'>
+                <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleImageUpload} 
+                    accept="image/*" 
+                    className="hidden" 
+                />
+                <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    className='bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 text-white transition-all shadow-lg'
+                    variant='default'
+                    title="Upload Image"
+                >
+                    <ImagePlus size={18} className="mr-2" />
+                    Upload
+                </Button>
                 <Button
                     onClick={() => setIsEraser(!isEraser)}
                     className={`bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 text-white transition-all shadow-lg ${isEraser ? 'bg-white/30 border-white' : ''}`}
