@@ -1,5 +1,11 @@
 import { ColorSwatch, Group } from '@mantine/core';
 import { Button } from '@/components/ui/button';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import Draggable from 'react-draggable';
@@ -17,6 +23,9 @@ interface GeneratedResult {
     expression: string;
     answer: string;
     type?: string;
+    thought_process?: string;
+    confidence_score?: number;
+    latency?: number;
 }
 
 interface Response {
@@ -24,18 +33,52 @@ interface Response {
     result: string;
     assign: boolean;
     type?: string;
+    thought_process?: string;
+    confidence_score?: number;
+    latency?: number;
 }
 
-const DraggableLatex = ({ latex, defaultPosition, setLatexPosition }: { latex: string, defaultPosition: {x: number, y: number}, setLatexPosition: (pos: {x: number, y: number}) => void }) => {
+const DraggableResultCard = ({ result, defaultPosition, setPosition }: { result: GeneratedResult, defaultPosition: {x: number, y: number}, setPosition: (pos: {x: number, y: number}) => void }) => {
     const nodeRef = useRef<HTMLDivElement>(null);
+    let latex = '';
+    if (result.type === 'text') {
+        latex = `${result.expression} = ${result.answer}`;
+    } else {
+        latex = `\\(${result.expression} = ${result.answer}\\)`;
+    }
+
     return (
         <Draggable
             nodeRef={nodeRef}
             defaultPosition={defaultPosition}
-            onStop={(e, data) => setLatexPosition({ x: data.x, y: data.y })}
+            onStop={(e, data) => setPosition({ x: data.x, y: data.y })}
         >
-            <div ref={nodeRef} className="absolute p-2 text-white rounded shadow-md">
-                <div className="latex-content">{latex}</div>
+            <div ref={nodeRef} className="absolute z-50 glassmorphic-card p-4 rounded-xl shadow-2xl min-w-[300px] max-w-[500px] cursor-move">
+                <div className="flex justify-between items-center mb-3">
+                    <span className="text-xs font-bold px-2 py-1 bg-green-500/20 text-green-400 rounded-full border border-green-500/30">
+                        {result.confidence_score ? `${result.confidence_score}% Confident` : 'AI Result'}
+                    </span>
+                    <span className="text-xs text-gray-400 font-mono">
+                        {result.latency ? `${result.latency}ms` : ''}
+                    </span>
+                </div>
+                
+                <div className="latex-content text-white mb-4">
+                    {latex}
+                </div>
+
+                {result.thought_process && (
+                    <Accordion type="single" collapsible className="w-full">
+                        <AccordionItem value="thought-process" className="border-white/10">
+                            <AccordionTrigger className="text-sm text-gray-300 hover:text-white py-2">
+                                View Thought Process
+                            </AccordionTrigger>
+                            <AccordionContent className="text-gray-400 text-sm leading-relaxed">
+                                {result.thought_process}
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
+                )}
             </div>
         </Draggable>
     );
@@ -47,9 +90,9 @@ export default function Home() {
     const [color, setColor] = useState('rgb(255, 255, 255)');
     const [reset, setReset] = useState(false);
     const [dictOfVars, setDictOfVars] = useState({});
-    const [result, setResult] = useState<GeneratedResult>();
+    const [results, setResults] = useState<GeneratedResult[]>([]);
     const [latexPosition, setLatexPosition] = useState({ x: 10, y: 200 });
-    const [latexExpression, setLatexExpression] = useState<Array<string>>([]);
+    const [isScanning, setIsScanning] = useState(false);
 
     // const lazyBrush = new LazyBrush({
     //     radius: 10,
@@ -58,24 +101,17 @@ export default function Home() {
     // });
 
     useEffect(() => {
-        if (latexExpression.length > 0 && window.MathJax) {
+        if (results.length > 0 && window.MathJax) {
             setTimeout(() => {
                 window.MathJax.Hub.Queue(["Typeset", window.MathJax.Hub]);
             }, 0)
         }
-    }, [latexExpression]);
-
-    useEffect(() => {
-        if (result) {
-            renderLatexToCanvas(result.expression, result.answer, result.type);
-        }
-    }, [result]);
+    }, [results]);
 
     useEffect(() => {
         if (reset) {
             resetCanvas();
-            setLatexExpression([]);
-            setResult(undefined);
+            setResults([]);
             setDictOfVars({});
             setReset(false);
         }
@@ -114,26 +150,7 @@ export default function Home() {
 
     }, []);
 
-    const renderLatexToCanvas = (expression: string, answer: string, type?: string) => {
-        let latex = '';
-        if (type === 'text') {
-            // Render normal text without MathJax math wrappers so it wraps naturally in standard fonts
-            latex = `${expression} = ${answer}`;
-        } else {
-            // Render beautiful MathJax syntax for equations! 
-            latex = `\\(${expression} = ${answer}\\)`;
-        }
-        setLatexExpression([...latexExpression, latex]);
 
-        // Clear the main canvas
-        const canvas = canvasRef.current;
-        if (canvas) {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-            }
-        }
-    };
 
 
     const resetCanvas = () => {
@@ -180,7 +197,9 @@ export default function Home() {
         const canvas = canvasRef.current;
     
         if (canvas) {
-            const response = await axios({
+            setIsScanning(true);
+            try {
+                const response = await axios({
                 method: 'post',
                 url: `${import.meta.env.VITE_API_URL}/calculate`,
                 data: {
@@ -191,15 +210,13 @@ export default function Home() {
 
             const resp = await response.data;
             console.log('Response', resp);
+            const newVars = { ...dictOfVars };
             resp.data.forEach((data: Response) => {
                 if (data.assign === true) {
-                    // dict_of_vars[resp.result] = resp.answer;
-                    setDictOfVars({
-                        ...dictOfVars,
-                        [data.expr]: data.result
-                    });
+                    (newVars as any)[data.expr] = data.result;
                 }
             });
+            setDictOfVars(newVars);
             const ctx = canvas.getContext('2d');
             const imageData = ctx!.getImageData(0, 0, canvas.width, canvas.height);
             let minX = canvas.width, minY = canvas.height, maxX = 0, maxY = 0;
@@ -220,39 +237,68 @@ export default function Home() {
             const centerY = (minY + maxY) / 2;
 
             setLatexPosition({ x: centerX, y: centerY });
-            resp.data.forEach((data: Response) => {
-                setTimeout(() => {
-                    setResult({
-                        expression: data.expr,
-                        answer: data.result,
-                        type: data.type
-                    });
-                }, 1000);
-            });
+            const newResults: GeneratedResult[] = resp.data.map((data: Response) => ({
+                expression: data.expr,
+                answer: data.result,
+                type: data.type,
+                thought_process: data.thought_process,
+                confidence_score: data.confidence_score,
+                latency: data.latency
+            }));
+            
+            setTimeout(() => {
+                setResults([...results, ...newResults]);
+                // Clear the main canvas after processing
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            }, 1000);
+
+            } catch (error) {
+                console.error("Failed to run AI", error);
+            } finally {
+                setIsScanning(false);
+            }
         }
     };
 
     return (
         <>
-            <div className='grid grid-cols-3 gap-2'>
+            {/* Agent Memory Side Panel */}
+            <div className="absolute top-0 left-0 w-64 h-full bg-black/50 backdrop-blur-md border-r border-white/20 p-5 z-40 text-white shadow-2xl transition-all duration-300">
+                <h2 className="text-lg font-bold mb-4 tracking-wider uppercase text-gray-300 border-b border-white/10 pb-2">Agent Memory</h2>
+                {Object.keys(dictOfVars).length === 0 ? (
+                    <p className="text-gray-400 text-sm">No variables detected yet. Draw an equation like "x = 5" to store state.</p>
+                ) : (
+                    <div className="flex flex-col gap-3">
+                        {Object.entries(dictOfVars).map(([key, value]) => (
+                            <div key={key} className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/10 shadow-inner">
+                                <span className="text-xl font-mono text-purple-400">{key}</span>
+                                <span className="text-xl font-mono text-green-400">= {value as React.ReactNode}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <div className='absolute z-50 top-4 right-4 flex gap-4'>
                 <Button
                     onClick={() => setReset(true)}
-                    className='z-20 bg-black text-white'
+                    className='bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 text-white transition-all shadow-lg'
                     variant='default' 
-                    color='black'
                 >
                     Reset
                 </Button>
-                <Group className='z-20'>
+                <Group className='bg-white/10 backdrop-blur-sm border border-white/20 p-1.5 rounded-lg shadow-lg'>
                     {SWATCHES.map((swatch) => (
-                        <ColorSwatch key={swatch} color={swatch} onClick={() => setColor(swatch)} />
+                        <ColorSwatch key={swatch} color={swatch} onClick={() => setColor(swatch)} className="cursor-pointer hover:scale-110 transition-transform" />
                     ))}
                 </Group>
                 <Button
                     onClick={runRoute}
-                    className='z-20 bg-black text-white'
+                    className='bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 text-white transition-all shadow-lg'
                     variant='default'
-                    color='white'
                 >
                     Run
                 </Button>
@@ -267,14 +313,16 @@ export default function Home() {
                 onMouseOut={stopDrawing}
             />
 
-            {latexExpression && latexExpression.map((latex, index) => (
-                <DraggableLatex
+            {results && results.map((result, index) => (
+                <DraggableResultCard
                     key={index}
-                    latex={latex}
-                    defaultPosition={latexPosition}
-                    setLatexPosition={setLatexPosition}
+                    result={result}
+                    defaultPosition={{x: latexPosition.x, y: latexPosition.y + index * 120}}
+                    setPosition={setLatexPosition}
                 />
             ))}
+            
+            {isScanning && <div className="scanning-laser" />}
         </>
     );
 }

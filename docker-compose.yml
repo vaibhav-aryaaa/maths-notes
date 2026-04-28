@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./maths-note-be
+    ports:
+      - "8900:8900"
+    environment:
+      - SERVER_URL=0.0.0.0
+      - PORT=8900
+      - ENV=dev
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+
+  frontend:
+    build:
+      context: ./maths-note-fe
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8900
+    depends_on:
+      - backend
