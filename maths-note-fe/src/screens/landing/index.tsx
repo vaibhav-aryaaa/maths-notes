@@ -1,4 +1,4 @@
-import { BrainCircuit, Eye, LineChart, Cpu } from 'lucide-react';
+// Unused imports removed
 
 interface LandingProps {
     onStart: () => void;

@@ -52,7 +52,7 @@ const DraggableResultCard = ({ result, defaultPosition, setPosition }: { result:
         <Draggable
             nodeRef={nodeRef}
             defaultPosition={defaultPosition}
-            onStop={(e, data) => setPosition({ x: data.x, y: data.y })}
+            onStop={(_e, data) => setPosition({ x: data.x, y: data.y })}
         >
             <div ref={nodeRef} className="absolute z-50 glassmorphic-card p-4 rounded-xl shadow-2xl min-w-[300px] max-w-[500px] cursor-move">
                 <div className="flex justify-between items-center mb-3">
