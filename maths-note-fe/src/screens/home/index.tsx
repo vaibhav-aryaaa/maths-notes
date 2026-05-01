@@ -1,16 +1,16 @@
 import { ColorSwatch, Group } from '@mantine/core';
 import { Button } from '@/components/ui/button';
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
 } from "@/components/ui/accordion";
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import axios from 'axios';
 import Draggable from 'react-draggable';
-import {SWATCHES} from '@/constants';
-import { Eraser, Pen, ImagePlus } from 'lucide-react';
+import { SWATCHES } from '@/constants';
+import { Eraser, Pen, MessageSquare, X, Send, Bot } from 'lucide-react';
 
 declare global {
     interface Window {
@@ -39,7 +39,7 @@ interface Response {
     latency?: number;
 }
 
-const DraggableResultCard = ({ result, defaultPosition, setPosition }: { result: GeneratedResult, defaultPosition: {x: number, y: number}, setPosition: (pos: {x: number, y: number}) => void }) => {
+const DraggableResultCard = ({ result, defaultPosition, setPosition }: { result: GeneratedResult, defaultPosition: { x: number, y: number }, setPosition: (pos: { x: number, y: number }) => void }) => {
     const nodeRef = useRef<HTMLDivElement>(null);
     let latex = '';
     if (result.type === 'text') {
@@ -63,7 +63,7 @@ const DraggableResultCard = ({ result, defaultPosition, setPosition }: { result:
                         {result.latency ? `${result.latency}ms` : ''}
                     </span>
                 </div>
-                
+
                 <div className="latex-content text-white mb-4">
                     {latex}
                 </div>
@@ -87,7 +87,6 @@ const DraggableResultCard = ({ result, defaultPosition, setPosition }: { result:
 
 export default function Home() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [isEraser, setIsEraser] = useState(false);
     const [color, setColor] = useState('rgb(255, 255, 255)');
@@ -96,6 +95,16 @@ export default function Home() {
     const [results, setResults] = useState<GeneratedResult[]>([]);
     const [latexPosition, setLatexPosition] = useState({ x: 10, y: 200 });
     const [isScanning, setIsScanning] = useState(false);
+
+    // Math Co-Pilot state
+    const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+    const [copilotMessages, setCopilotMessages] = useState<{ role: 'user' | 'ai', text: string }[]>([
+        { role: 'ai', text: '👋 Hi! I am your Math Co-Pilot. Run your canvas first, then ask me anything about it!' }
+    ]);
+    const [copilotInput, setCopilotInput] = useState('');
+    const [isCopilotLoading, setIsCopilotLoading] = useState(false);
+    const sessionId = useRef(`session_${Date.now()}`);
+    const chatEndRef = useRef<HTMLDivElement>(null);
 
     // const lazyBrush = new LazyBrush({
     //     radius: 10,
@@ -122,7 +131,7 @@ export default function Home() {
 
     useEffect(() => {
         const canvas = canvasRef.current;
-    
+
         if (canvas) {
             const ctx = canvas.getContext('2d');
             if (ctx) {
@@ -140,81 +149,54 @@ export default function Home() {
 
         script.onload = () => {
             window.MathJax.Hub.Config({
-                tex2jax: {inlineMath: [['$', '$'], ['\\(', '\\)']]},
+                tex2jax: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
                 CommonHTML: { linebreaks: { automatic: true } },
                 "HTML-CSS": { linebreaks: { automatic: true } },
                 SVG: { linebreaks: { automatic: true } }
             });
         };
 
-        const handlePaste = (e: ClipboardEvent) => {
-            const items = e.clipboardData?.items;
-            if (items) {
-                for (let i = 0; i < items.length; i++) {
-                    if (items[i].type.indexOf('image') !== -1) {
-                        const blob = items[i].getAsFile();
-                        if (blob) {
-                            const reader = new FileReader();
-                            reader.onload = (event) => {
-                                if (event.target?.result) {
-                                    drawImageOnCanvas(event.target.result as string);
-                                }
-                            };
-                            reader.readAsDataURL(blob);
-                        }
-                        break;
-                    }
-                }
-            }
-        };
-
-        window.addEventListener('paste', handlePaste);
-
         return () => {
             document.head.removeChild(script);
-            window.removeEventListener('paste', handlePaste);
         };
 
     }, []);
 
-    const drawImageOnCanvas = (imageUrl: string) => {
+    // Auto-scroll chat to bottom
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [copilotMessages, isCopilotLoading]);
+
+    const sendCopilotMessage = useCallback(async () => {
+        const text = copilotInput.trim();
+        if (!text || isCopilotLoading) return;
+
         const canvas = canvasRef.current;
-        if (canvas) {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                const img = new Image();
-                img.onload = () => {
-                    const scale = Math.min(
-                        (canvas.width * 0.8) / img.width, 
-                        (canvas.height * 0.8) / img.height, 
-                        1
-                    );
-                    const w = img.width * scale;
-                    const h = img.height * scale;
-                    const x = (canvas.width - w) / 2;
-                    const y = (canvas.height - h) / 2;
-                    
-                    ctx.drawImage(img, x, y, w, h);
-                };
-                img.src = imageUrl;
-            }
+        const canvasImage = canvas ? canvas.toDataURL('image/png') : '';
+
+        setCopilotMessages(prev => [...prev, { role: 'user', text }]);
+        setCopilotInput('');
+        setIsCopilotLoading(true);
+
+        try {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/copilot`, {
+                session_id: sessionId.current,
+                message: text,
+                canvas_image: canvasImage,
+                dict_of_vars: dictOfVars,
+                results: results.map(r => ({
+                    expression: r.expression,
+                    answer: r.answer,
+                    thought_process: r.thought_process,
+                })),
+            });
+            setCopilotMessages(prev => [...prev, { role: 'ai', text: res.data.reply }]);
+        } catch (err: any) {
+            setCopilotMessages(prev => [...prev, { role: 'ai', text: '⚠️ Sorry, I ran into an error. Please try again.' }]);
+        } finally {
+            setIsCopilotLoading(false);
         }
-    };
-
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                if (event.target?.result) {
-                    drawImageOnCanvas(event.target.result as string);
-                }
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-
+    }, [copilotInput, isCopilotLoading, dictOfVars]);
 
 
     const resetCanvas = () => {
@@ -262,69 +244,69 @@ export default function Home() {
     };
     const stopDrawing = () => {
         setIsDrawing(false);
-    };  
+    };
 
     const runRoute = async () => {
         const canvas = canvasRef.current;
-    
+
         if (canvas) {
             setIsScanning(true);
             try {
                 const response = await axios({
-                method: 'post',
-                url: `${import.meta.env.VITE_API_URL}/calculate`,
-                data: {
-                    image: canvas.toDataURL('image/png'),
-                    dict_of_vars: dictOfVars
-                }
-            });
+                    method: 'post',
+                    url: `${import.meta.env.VITE_API_URL}/calculate`,
+                    data: {
+                        image: canvas.toDataURL('image/png'),
+                        dict_of_vars: dictOfVars
+                    }
+                });
 
-            const resp = await response.data;
-            console.log('Response', resp);
-            const newVars = { ...dictOfVars };
-            resp.data.forEach((data: Response) => {
-                if (data.assign === true) {
-                    (newVars as any)[data.expr] = data.result;
-                }
-            });
-            setDictOfVars(newVars);
-            const ctx = canvas.getContext('2d');
-            const imageData = ctx!.getImageData(0, 0, canvas.width, canvas.height);
-            let minX = canvas.width, minY = canvas.height, maxX = 0, maxY = 0;
+                const resp = await response.data;
+                console.log('Response', resp);
+                const newVars = { ...dictOfVars };
+                resp.data.forEach((data: Response) => {
+                    if (data.assign === true) {
+                        (newVars as any)[data.expr] = data.result;
+                    }
+                });
+                setDictOfVars(newVars);
+                const ctx = canvas.getContext('2d');
+                const imageData = ctx!.getImageData(0, 0, canvas.width, canvas.height);
+                let minX = canvas.width, minY = canvas.height, maxX = 0, maxY = 0;
 
-            for (let y = 0; y < canvas.height; y++) {
-                for (let x = 0; x < canvas.width; x++) {
-                    const i = (y * canvas.width + x) * 4;
-                    if (imageData.data[i + 3] > 0) {  // If pixel is not transparent
-                        minX = Math.min(minX, x);
-                        minY = Math.min(minY, y);
-                        maxX = Math.max(maxX, x);
-                        maxY = Math.max(maxY, y);
+                for (let y = 0; y < canvas.height; y++) {
+                    for (let x = 0; x < canvas.width; x++) {
+                        const i = (y * canvas.width + x) * 4;
+                        if (imageData.data[i + 3] > 0) {  // If pixel is not transparent
+                            minX = Math.min(minX, x);
+                            minY = Math.min(minY, y);
+                            maxX = Math.max(maxX, x);
+                            maxY = Math.max(maxY, y);
+                        }
                     }
                 }
-            }
 
-            const centerX = (minX + maxX) / 2;
-            const centerY = (minY + maxY) / 2;
+                const centerX = (minX + maxX) / 2;
+                const centerY = (minY + maxY) / 2;
 
-            setLatexPosition({ x: centerX, y: centerY });
-            const newResults: GeneratedResult[] = resp.data.map((data: Response) => ({
-                expression: data.expr,
-                answer: data.result,
-                type: data.type,
-                thought_process: data.thought_process,
-                confidence_score: data.confidence_score,
-                latency: data.latency
-            }));
-            
-            setTimeout(() => {
-                setResults([...results, ...newResults]);
-                // Clear the main canvas after processing
-                const ctx = canvas.getContext('2d');
-                if (ctx) {
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                }
-            }, 1000);
+                setLatexPosition({ x: centerX, y: centerY });
+                const newResults: GeneratedResult[] = resp.data.map((data: Response) => ({
+                    expression: data.expr,
+                    answer: data.result,
+                    type: data.type,
+                    thought_process: data.thought_process,
+                    confidence_score: data.confidence_score,
+                    latency: data.latency
+                }));
+
+                setTimeout(() => {
+                    setResults([...results, ...newResults]);
+                    // Clear the main canvas after processing
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    }
+                }, 1000);
 
             } catch (error: any) {
                 console.error("Failed to run AI", error);
@@ -364,22 +346,6 @@ export default function Home() {
             </div>
 
             <div className='absolute z-50 top-4 right-4 flex gap-4'>
-                <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    onChange={handleImageUpload} 
-                    accept="image/*" 
-                    className="hidden" 
-                />
-                <Button
-                    onClick={() => fileInputRef.current?.click()}
-                    className='bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 text-white transition-all shadow-lg'
-                    variant='default'
-                    title="Upload Image"
-                >
-                    <ImagePlus size={18} className="mr-2" />
-                    Upload
-                </Button>
                 <Button
                     onClick={() => setIsEraser(!isEraser)}
                     className={`bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 text-white transition-all shadow-lg ${isEraser ? 'bg-white/30 border-white' : ''}`}
@@ -392,7 +358,7 @@ export default function Home() {
                 <Button
                     onClick={() => setReset(true)}
                     className='bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 text-white transition-all shadow-lg'
-                    variant='default' 
+                    variant='default'
                 >
                     Reset
                 </Button>
@@ -423,12 +389,80 @@ export default function Home() {
                 <DraggableResultCard
                     key={index}
                     result={result}
-                    defaultPosition={{x: latexPosition.x, y: latexPosition.y + index * 120}}
+                    defaultPosition={{ x: latexPosition.x, y: latexPosition.y + index * 120 }}
                     setPosition={setLatexPosition}
                 />
             ))}
-            
+
             {isScanning && <div className="scanning-laser" />}
+
+            {/* Co-Pilot Toggle Button */}
+            <button
+                onClick={() => setIsCopilotOpen(!isCopilotOpen)}
+                className="absolute bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/40 hover:scale-110 active:scale-95 transition-all duration-200 border border-white/20"
+                title="Math Co-Pilot"
+            >
+                {isCopilotOpen ? <X size={22} className="text-white" /> : <MessageSquare size={22} className="text-white" />}
+            </button>
+
+            {/* Co-Pilot Chat Panel */}
+            {isCopilotOpen && (
+                <div className="absolute bottom-24 right-6 z-50 w-[360px] h-[480px] flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10" style={{ background: 'rgba(10,10,20,0.92)', backdropFilter: 'blur(20px)' }}>
+                    {/* Header */}
+                    <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-white/5">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-cyan-400 flex items-center justify-center">
+                            <Bot size={16} className="text-white" />
+                        </div>
+                        <div>
+                            <p className="text-white font-bold text-sm">Math Co-Pilot</p>
+                            <p className="text-gray-400 text-xs">Powered by Gemini</p>
+                        </div>
+                    </div>
+
+                    {/* Messages */}
+                    <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 scrollbar-thin">
+                        {copilotMessages.map((msg, i) => (
+                            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${msg.role === 'user'
+                                        ? 'bg-gradient-to-br from-blue-600 to-cyan-600 text-white rounded-br-sm'
+                                        : 'bg-white/10 text-gray-200 rounded-bl-sm border border-white/10'
+                                    }`}>
+                                    {msg.text}
+                                </div>
+                            </div>
+                        ))}
+                        {isCopilotLoading && (
+                            <div className="flex justify-start">
+                                <div className="bg-white/10 border border-white/10 px-4 py-3 rounded-2xl rounded-bl-sm flex gap-1.5 items-center">
+                                    <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                    <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                                    <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                                </div>
+                            </div>
+                        )}
+                        <div ref={chatEndRef} />
+                    </div>
+
+                    {/* Input */}
+                    <div className="px-3 py-3 border-t border-white/10 flex gap-2">
+                        <input
+                            type="text"
+                            value={copilotInput}
+                            onChange={(e) => setCopilotInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendCopilotMessage(); } }}
+                            placeholder="Ask about your canvas..."
+                            className="flex-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 outline-none focus:border-blue-500/50 transition-colors"
+                        />
+                        <button
+                            onClick={sendCopilotMessage}
+                            disabled={isCopilotLoading || !copilotInput.trim()}
+                            className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center disabled:opacity-40 hover:scale-105 active:scale-95 transition-all flex-shrink-0"
+                        >
+                            <Send size={16} className="text-white" />
+                        </button>
+                    </div>
+                </div>
+            )}
         </>
     );
 }

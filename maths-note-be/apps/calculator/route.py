@@ -11,7 +11,11 @@ router = APIRouter()
 @router.post('')
 async def run(data: ImageData):
     try:
-        image_data= base64.b64decode(data.image.split(',')[1])
+        # Handle both 'data:image/png;base64,xxx' and raw base64 strings
+        raw = data.image
+        if ',' in raw:
+            raw = raw.split(',', 1)[1]
+        image_data = base64.b64decode(raw)
         image_bytes=BytesIO(image_data)
         image = Image.open(image_bytes)
         start_time = time.time()
