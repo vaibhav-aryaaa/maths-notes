@@ -323,9 +323,6 @@ export default function Home() {
             <div className="absolute top-0 left-0 w-64 h-full bg-black/50 backdrop-blur-md border-r border-white/20 p-5 z-40 text-white shadow-2xl transition-all duration-300">
                 {/* SolveIQ Logo Branding */}
                 <div className="flex items-center gap-2 mb-6 pb-4 border-b border-white/10">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-cyan-400 flex items-center justify-center text-white font-black text-sm shadow-lg shadow-blue-500/30">
-                        S
-                    </div>
                     <span className="text-xl font-extrabold tracking-tight">
                         solve<span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">IQ</span>
                     </span>

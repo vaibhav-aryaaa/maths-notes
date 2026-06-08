@@ -8,10 +8,11 @@ dist-ssr/
 __pycache__/
 *.py[cod]
 *$py.class
+venv
 venv/
+.venv/
 env/
 .env
-.venv
 
 # macOS
 .DS_Store
