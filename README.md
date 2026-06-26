@@ -21,7 +21,7 @@
 
 - **🎨 Infinite Mathematical Canvas**: Draw equations, geometric shapes, and functions using a responsive, low-latency drawing interface.
 - **🤖 Multi-Modal AI Solver**: Leverages **Google Gemini 2.0** and **Groq (Llama 3.3)** to interpret handwritten math, diagrams, and complex word problems.
-- **💬 Math Co-Pilot**: An interactive chat interface that maintains session-aware context, allowing you to ask follow-up questions about specific steps or concepts.
+- **💬 Vector**: An interactive chat interface that maintains session-aware context, allowing you to ask follow-up questions about specific steps or concepts.
 - **🧠 Agentic Memory**: A state-management system that "remembers" variables (e.g., `x = 5`) across the canvas, enabling multi-step problem solving and constant-based calculations.
 - **🧬 Transparent Reasoning**: View the AI's internal "Thought Process" and confidence scores for every solution.
 - **📱 Responsive Glassmorphic UI**: A premium, dark-mode-first interface built with Mantine and TailwindCSS, designed for both desktop and tablet experiences.
