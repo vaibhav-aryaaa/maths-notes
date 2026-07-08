@@ -10,7 +10,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import axios from 'axios';
 import Draggable from 'react-draggable';
 import { SWATCHES } from '@/constants';
-import { Eraser, Pen, MessageSquare, X, Send, Bot, Menu, RotateCcw, Sparkles } from 'lucide-react';
+import { Eraser, Pen, MessageSquare, X, Menu, RotateCcw, Sparkles } from 'lucide-react';
 
 declare global {
     interface Window {
@@ -102,7 +102,7 @@ export default function Home() {
     // Math Co-Pilot state
     const [isCopilotOpen, setIsCopilotOpen] = useState(false);
     const [copilotMessages, setCopilotMessages] = useState<{ role: 'user' | 'ai', text: string }[]>([
-        { role: 'ai', text: 'Hi 👋 !  I am your Vector, your math-copilot. Run your canvas first, then ask me anything about it!' }
+        { role: 'ai', text: "Ready to bend the rules of math? Draw your equations on the canvas, hit Run, and let's dissect the universe together. No problem is too wild!" }
     ]);
     const [copilotInput, setCopilotInput] = useState('');
     const [isCopilotLoading, setIsCopilotLoading] = useState(false);
@@ -566,67 +566,88 @@ export default function Home() {
             {/* Co-Pilot Toggle Button */}
             <button
                 onClick={() => setIsCopilotOpen(!isCopilotOpen)}
-                className="absolute bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-br from-amber-600 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/40 hover:scale-110 active:scale-95 transition-all duration-200 border border-white/20"
-                title="Mathiew"
+                className="absolute bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-tr from-rose-500 via-orange-500 to-amber-400 flex items-center justify-center shadow-lg shadow-orange-500/40 hover:scale-110 active:scale-95 transition-all duration-200 border border-white/20 cursor-pointer"
+                title="Vector"
             >
                 {isCopilotOpen ? <X size={22} className="text-white" /> : <MessageSquare size={22} className="text-white" />}
             </button>
 
             {/* Co-Pilot Chat Panel */}
             {isCopilotOpen && (
-                <div className="absolute bottom-24 right-4 left-4 sm:left-auto sm:right-6 z-50 w-auto sm:w-[360px] h-[450px] sm:h-[480px] flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10" style={{ background: 'rgba(10,10,20,0.92)', backdropFilter: 'blur(20px)' }}>
-                    {/* Header */}
-                    <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-white/5">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-600 to-orange-400 flex items-center justify-center">
-                            <Bot size={16} className="text-white" />
-                        </div>
-                        <div>
-                            <p className="text-white font-bold text-sm">Vector</p>
-                            <p className="text-gray-400 text-xs">Your maths buddy</p>
-                        </div>
-                    </div>
-
+                <div className="absolute bottom-24 right-4 left-4 sm:left-auto sm:right-6 z-50 w-auto sm:w-[360px] h-[480px] sm:h-[520px] flex flex-col rounded-3xl overflow-hidden shadow-2xl border border-stone-200/80 bg-white/95 backdrop-blur-md">
                     {/* Messages */}
-                    <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 scrollbar-thin">
-                        {copilotMessages.map((msg, i) => (
-                            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${msg.role === 'user'
-                                        ? 'bg-gradient-to-br from-amber-600 to-orange-600 text-white rounded-br-sm'
-                                        : 'bg-white/10 text-gray-200 rounded-bl-sm border border-white/10'
+                    <div className="flex-1 overflow-y-auto px-5 pb-5 pt-8 flex flex-col gap-4 scrollbar-thin">
+                        {copilotMessages.map((msg, i) => {
+                            // Render the first welcome message as a premium hero welcome section
+                            if (i === 0) {
+                                return (
+                                    <div key={i} className="flex flex-col items-center py-4 select-none">
+                                        <div className="relative w-24 h-24 mb-3 flex items-center justify-center">
+                                            <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-rose-500 via-orange-500 to-yellow-400 opacity-40 blur-xl animate-pulse" />
+                                            <div className="relative w-18 h-18 rounded-full bg-gradient-to-tr from-rose-500 via-orange-500 to-yellow-400 shadow-lg shadow-orange-500/25 flex items-center justify-center overflow-hidden">
+                                                <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent opacity-45" />
+                                            </div>
+                                        </div>
+                                        {/* Name of the chatbot bold below the orb */}
+                                        <p className="text-stone-900 font-extrabold text-lg sm:text-xl tracking-tight mb-2">Vector</p>
+                                        <p className="text-center text-stone-600 text-sm leading-relaxed font-medium px-4">
+                                            {msg.text}
+                                        </p>
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                    <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                                        msg.role === 'user'
+                                            ? 'bg-stone-900 text-white rounded-br-sm'
+                                            : 'bg-stone-100 border border-stone-200/50 text-stone-850 rounded-bl-sm'
                                     }`}>
-                                    {msg.text}
+                                        {msg.text}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                         {isCopilotLoading && (
-                            <div className="flex justify-start">
-                                <div className="bg-white/10 border border-white/10 px-4 py-3 rounded-2xl rounded-bl-sm flex gap-1.5 items-center">
-                                    <div className="w-2 h-2 rounded-full bg-amber-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-                                    <div className="w-2 h-2 rounded-full bg-amber-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-                                    <div className="w-2 h-2 rounded-full bg-amber-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                            <div className="flex justify-start animate-fade-in">
+                                <div className="bg-stone-100 border border-stone-200/50 px-4 py-2.5 rounded-2xl rounded-bl-sm flex gap-1.5 items-center shadow-sm">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-stone-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                    <div className="w-1.5 h-1.5 rounded-full bg-stone-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                                    <div className="w-1.5 h-1.5 rounded-full bg-stone-400 animate-bounce" style={{ animationDelay: '300ms' }} />
                                 </div>
                             </div>
                         )}
                         <div ref={chatEndRef} />
                     </div>
 
-                    {/* Input */}
-                    <div className="px-3 py-3 border-t border-white/10 flex gap-2">
-                        <input
-                            type="text"
-                            value={copilotInput}
-                            onChange={(e) => setCopilotInput(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendCopilotMessage(); } }}
-                            placeholder="Ask about your canvas..."
-                            className="flex-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 outline-none focus:border-amber-500/50 transition-colors"
-                        />
-                        <button
-                            onClick={sendCopilotMessage}
-                            disabled={isCopilotLoading || !copilotInput.trim()}
-                            className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-600 to-orange-500 flex items-center justify-center disabled:opacity-40 hover:scale-105 active:scale-95 transition-all flex-shrink-0"
-                        >
-                            <Send size={16} className="text-white" />
-                        </button>
+                    {/* Input Container */}
+                    <div className="px-4 pb-4 pt-2 bg-white">
+                        <div className="flex items-center gap-2 bg-stone-50 border border-stone-200/60 rounded-2xl px-4 py-2.5 focus-within:border-stone-400 focus-within:ring-2 focus-within:ring-stone-100 transition-all shadow-sm">
+                            <input
+                                type="text"
+                                value={copilotInput}
+                                onChange={(e) => setCopilotInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        sendCopilotMessage();
+                                    }
+                                }}
+                                placeholder="Ask about your canvas..."
+                                className="flex-1 bg-transparent text-sm text-stone-800 placeholder-stone-400 outline-none font-sans"
+                            />
+                            <button
+                                onClick={sendCopilotMessage}
+                                disabled={isCopilotLoading || !copilotInput.trim()}
+                                className="w-8 h-8 rounded-full bg-stone-950 hover:bg-stone-800 text-white flex items-center justify-center disabled:opacity-30 hover:scale-105 active:scale-95 transition-all flex-shrink-0 cursor-pointer"
+                            >
+                                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                                    <line x1="12" y1="19" x2="12" y2="5"></line>
+                                    <polyline points="5 12 12 5 19 12"></polyline>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
