@@ -563,7 +563,6 @@ export default function Home() {
 
             {isScanning && <div className="scanning-laser" />}
 
-            {/* Co-Pilot Toggle Button */}
             <button
                 onClick={() => setIsCopilotOpen(!isCopilotOpen)}
                 className="absolute bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-tr from-rose-500 via-orange-500 to-amber-400 flex items-center justify-center shadow-lg shadow-orange-500/40 hover:scale-110 active:scale-95 transition-all duration-200 border border-white/20 cursor-pointer"
@@ -572,13 +571,10 @@ export default function Home() {
                 {isCopilotOpen ? <X size={22} className="text-white" /> : <MessageSquare size={22} className="text-white" />}
             </button>
 
-            {/* Co-Pilot Chat Panel */}
             {isCopilotOpen && (
                 <div className="absolute bottom-24 right-4 left-4 sm:left-auto sm:right-6 z-50 w-auto sm:w-[360px] h-[480px] sm:h-[520px] flex flex-col rounded-3xl overflow-hidden shadow-2xl border border-stone-200/80 bg-white/95 backdrop-blur-md">
-                    {/* Messages */}
                     <div className="flex-1 overflow-y-auto px-5 pb-5 pt-8 flex flex-col gap-4 scrollbar-thin">
                         {copilotMessages.map((msg, i) => {
-                            // Render the first welcome message as a premium hero welcome section
                             if (i === 0) {
                                 return (
                                     <div key={i} className="flex flex-col items-center py-4 select-none">
@@ -588,7 +584,6 @@ export default function Home() {
                                                 <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent opacity-45" />
                                             </div>
                                         </div>
-                                        {/* Name of the chatbot bold below the orb */}
                                         <p className="text-stone-900 font-extrabold text-lg sm:text-xl tracking-tight mb-2">Vector</p>
                                         <p className="text-center text-stone-600 text-sm leading-relaxed font-medium px-4">
                                             {msg.text}
@@ -621,7 +616,6 @@ export default function Home() {
                         <div ref={chatEndRef} />
                     </div>
 
-                    {/* Input Container */}
                     <div className="px-4 pb-4 pt-2 bg-white">
                         <div className="flex items-center gap-2 bg-stone-50 border border-stone-200/60 rounded-2xl px-4 py-2.5 focus-within:border-stone-400 focus-within:ring-2 focus-within:ring-stone-100 transition-all shadow-sm">
                             <input

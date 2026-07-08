@@ -1,3 +1,5 @@
+import Math3DBackground from '@/components/Math3DBackground';
+
 interface LandingProps {
     onStart: () => void;
 }
@@ -6,7 +8,6 @@ export default function Landing({ onStart }: LandingProps) {
     return (
         <div className="relative w-full h-screen bg-[#fafaf9] overflow-hidden flex flex-col items-center justify-center font-sans">
             
-            {/* Navbar with Logo & GitHub Link */}
             <div className="absolute top-0 left-0 w-full p-6 md:p-8 flex items-center justify-between z-50 pointer-events-none">
                 <div className="flex items-center gap-2 select-none">
                     <span className="text-xl md:text-2xl font-extrabold tracking-tight text-stone-900">
@@ -28,8 +29,9 @@ export default function Landing({ onStart }: LandingProps) {
                 </div>
             </div>
 
-            {/* Sketched Background Elements */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <Math3DBackground />
+
+            <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
                 <div className="floating-symbol symbol-1 left-[10%] top-[20%] text-5xl sm:text-7xl font-handwriting text-stone-400/20 select-none">∑</div>
                 <div className="floating-symbol symbol-2 left-[85%] top-[15%] text-6xl sm:text-8xl font-handwriting text-stone-400/20 select-none">∫</div>
                 <div className="floating-symbol symbol-3 left-[20%] top-[75%] text-5xl sm:text-6xl font-handwriting text-stone-400/20 select-none">π</div>
@@ -40,33 +42,28 @@ export default function Landing({ onStart }: LandingProps) {
                 <div className="floating-symbol symbol-2 left-[35%] top-[85%] text-5xl sm:text-7xl font-handwriting text-stone-400/20 select-none hidden md:block">θ</div>
                 <div className="floating-symbol symbol-3 left-[65%] top-[25%] text-4xl sm:text-6xl font-handwriting text-stone-400/20 select-none hidden md:block">λ</div>
                 
-                {/* Subtle Whiteboard Light Orbs */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[800px] h-[300px] sm:h-[800px] bg-amber-500/5 blur-[80px] sm:blur-[150px] rounded-full pointer-events-none" />
             </div>
 
-            {/* Main Content */}
-            <div className="relative z-10 flex flex-col items-center max-w-3xl px-6 text-center select-none">
+            <div className="relative z-10 flex flex-col items-center max-w-3xl px-6 text-center select-none pointer-events-none">
                 
-                {/* Hand-drawn Pill Badge */}
-                <div className="mb-4 md:mb-6 px-4 py-1.5 rounded-xl border border-amber-500/20 bg-amber-500/5 flex items-center gap-2 text-xs sm:text-sm font-bold tracking-wide text-amber-700 font-handwriting">
+                <div className="mb-4 md:mb-6 px-4 py-1.5 rounded-xl border border-amber-500/20 bg-amber-500/5 flex items-center gap-2 text-xs sm:text-sm font-bold tracking-wide text-amber-700 font-handwriting animate-fade-in-up">
                     <div className="w-2 h-2 rounded-full bg-amber-600 animate-pulse" />
                     THE ULTIMATE AI MATH CANVAS
                 </div>
 
-                {/* Cartoon Font Mixture Editorial Headline */}
-                <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl leading-[1.2] md:leading-[1.15] font-extrabold text-stone-900 mb-6 tracking-tight font-sans">
+                <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl leading-[1.2] md:leading-[1.15] font-extrabold text-stone-900 mb-6 tracking-tight font-sans animate-fade-in-up" style={{ animationDelay: '150ms' }}>
                     Solve your <span className="relative inline-block px-4 py-1.5 mx-1 font-handwriting text-amber-700 bg-amber-100/55 rounded-2xl -rotate-1 transform shadow-sm">complex math</span><br/> problems instantly.
                 </h1>
                 
-                {/* Subheadline */}
-                <p className="text-sm sm:text-base md:text-lg text-stone-500 mb-8 md:mb-10 max-w-xl font-medium leading-relaxed font-sans">
-                    Draw equations, get step-by-step reasoning, and see the AI's thought process — personalized to your mathematical style.
+                <p className="text-sm sm:text-base md:text-lg text-stone-500 mb-8 md:mb-10 max-w-xl font-medium leading-relaxed font-sans animate-fade-in-up" style={{ animationDelay: '300ms' }}>
+                    Draw equations, get step-by-step reasoning, and see the AI's thought process, personalized to your mathematical style.
                 </p>
 
-                {/* Primary CTA (Stone Dark Style) */}
                 <button 
                     onClick={onStart}
-                    className="group relative px-7 py-3.5 bg-stone-950 hover:bg-stone-800 text-stone-50 font-bold tracking-wide rounded-2xl shadow-md transition-all duration-300 transform hover:scale-[1.02] active:scale-95 border border-stone-850 flex items-center gap-2 text-base pointer-events-auto"
+                    className="group relative px-7 py-3.5 bg-stone-950 hover:bg-stone-800 text-stone-50 font-bold tracking-wide rounded-2xl shadow-md transition-all duration-300 transform hover:scale-[1.02] active:scale-95 border border-stone-850 flex items-center gap-2 text-base pointer-events-auto animate-fade-in-up"
+                    style={{ animationDelay: '450ms' }}
                 >
                     <span>Start Solving</span>
                     <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
