@@ -8,7 +8,6 @@ import {
 } from "@/components/ui/accordion";
 import { useEffect, useRef, useState, useCallback } from 'react';
 import axios from 'axios';
-import Draggable from 'react-draggable';
 import { SWATCHES } from '@/constants';
 import { Eraser, Pen, MessageSquare, X, Menu, RotateCcw, Sparkles } from 'lucide-react';
 
@@ -38,50 +37,181 @@ interface Response {
     confidence_score?: number;
     latency?: number;
 }
+const formatMathText = (text: string) => {
+    if (!text) return '';
+    
+    // Replace literal "\n" strings (escaped) with actual newlines
+    let formatted = text.replace(/\\n/g, '\n');
+    
+    // Replace caret notation for exponents (e.g., a^2 -> a²)
+    const superscripts: Record<string, string> = {
+        '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', 
+        '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹'
+    };
+    formatted = formatted.replace(/\^([0-9])/g, (_, num) => superscripts[num] || `^${num}`);
+    
+    // Replace escaped unicode square root symbols with the actual symbol
+    formatted = formatted.replace(/\\u221a/gi, '√');
+    
+    return formatted;
+};
 
-const DraggableResultCard = ({ result, defaultPosition, setPosition }: { result: GeneratedResult, defaultPosition: { x: number, y: number }, setPosition: (pos: { x: number, y: number }) => void }) => {
-    const nodeRef = useRef<HTMLDivElement>(null);
+const DraggableResultCard = ({ result, defaultPosition }: { result: GeneratedResult, defaultPosition: { x: number, y: number }, setPosition?: (pos: { x: number, y: number }) => void }) => {
+    const [position, setPosition] = useState(defaultPosition);
+    const [isDragging, setIsDragging] = useState(false);
+    const [isMinimized, setIsMinimized] = useState(false);
+    const dragStart = useRef({ x: 0, y: 0 });
+    const cardStart = useRef({ x: 0, y: 0 });
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        const target = e.target as HTMLElement;
+        if (target.closest('button') || target.closest('[data-slot^="accordion"]')) {
+            return;
+        }
+        setIsDragging(true);
+        dragStart.current = { x: e.clientX, y: e.clientY };
+        cardStart.current = { x: position.x, y: position.y };
+        e.preventDefault(); // Prevents default text-selection / image-ghosting during drag
+    };
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        const target = e.target as HTMLElement;
+        if (target.closest('button') || target.closest('[data-slot^="accordion"]')) {
+            return;
+        }
+        const touch = e.touches[0];
+        setIsDragging(true);
+        dragStart.current = { x: touch.clientX, y: touch.clientY };
+        cardStart.current = { x: position.x, y: position.y };
+    };
+
+    useEffect(() => {
+        if (!isDragging) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            const dx = e.clientX - dragStart.current.x;
+            const dy = e.clientY - dragStart.current.y;
+            setPosition({
+                x: cardStart.current.x + dx,
+                y: cardStart.current.y + dy
+            });
+        };
+
+        const handleTouchMove = (e: TouchEvent) => {
+            const touch = e.touches[0];
+            const dx = touch.clientX - dragStart.current.x;
+            const dy = touch.clientY - dragStart.current.y;
+            setPosition({
+                x: cardStart.current.x + dx,
+                y: cardStart.current.y + dy
+            });
+        };
+
+        const handleMouseUp = () => {
+            setIsDragging(false);
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        window.addEventListener('touchmove', handleTouchMove, { passive: false });
+        window.addEventListener('touchend', handleMouseUp);
+        
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+            window.removeEventListener('touchmove', handleTouchMove);
+            window.removeEventListener('touchend', handleMouseUp);
+        };
+    }, [isDragging]);
+
+    useEffect(() => {
+        if (!isMinimized && window.MathJax) {
+            setTimeout(() => {
+                try {
+                    window.MathJax.Hub.Queue(["Typeset", window.MathJax.Hub]);
+                } catch (e) {
+                    console.error("MathJax typesetting failed:", e);
+                }
+            }, 50);
+        }
+    }, [isMinimized]);
+
+    // Heuristic: If it has multiple spaces and at least one multi-letter English word, it is descriptive text.
+    const isText = result.type === 'text' || 
+                   (/\s+/.test(result.expression) && /[a-zA-Z]{3,}/.test(result.expression)) ||
+                   (/\s+/.test(result.answer) && /[a-zA-Z]{3,}/.test(result.answer)) ||
+                   /^[a-zA-Z\s.,?!'-]{5,}$/.test(result.expression) ||
+                   /^[a-zA-Z\s.,?!'-]{5,}$/.test(result.answer);
+
     let latex = '';
-    if (result.type === 'text') {
+    if (isText) {
         latex = `${result.expression} = ${result.answer}`;
     } else {
         latex = `\\(${result.expression} = ${result.answer}\\)`;
     }
 
     return (
-        <Draggable
-            nodeRef={nodeRef}
-            defaultPosition={defaultPosition}
-            onStop={(_e, data) => setPosition({ x: data.x, y: data.y })}
+        <div 
+            className="absolute top-0 left-0 z-50 glassmorphic-card p-4 rounded-xl shadow-2xl w-[calc(100vw-32px)] sm:w-auto sm:min-w-[300px] sm:max-w-[500px] cursor-move select-none"
+            style={{ transform: `translate3d(${position.x}px, ${position.y}px, 0)` }}
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
         >
-            <div ref={nodeRef} className="absolute z-50 glassmorphic-card p-4 rounded-xl shadow-2xl w-[calc(100vw-32px)] sm:w-auto sm:min-w-[300px] sm:max-w-[500px] cursor-move">
-                <div className="flex justify-between items-center mb-3">
-                    <span className="text-xs font-bold px-2 py-1 bg-green-500/20 text-green-400 rounded-full border border-green-500/30">
+            <div className="flex justify-between items-center gap-4">
+                <div className="flex items-center gap-2 overflow-hidden flex-1">
+                    <span className="text-xs font-bold px-2 py-1 bg-green-500/20 text-green-400 rounded-full border border-green-500/30 shrink-0">
                         {result.confidence_score ? `${result.confidence_score}% Confident` : 'AI Result'}
                     </span>
+                    {isMinimized && (
+                        <span className="text-xs text-gray-300 font-medium truncate flex-1" title={`${result.expression} = ${result.answer}`}>
+                            {result.expression.length > 25 ? `${result.expression.slice(0, 25)}...` : result.expression} = {result.answer}
+                        </span>
+                    )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
                     <span className="text-xs text-gray-400 font-mono">
                         {result.latency ? `${result.latency}ms` : ''}
                     </span>
+                    <button
+                        onClick={() => setIsMinimized(!isMinimized)}
+                        className="w-3.5 h-3.5 rounded-full bg-purple-500 hover:bg-purple-400 border border-purple-600/50 transition-all cursor-pointer flex items-center justify-center group relative shadow-sm"
+                        title={isMinimized ? "Maximize" : "Minimize"}
+                    >
+                        {isMinimized ? (
+                            /* macOS style plus icon on hover */
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <span className="w-1.5 h-[1.5px] bg-purple-950 absolute" />
+                                <span className="h-1.5 w-[1.5px] bg-purple-950 absolute" />
+                            </div>
+                        ) : (
+                            /* macOS style minus icon on hover */
+                            <span className="w-1.5 h-[1.5px] bg-purple-950 opacity-0 group-hover:opacity-100 transition-opacity absolute" />
+                        )}
+                    </button>
                 </div>
-
-                <div className="latex-content text-white mb-4">
-                    {latex}
-                </div>
-
-                {result.thought_process && (
-                    <Accordion type="single" collapsible className="w-full">
-                        <AccordionItem value="thought-process" className="border-white/10">
-                            <AccordionTrigger className="text-sm text-gray-300 hover:text-white py-2">
-                                View Thought Process
-                            </AccordionTrigger>
-                            <AccordionContent className="text-gray-400 text-sm leading-relaxed">
-                                {result.thought_process}
-                            </AccordionContent>
-                        </AccordionItem>
-                    </Accordion>
-                )}
             </div>
-        </Draggable>
+
+            {!isMinimized && (
+                <div className="mt-3 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="latex-content text-white mb-4 whitespace-normal break-words">
+                        {latex}
+                    </div>
+
+                    {result.thought_process && (
+                        <Accordion type="single" collapsible className="w-full">
+                            <AccordionItem value="thought-process" className="border-white/10">
+                                <AccordionTrigger className="text-sm text-gray-300 hover:text-white py-2">
+                                    View Thought Process
+                                </AccordionTrigger>
+                                <AccordionContent className="text-gray-400 text-sm leading-relaxed whitespace-pre-wrap">
+                                    {formatMathText(result.thought_process)}
+                                </AccordionContent>
+                            </AccordionItem>
+                        </Accordion>
+                    )}
+                </div>
+            )}
+        </div>
     );
 };
 
@@ -108,6 +238,16 @@ export default function Home() {
     const [isCopilotLoading, setIsCopilotLoading] = useState(false);
     const sessionId = useRef(`session_${Date.now()}`);
     const chatEndRef = useRef<HTMLDivElement>(null);
+
+    // Bounds tracking for canvas optimization
+    const drawBoundsRef = useRef({ minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+
+    const updateBounds = (x: number, y: number) => {
+        if (x < drawBoundsRef.current.minX) drawBoundsRef.current.minX = x;
+        if (x > drawBoundsRef.current.maxX) drawBoundsRef.current.maxX = x;
+        if (y < drawBoundsRef.current.minY) drawBoundsRef.current.minY = y;
+        if (y > drawBoundsRef.current.maxY) drawBoundsRef.current.maxY = y;
+    };
 
     // const lazyBrush = new LazyBrush({
     //     radius: 10,
@@ -215,8 +355,7 @@ export default function Home() {
         const text = copilotInput.trim();
         if (!text || isCopilotLoading) return;
 
-        const canvas = canvasRef.current;
-        const canvasImage = canvas ? canvas.toDataURL('image/png') : '';
+        const canvasImage = ''; // Omit heavy image bytes since copilot backend is text-only Llama and doesn't use it
 
         setCopilotMessages(prev => [...prev, { role: 'user', text }]);
         setCopilotInput('');
@@ -251,6 +390,7 @@ export default function Home() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
             }
         }
+        drawBoundsRef.current = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
     };
 
     const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -262,6 +402,9 @@ export default function Home() {
                 ctx.beginPath();
                 ctx.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
                 setIsDrawing(true);
+                if (!isEraser) {
+                    updateBounds(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+                }
             }
         }
     };
@@ -280,6 +423,7 @@ export default function Home() {
                     ctx.globalCompositeOperation = 'source-over';
                     ctx.strokeStyle = color;
                     ctx.lineWidth = 3;
+                    updateBounds(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
                 }
                 ctx.lineTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
                 ctx.stroke();
@@ -311,6 +455,9 @@ export default function Home() {
                 ctx.beginPath();
                 ctx.moveTo(pos.x, pos.y);
                 setIsDrawing(true);
+                if (!isEraser) {
+                    updateBounds(pos.x, pos.y);
+                }
             }
         }
     };
@@ -330,6 +477,9 @@ export default function Home() {
                     ctx.lineWidth = 3;
                 }
                 const pos = getTouchPos(e);
+                if (!isEraser) {
+                    updateBounds(pos.x, pos.y);
+                }
                 ctx.lineTo(pos.x, pos.y);
                 ctx.stroke();
             }
@@ -344,19 +494,44 @@ export default function Home() {
         const canvas = canvasRef.current;
 
         if (canvas) {
+            const bounds = drawBoundsRef.current;
+
+            // Check if anything was actually drawn
+            if (bounds.minX === Infinity || bounds.minY === Infinity) {
+                alert("Please draw something on the canvas first!");
+                return;
+            }
+
             setIsScanning(true);
             try {
+                // Calculate cropped region with a padding of 20px
+                const padding = 20;
+                const cropX = Math.max(0, bounds.minX - padding);
+                const cropY = Math.max(0, bounds.minY - padding);
+                const cropWidth = Math.min(canvas.width - cropX, (bounds.maxX - bounds.minX) + padding * 2);
+                const cropHeight = Math.min(canvas.height - cropY, (bounds.maxY - bounds.minY) + padding * 2);
+
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = cropWidth;
+                tempCanvas.height = cropHeight;
+                const tempCtx = tempCanvas.getContext('2d');
+                if (tempCtx) {
+                    tempCtx.drawImage(canvas, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+                }
+                const croppedImageBase64 = tempCanvas.toDataURL('image/png');
+
                 const response = await axios({
                     method: 'post',
                     url: `${import.meta.env.VITE_API_URL}/calculate`,
                     data: {
-                        image: canvas.toDataURL('image/png'),
+                        image: croppedImageBase64,
                         dict_of_vars: dictOfVars
                     }
                 });
 
                 const resp = await response.data;
                 console.log('Response', resp);
+                
                 const newVars = { ...dictOfVars };
                 resp.data.forEach((data: Response) => {
                     if (data.assign === true) {
@@ -364,24 +539,10 @@ export default function Home() {
                     }
                 });
                 setDictOfVars(newVars);
-                const ctx = canvas.getContext('2d');
-                const imageData = ctx!.getImageData(0, 0, canvas.width, canvas.height);
-                let minX = canvas.width, minY = canvas.height, maxX = 0, maxY = 0;
 
-                for (let y = 0; y < canvas.height; y++) {
-                    for (let x = 0; x < canvas.width; x++) {
-                        const i = (y * canvas.width + x) * 4;
-                        if (imageData.data[i + 3] > 0) {  // If pixel is not transparent
-                            minX = Math.min(minX, x);
-                            minY = Math.min(minY, y);
-                            maxX = Math.max(maxX, x);
-                            maxY = Math.max(maxY, y);
-                        }
-                    }
-                }
-
-                const centerX = (minX + maxX) / 2;
-                const centerY = (minY + maxY) / 2;
+                // Calculate center point from the pre-tracked bounds
+                const centerX = (bounds.minX + bounds.maxX) / 2;
+                const centerY = (bounds.minY + bounds.maxY) / 2;
 
                 // Clamp position so card is within screen bounds
                 const cardWidth = window.innerWidth < 640 ? window.innerWidth - 32 : 300;
@@ -389,6 +550,7 @@ export default function Home() {
                 const clampedY = Math.max(80, Math.min(centerY, window.innerHeight - 200));
 
                 setLatexPosition({ x: clampedX, y: clampedY });
+                
                 const newResults: GeneratedResult[] = resp.data.map((data: Response) => ({
                     expression: data.expr,
                     answer: data.result,
@@ -398,14 +560,13 @@ export default function Home() {
                     latency: data.latency
                 }));
 
-                setTimeout(() => {
-                    setResults([...results, ...newResults]);
-                    // Clear the main canvas after processing
-                    const ctx = canvas.getContext('2d');
-                    if (ctx) {
-                        ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    }
-                }, 1000);
+                // Immediately update results and clear canvas (no artificial delay!)
+                setResults([...results, ...newResults]);
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+                drawBoundsRef.current = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
 
             } catch (error: any) {
                 console.error("Failed to run AI", error);
