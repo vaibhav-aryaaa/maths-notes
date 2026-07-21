@@ -1,11 +1,11 @@
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import ast
 import json
 from PIL import Image
 from constants import GEMINI_API_KEY
 
-genai.configure(api_key=GEMINI_API_KEY)
-model=genai.GenerativeModel(model_name="gemini-2.5-flash")
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 def analyze_image(img: Image, dict_of_vars: dict):
     dict_of_vars_str= json.dumps(dict_of_vars, ensure_ascii=False)
@@ -33,7 +33,13 @@ def analyze_image(img: Image, dict_of_vars: dict):
         f"DO NOT USE BACKTICKS OR MARKDOWN FORMATTING. "
         f"PROPERLY QUOTE THE KEYS AND VALUES IN THE JSON DOCUMENT FOR EASIER PARSING WITH Python's json.loads."
     )
-    response = model.generate_content([prompt, img], generation_config=genai.GenerationConfig(response_mime_type="application/json"))
+    response = client.models.generate_content(
+        model='gemini-2.5-flash',
+        contents=[prompt, img],
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+        ),
+    )
     print(response.text)
     answers= []
     try:

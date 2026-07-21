@@ -1,15 +1,9 @@
 
 import { Button } from '@/components/ui/button';
-import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
-} from "@/components/ui/accordion";
 import { useEffect, useRef, useState, useCallback } from 'react';
 import axios from 'axios';
 import { SWATCHES } from '@/constants';
-import { Eraser, Pen, MessageSquare, X, Menu, RotateCcw, Sparkles } from 'lucide-react';
+import { Eraser, Pen, MessageSquare, X, Menu, RotateCcw, Sparkles, ChevronDown } from 'lucide-react';
 
 declare global {
     interface Window {
@@ -58,10 +52,20 @@ const formatMathText = (text: string) => {
 
 const DraggableResultCard = ({ result, defaultPosition }: { result: GeneratedResult, defaultPosition: { x: number, y: number }, setPosition?: (pos: { x: number, y: number }) => void }) => {
     const [position, setPosition] = useState(defaultPosition);
+    const [size, setSize] = useState(() => {
+        const w = typeof window !== 'undefined' ? Math.min(450, window.innerWidth - 32) : 450;
+        return { width: w, height: 280 };
+    });
     const [isDragging, setIsDragging] = useState(false);
+    const [isResizing, setIsResizing] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
+    const [showThoughtProcess, setShowThoughtProcess] = useState(false);
+
     const dragStart = useRef({ x: 0, y: 0 });
     const cardStart = useRef({ x: 0, y: 0 });
+    
+    const resizeStart = useRef({ x: 0, y: 0 });
+    const cardSizeStart = useRef({ width: 0, height: 0 });
 
     const handleMouseDown = (e: React.MouseEvent) => {
         const target = e.target as HTMLElement;
@@ -83,6 +87,22 @@ const DraggableResultCard = ({ result, defaultPosition }: { result: GeneratedRes
         setIsDragging(true);
         dragStart.current = { x: touch.clientX, y: touch.clientY };
         cardStart.current = { x: position.x, y: position.y };
+    };
+
+    const handleResizeMouseDown = (e: React.MouseEvent) => {
+        setIsResizing(true);
+        resizeStart.current = { x: e.clientX, y: e.clientY };
+        cardSizeStart.current = { width: size.width, height: size.height };
+        e.preventDefault();
+        e.stopPropagation(); // Stops drag listener from triggering
+    };
+
+    const handleResizeTouchStart = (e: React.TouchEvent) => {
+        const touch = e.touches[0];
+        setIsResizing(true);
+        resizeStart.current = { x: touch.clientX, y: touch.clientY };
+        cardSizeStart.current = { width: size.width, height: size.height };
+        e.stopPropagation(); // Stops drag listener from triggering
     };
 
     useEffect(() => {
@@ -125,6 +145,50 @@ const DraggableResultCard = ({ result, defaultPosition }: { result: GeneratedRes
     }, [isDragging]);
 
     useEffect(() => {
+        if (!isResizing) return;
+
+        const minWidth = 300;
+        const minHeight = 180;
+        const maxWidth = Math.min(800, window.innerWidth - 32);
+        const maxHeight = Math.min(800, window.innerHeight - 32);
+
+        const handleMouseMove = (e: MouseEvent) => {
+            const dx = e.clientX - resizeStart.current.x;
+            const dy = e.clientY - resizeStart.current.y;
+            setSize({
+                width: Math.max(minWidth, Math.min(maxWidth, cardSizeStart.current.width + dx)),
+                height: Math.max(minHeight, Math.min(maxHeight, cardSizeStart.current.height + dy))
+            });
+        };
+
+        const handleTouchMove = (e: TouchEvent) => {
+            const touch = e.touches[0];
+            const dx = touch.clientX - resizeStart.current.x;
+            const dy = touch.clientY - resizeStart.current.y;
+            setSize({
+                width: Math.max(minWidth, Math.min(maxWidth, cardSizeStart.current.width + dx)),
+                height: Math.max(minHeight, Math.min(maxHeight, cardSizeStart.current.height + dy))
+            });
+        };
+
+        const handleMouseUp = () => {
+            setIsResizing(false);
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        window.addEventListener('touchmove', handleTouchMove, { passive: false });
+        window.addEventListener('touchend', handleMouseUp);
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+            window.removeEventListener('touchmove', handleTouchMove);
+            window.removeEventListener('touchend', handleMouseUp);
+        };
+    }, [isResizing]);
+
+    useEffect(() => {
         if (!isMinimized && window.MathJax) {
             setTimeout(() => {
                 try {
@@ -152,12 +216,16 @@ const DraggableResultCard = ({ result, defaultPosition }: { result: GeneratedRes
 
     return (
         <div 
-            className="absolute top-0 left-0 z-50 glassmorphic-card p-4 rounded-xl shadow-2xl w-[calc(100vw-32px)] sm:w-auto sm:min-w-[300px] sm:max-w-[500px] cursor-move select-none"
-            style={{ transform: `translate3d(${position.x}px, ${position.y}px, 0)` }}
+            className="absolute top-0 left-0 z-50 glassmorphic-card p-4 rounded-xl shadow-2xl cursor-move select-none flex flex-col overflow-hidden"
+            style={{ 
+                transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
+                width: isMinimized ? 'auto' : `${size.width}px`,
+                height: isMinimized ? 'auto' : `${size.height}px`,
+            }}
             onMouseDown={handleMouseDown}
             onTouchStart={handleTouchStart}
         >
-            <div className="flex justify-between items-center gap-4">
+            <div className="flex justify-between items-center gap-4 shrink-0">
                 <div className="flex items-center gap-2 overflow-hidden flex-1">
                     <span className="text-xs font-bold px-2 py-1 bg-green-500/20 text-green-400 rounded-full border border-green-500/30 shrink-0">
                         {result.confidence_score ? `${result.confidence_score}% Confident` : 'AI Result'}
@@ -192,23 +260,39 @@ const DraggableResultCard = ({ result, defaultPosition }: { result: GeneratedRes
             </div>
 
             {!isMinimized && (
-                <div className="mt-3 animate-in fade-in slide-in-from-top-2 duration-150">
-                    <div className="latex-content text-white mb-4 whitespace-normal break-words">
+                <div className="mt-3 flex-1 flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 gap-2">
+                    <div className="latex-content text-white whitespace-normal break-words overflow-auto shrink-0 max-h-[40%] pr-1">
                         {latex}
                     </div>
 
                     {result.thought_process && (
-                        <Accordion type="single" collapsible className="w-full">
-                            <AccordionItem value="thought-process" className="border-white/10">
-                                <AccordionTrigger className="text-sm text-gray-300 hover:text-white py-2">
-                                    View Thought Process
-                                </AccordionTrigger>
-                                <AccordionContent className="text-gray-400 text-sm leading-relaxed whitespace-pre-wrap">
+                        <div className="flex-1 flex flex-col overflow-hidden border-t border-white/10 pt-2 min-h-0">
+                            <button
+                                onClick={() => setShowThoughtProcess(!showThoughtProcess)}
+                                className="flex justify-between items-center text-sm text-gray-300 hover:text-white py-1 shrink-0 cursor-pointer"
+                            >
+                                <span>View Thought Process</span>
+                                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showThoughtProcess ? 'rotate-180' : ''}`} />
+                            </button>
+                            {showThoughtProcess && (
+                                <div className="text-gray-400 text-sm leading-relaxed whitespace-pre-wrap flex-1 overflow-y-auto pr-1 mt-1 min-h-0">
                                     {formatMathText(result.thought_process)}
-                                </AccordionContent>
-                            </AccordionItem>
-                        </Accordion>
+                                </div>
+                            )}
+                        </div>
                     )}
+                </div>
+            )}
+
+            {!isMinimized && (
+                <div 
+                    className="absolute bottom-1 right-1 w-4 h-4 cursor-se-resize flex items-end justify-end pointer-events-auto z-[60]"
+                    onMouseDown={handleResizeMouseDown}
+                    onTouchStart={handleResizeTouchStart}
+                >
+                    <svg className="w-2.5 h-2.5 text-gray-500 hover:text-gray-300 transition-colors pointer-events-none" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 0L0 10M10 4L4 10M10 8L8 10" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+                    </svg>
                 </div>
             )}
         </div>
