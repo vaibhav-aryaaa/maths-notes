@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import axios from 'axios';
 import { SWATCHES } from '@/constants';
-import { Eraser, Pen, MessageSquare, X, Menu, RotateCcw, Sparkles, ChevronDown } from 'lucide-react';
+import { Eraser, Pen, MessageSquare, X, Menu, RotateCcw, Sparkles, ChevronDown, Square, Circle, Triangle, Slash } from 'lucide-react';
 
 declare global {
     interface Window {
@@ -311,6 +311,10 @@ export default function Home() {
     const [isScanning, setIsScanning] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
     const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+    const [selectedShape, setSelectedShape] = useState<'freehand' | 'line' | 'rectangle' | 'circle' | 'triangle'>('freehand');
+    const [isShapeMenuOpen, setIsShapeMenuOpen] = useState(false);
+    const startPosRef = useRef({ x: 0, y: 0 });
+    const savedImageDataRef = useRef<ImageData | null>(null);
     const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
 
     // Math Co-Pilot state
@@ -483,11 +487,19 @@ export default function Home() {
             canvas.style.background = 'black';
             const ctx = canvas.getContext('2d');
             if (ctx) {
-                ctx.beginPath();
-                ctx.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+                const x = e.nativeEvent.offsetX;
+                const y = e.nativeEvent.offsetY;
                 setIsDrawing(true);
-                if (!isEraser) {
-                    updateBounds(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+                
+                if (isEraser || selectedShape === 'freehand') {
+                    ctx.beginPath();
+                    ctx.moveTo(x, y);
+                    if (!isEraser) {
+                        updateBounds(x, y);
+                    }
+                } else {
+                    startPosRef.current = { x, y };
+                    savedImageDataRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 }
             }
         }
@@ -500,22 +512,80 @@ export default function Home() {
         if (canvas) {
             const ctx = canvas.getContext('2d');
             if (ctx) {
-                if (isEraser) {
-                    ctx.globalCompositeOperation = 'destination-out';
-                    ctx.lineWidth = 20; // Thicker line for erasing
+                const x = e.nativeEvent.offsetX;
+                const y = e.nativeEvent.offsetY;
+
+                if (isEraser || selectedShape === 'freehand') {
+                    if (isEraser) {
+                        ctx.globalCompositeOperation = 'destination-out';
+                        ctx.lineWidth = 20; // Thicker line for erasing
+                    } else {
+                        ctx.globalCompositeOperation = 'source-over';
+                        ctx.strokeStyle = color;
+                        ctx.lineWidth = 3;
+                        updateBounds(x, y);
+                    }
+                    ctx.lineTo(x, y);
+                    ctx.stroke();
                 } else {
+                    // Shape Tool preview mode
+                    if (savedImageDataRef.current) {
+                        ctx.putImageData(savedImageDataRef.current, 0, 0);
+                    }
                     ctx.globalCompositeOperation = 'source-over';
                     ctx.strokeStyle = color;
                     ctx.lineWidth = 3;
-                    updateBounds(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+                    ctx.beginPath();
+                    
+                    const sx = startPosRef.current.x;
+                    const sy = startPosRef.current.y;
+                    
+                    if (selectedShape === 'line') {
+                        ctx.moveTo(sx, sy);
+                        ctx.lineTo(x, y);
+                    } else if (selectedShape === 'rectangle') {
+                        ctx.rect(sx, sy, x - sx, y - sy);
+                    } else if (selectedShape === 'circle') {
+                        const dx = x - sx;
+                        const dy = y - sy;
+                        const radius = Math.sqrt(dx * dx + dy * dy);
+                        ctx.arc(sx, sy, radius, 0, 2 * Math.PI);
+                    } else if (selectedShape === 'triangle') {
+                        ctx.moveTo(sx, sy);
+                        ctx.lineTo(sx, y);
+                        ctx.lineTo(x, y);
+                        ctx.closePath();
+                    }
+                    ctx.stroke();
                 }
-                ctx.lineTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
-                ctx.stroke();
             }
         }
     };
-    const stopDrawing = () => {
+    const stopDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+        if (!isDrawing) return;
         setIsDrawing(false);
+
+        const canvas = canvasRef.current;
+        if (canvas && !isEraser && selectedShape !== 'freehand') {
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                const x = e.nativeEvent?.offsetX ?? startPosRef.current.x;
+                const y = e.nativeEvent?.offsetY ?? startPosRef.current.y;
+                const sx = startPosRef.current.x;
+                const sy = startPosRef.current.y;
+
+                updateBounds(sx, sy);
+                if (selectedShape === 'circle') {
+                    const dx = x - sx;
+                    const dy = y - sy;
+                    const radius = Math.sqrt(dx * dx + dy * dy);
+                    updateBounds(sx - radius, sy - radius);
+                    updateBounds(sx + radius, sy + radius);
+                } else {
+                    updateBounds(x, y);
+                }
+            }
+        }
     };
 
     const getTouchPos = (e: React.TouchEvent<HTMLCanvasElement>) => {
@@ -536,11 +606,17 @@ export default function Home() {
             const ctx = canvas.getContext('2d');
             if (ctx) {
                 const pos = getTouchPos(e);
-                ctx.beginPath();
-                ctx.moveTo(pos.x, pos.y);
                 setIsDrawing(true);
-                if (!isEraser) {
-                    updateBounds(pos.x, pos.y);
+                
+                if (isEraser || selectedShape === 'freehand') {
+                    ctx.beginPath();
+                    ctx.moveTo(pos.x, pos.y);
+                    if (!isEraser) {
+                        updateBounds(pos.x, pos.y);
+                    }
+                } else {
+                    startPosRef.current = { x: pos.x, y: pos.y };
+                    savedImageDataRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 }
             }
         }
@@ -552,26 +628,79 @@ export default function Home() {
         if (canvas) {
             const ctx = canvas.getContext('2d');
             if (ctx) {
-                if (isEraser) {
-                    ctx.globalCompositeOperation = 'destination-out';
-                    ctx.lineWidth = 20;
+                const pos = getTouchPos(e);
+
+                if (isEraser || selectedShape === 'freehand') {
+                    if (isEraser) {
+                        ctx.globalCompositeOperation = 'destination-out';
+                        ctx.lineWidth = 20;
+                    } else {
+                        ctx.globalCompositeOperation = 'source-over';
+                        ctx.strokeStyle = color;
+                        ctx.lineWidth = 3;
+                        updateBounds(pos.x, pos.y);
+                    }
+                    ctx.lineTo(pos.x, pos.y);
+                    ctx.stroke();
                 } else {
+                    // Shape Tool preview mode
+                    if (savedImageDataRef.current) {
+                        ctx.putImageData(savedImageDataRef.current, 0, 0);
+                    }
                     ctx.globalCompositeOperation = 'source-over';
                     ctx.strokeStyle = color;
                     ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    
+                    const sx = startPosRef.current.x;
+                    const sy = startPosRef.current.y;
+                    
+                    if (selectedShape === 'line') {
+                        ctx.moveTo(sx, sy);
+                        ctx.lineTo(pos.x, pos.y);
+                    } else if (selectedShape === 'rectangle') {
+                        ctx.rect(sx, sy, pos.x - sx, pos.y - sy);
+                    } else if (selectedShape === 'circle') {
+                        const dx = pos.x - sx;
+                        const dy = pos.y - sy;
+                        const radius = Math.sqrt(dx * dx + dy * dy);
+                        ctx.arc(sx, sy, radius, 0, 2 * Math.PI);
+                    } else if (selectedShape === 'triangle') {
+                        ctx.moveTo(sx, sy);
+                        ctx.lineTo(sx, pos.y);
+                        ctx.lineTo(pos.x, pos.y);
+                        ctx.closePath();
+                    }
+                    ctx.stroke();
                 }
-                const pos = getTouchPos(e);
-                if (!isEraser) {
-                    updateBounds(pos.x, pos.y);
-                }
-                ctx.lineTo(pos.x, pos.y);
-                ctx.stroke();
             }
         }
     };
 
-    const stopDrawingTouch = () => {
+    const stopDrawingTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+        if (!isDrawing) return;
         setIsDrawing(false);
+
+        const canvas = canvasRef.current;
+        if (canvas && !isEraser && selectedShape !== 'freehand') {
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                const pos = getTouchPos(e);
+                const sx = startPosRef.current.x;
+                const sy = startPosRef.current.y;
+
+                updateBounds(sx, sy);
+                if (selectedShape === 'circle') {
+                    const dx = pos.x - sx;
+                    const dy = pos.y - sy;
+                    const radius = Math.sqrt(dx * dx + dy * dy);
+                    updateBounds(sx - radius, sy - radius);
+                    updateBounds(sx + radius, sy + radius);
+                } else {
+                    updateBounds(pos.x, pos.y);
+                }
+            }
+        }
     };
 
     const runRoute = async () => {
@@ -733,10 +862,63 @@ export default function Home() {
                 {/* Divider */}
                 <div className="h-5 w-[1px] bg-[#333] mx-1" />
 
+                {/* Shape Tool Selector Button */}
+                <div className="relative">
+                    <button
+                        onClick={() => {
+                            setIsShapeMenuOpen(!isShapeMenuOpen);
+                            setIsColorPickerOpen(false);
+                        }}
+                        className={`bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] text-white border border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 px-2 transition-all gap-1.5 ${isShapeMenuOpen ? 'bg-[#3c3c3c] border-white/20' : ''}`}
+                        title="Select Drawing Tool"
+                    >
+                        {selectedShape === 'freehand' && <Pen size={14} className="text-gray-300" />}
+                        {selectedShape === 'line' && <Slash size={14} className="text-gray-300" />}
+                        {selectedShape === 'rectangle' && <Square size={14} className="text-gray-300" />}
+                        {selectedShape === 'circle' && <Circle size={14} className="text-gray-300" />}
+                        {selectedShape === 'triangle' && <Triangle size={14} className="text-gray-300" />}
+                        <span className="text-xs font-semibold select-none capitalize">
+                            {selectedShape === 'freehand' ? 'Pen' : selectedShape}
+                        </span>
+                        <ChevronDown size={10} className="text-gray-500" />
+                    </button>
+                    
+                    {isShapeMenuOpen && (
+                        <div className="absolute top-11 left-1/2 -translate-x-1/2 bg-[#18181c] border border-[#2d2d30] p-1 rounded-xl shadow-2xl z-50 flex flex-col gap-0.5 min-w-[120px] pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-150">
+                            {[
+                                { id: 'freehand', label: 'Pen', icon: <Pen size={13} /> },
+                                { id: 'line', label: 'Line', icon: <Slash size={13} /> },
+                                { id: 'rectangle', label: 'Rectangle', icon: <Square size={13} /> },
+                                { id: 'circle', label: 'Circle', icon: <Circle size={13} /> },
+                                { id: 'triangle', label: 'Triangle', icon: <Triangle size={13} /> },
+                            ].map((tool) => (
+                                <button
+                                    key={tool.id}
+                                    onClick={() => {
+                                        setSelectedShape(tool.id as any);
+                                        setIsEraser(false);
+                                        setIsShapeMenuOpen(false);
+                                    }}
+                                    className={`cursor-pointer hover:bg-white/5 transition-colors p-1.5 text-left rounded-lg text-xs flex items-center gap-2 w-full text-white ${selectedShape === tool.id ? 'bg-white/10 font-bold' : ''}`}
+                                >
+                                    <span className="text-gray-400">{tool.icon}</span>
+                                    <span>{tool.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Divider */}
+                <div className="h-5 w-[1px] bg-[#333] mx-1" />
+
                 {/* Color Picker Toggle Button */}
                 <div className="relative">
                     <button
-                        onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
+                        onClick={() => {
+                            setIsColorPickerOpen(!isColorPickerOpen);
+                            setIsShapeMenuOpen(false);
+                        }}
                         className={`bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] border border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 w-8 transition-all ${isColorPickerOpen ? 'bg-[#3c3c3c] border-white/20' : ''}`}
                         title="Choose Color"
                     >
