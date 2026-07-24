@@ -7,3 +7,4 @@ pillow
 python-dotenv
 groq
 slowapi
+tenacity

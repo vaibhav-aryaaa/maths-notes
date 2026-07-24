@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, Depends, HTTPException
 import base64
 import time
 from io import BytesIO
-from apps.calculator.utils import analyze_image
+from apps.calculator.utils import analyze_image, AIParsingError
 from schema import ImageData
 from PIL import Image
 from rate_limiter import limiter
@@ -29,11 +29,37 @@ async def run(request: Request, data: ImageData):
             detail="Invalid or malformed base64 image data"
         )
 
+    # Validate image dimensions
+    if image.width < 10 or image.height < 10:
+        raise HTTPException(
+            status_code=400,
+            detail="Image is too small. Please provide a clearer drawing."
+        )
+    if image.width > 4000 or image.height > 4000:
+        raise HTTPException(
+            status_code=400,
+            detail="Image dimensions exceed maximum limit of 4000x4000px."
+        )
+
+    # Validate image format
+    if image.format not in ("PNG", "JPEG", "WEBP"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported image format: {image.format}. Allowed formats are PNG, JPEG, and WEBP."
+        )
+
     # 2. Call the AI provider
     try:
         start_time = time.time()
         responses = analyze_image(image, dict_of_vars=data.dict_of_vars)
         end_time = time.time()
+    except AIParsingError as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=502,
+            detail="The AI provider returned a response that could not be parsed. Please try drawing more clearly or check for stray marks."
+        )
     except Exception as e:
         import traceback
         traceback.print_exc()

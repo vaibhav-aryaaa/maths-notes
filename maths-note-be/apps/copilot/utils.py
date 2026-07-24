@@ -4,11 +4,47 @@ import time
 from collections import OrderedDict
 from PIL import Image
 from io import BytesIO
-from groq import Groq
+import httpx
+from groq import Groq, APIStatusError, APIConnectionError, RateLimitError, InternalServerError
 from constants import GROQ_API_KEY
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
 client = Groq(api_key=GROQ_API_KEY)
 MODEL = "llama-3.3-70b-versatile"
+
+def is_transient_groq_error(exception):
+    if isinstance(exception, RateLimitError):
+        return True
+    if isinstance(exception, InternalServerError):
+        return True
+    if isinstance(exception, (APIConnectionError, httpx.HTTPError, ConnectionError, TimeoutError)):
+        return True
+    if isinstance(exception, APIStatusError):
+        status_code = getattr(exception, "status_code", None)
+        if status_code == 429 or (status_code and status_code >= 500):
+            return True
+    return False
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=8),
+    retry=retry_if_exception(is_transient_groq_error),
+    reraise=True
+)
+def _chat_completions_create_with_retry(messages):
+    start_time = time.time()
+    try:
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            max_tokens=1024,
+            temperature=0.7,
+        )
+        return response
+    except Exception as e:
+        latency = round((time.time() - start_time) * 1000)
+        print(f"[Groq API Retry] Call failed. Latency: {latency}ms. Error class: {e.__class__.__name__}. Error detail: {e}")
+        raise e
 
 # In-memory session store with LRU eviction and TTL sweep
 _sessions: OrderedDict[str, dict] = OrderedDict()
@@ -86,12 +122,7 @@ def chat_with_copilot(session_id: str, user_message: str, canvas_b64: str, dict_
 
     messages = [{"role": "system", "content": system_prompt}] + history
 
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=messages,
-        max_tokens=1024,
-        temperature=0.7,
-    )
+    response = _chat_completions_create_with_retry(messages)
 
     reply = response.choices[0].message.content
     history.append({"role": "assistant", "content": reply})

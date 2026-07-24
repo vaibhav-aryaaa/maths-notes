@@ -8,6 +8,23 @@ from constants import SERVER_URL, PORT, ENV, ALLOWED_ORIGINS
 from rate_limiter import limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+
+class LimitUploadSizeMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, max_upload_size: int = 8 * 1024 * 1024):
+        super().__init__(app)
+        self.max_upload_size = max_upload_size
+
+    async def dispatch(self, request, call_next):
+        content_length = request.headers.get('content-length')
+        if content_length:
+            try:
+                if int(content_length) > self.max_upload_size:
+                    return Response("Request entity too large", status_code=413)
+            except ValueError:
+                pass
+        return await call_next(request)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -16,6 +33,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(LimitUploadSizeMiddleware, max_upload_size=8 * 1024 * 1024)
 
 
 app.add_middleware(
