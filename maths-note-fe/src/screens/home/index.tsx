@@ -1,816 +1,62 @@
-
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { useEffect, useRef, useState, useCallback } from 'react';
-import axios from 'axios';
-import { notifications } from '@mantine/notifications';
 import { SWATCHES } from '@/constants';
 import { Eraser, Pen, MessageSquare, X, Menu, RotateCcw, Sparkles, ChevronDown, Square, Circle, Triangle, Slash } from 'lucide-react';
-
-declare global {
-    interface Window {
-        MathJax: any;
-    }
-}
-
-// import {LazyBrush} from 'lazy-brush';
-
-interface GeneratedResult {
-    expression: string;
-    answer: string;
-    type?: string;
-    thought_process?: string;
-    confidence_score?: number;
-    latency?: number;
-}
-
-interface Response {
-    expr: string;
-    result: string;
-    assign: boolean;
-    type?: string;
-    thought_process?: string;
-    confidence_score?: number;
-    latency?: number;
-}
-const formatMathText = (text: string) => {
-    if (!text) return '';
-    
-    // Replace literal "\n" strings (escaped) with actual newlines
-    let formatted = text.replace(/\\n/g, '\n');
-    
-    // Replace caret notation for exponents (e.g., a^2 -> a²)
-    const superscripts: Record<string, string> = {
-        '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', 
-        '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹'
-    };
-    formatted = formatted.replace(/\^([0-9])/g, (_, num) => superscripts[num] || `^${num}`);
-    
-    // Replace escaped unicode square root symbols with the actual symbol
-    formatted = formatted.replace(/\\u221a/gi, '√');
-    
-    return formatted;
-};
-
-const DraggableResultCard = ({ result, defaultPosition }: { result: GeneratedResult, defaultPosition: { x: number, y: number }, setPosition?: (pos: { x: number, y: number }) => void }) => {
-    const [position, setPosition] = useState(defaultPosition);
-    const [size, setSize] = useState(() => {
-        const w = typeof window !== 'undefined' ? Math.min(450, window.innerWidth - 32) : 450;
-        return { width: w, height: 280 };
-    });
-    const [isDragging, setIsDragging] = useState(false);
-    const [isResizing, setIsResizing] = useState(false);
-    const [isMinimized, setIsMinimized] = useState(false);
-    const [showThoughtProcess, setShowThoughtProcess] = useState(false);
-
-    const dragStart = useRef({ x: 0, y: 0 });
-    const cardStart = useRef({ x: 0, y: 0 });
-    
-    const resizeStart = useRef({ x: 0, y: 0 });
-    const cardSizeStart = useRef({ width: 0, height: 0 });
-
-    const handleMouseDown = (e: React.MouseEvent) => {
-        const target = e.target as HTMLElement;
-        if (target.closest('button') || target.closest('[data-slot^="accordion"]')) {
-            return;
-        }
-        setIsDragging(true);
-        dragStart.current = { x: e.clientX, y: e.clientY };
-        cardStart.current = { x: position.x, y: position.y };
-        e.preventDefault(); // Prevents default text-selection / image-ghosting during drag
-    };
-
-    const handleTouchStart = (e: React.TouchEvent) => {
-        const target = e.target as HTMLElement;
-        if (target.closest('button') || target.closest('[data-slot^="accordion"]')) {
-            return;
-        }
-        const touch = e.touches[0];
-        setIsDragging(true);
-        dragStart.current = { x: touch.clientX, y: touch.clientY };
-        cardStart.current = { x: position.x, y: position.y };
-    };
-
-    const handleResizeMouseDown = (e: React.MouseEvent) => {
-        setIsResizing(true);
-        resizeStart.current = { x: e.clientX, y: e.clientY };
-        cardSizeStart.current = { width: size.width, height: size.height };
-        e.preventDefault();
-        e.stopPropagation(); // Stops drag listener from triggering
-    };
-
-    const handleResizeTouchStart = (e: React.TouchEvent) => {
-        const touch = e.touches[0];
-        setIsResizing(true);
-        resizeStart.current = { x: touch.clientX, y: touch.clientY };
-        cardSizeStart.current = { width: size.width, height: size.height };
-        e.stopPropagation(); // Stops drag listener from triggering
-    };
-
-    useEffect(() => {
-        if (!isDragging) return;
-
-        const handleMouseMove = (e: MouseEvent) => {
-            const dx = e.clientX - dragStart.current.x;
-            const dy = e.clientY - dragStart.current.y;
-            setPosition({
-                x: cardStart.current.x + dx,
-                y: cardStart.current.y + dy
-            });
-        };
-
-        const handleTouchMove = (e: TouchEvent) => {
-            const touch = e.touches[0];
-            const dx = touch.clientX - dragStart.current.x;
-            const dy = touch.clientY - dragStart.current.y;
-            setPosition({
-                x: cardStart.current.x + dx,
-                y: cardStart.current.y + dy
-            });
-        };
-
-        const handleMouseUp = () => {
-            setIsDragging(false);
-        };
-
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
-        window.addEventListener('touchmove', handleTouchMove, { passive: false });
-        window.addEventListener('touchend', handleMouseUp);
-        
-        return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-            window.removeEventListener('touchmove', handleTouchMove);
-            window.removeEventListener('touchend', handleMouseUp);
-        };
-    }, [isDragging]);
-
-    useEffect(() => {
-        if (!isResizing) return;
-
-        const minWidth = 300;
-        const minHeight = 180;
-        const maxWidth = Math.min(800, window.innerWidth - 32);
-        const maxHeight = Math.min(800, window.innerHeight - 32);
-
-        const handleMouseMove = (e: MouseEvent) => {
-            const dx = e.clientX - resizeStart.current.x;
-            const dy = e.clientY - resizeStart.current.y;
-            setSize({
-                width: Math.max(minWidth, Math.min(maxWidth, cardSizeStart.current.width + dx)),
-                height: Math.max(minHeight, Math.min(maxHeight, cardSizeStart.current.height + dy))
-            });
-        };
-
-        const handleTouchMove = (e: TouchEvent) => {
-            const touch = e.touches[0];
-            const dx = touch.clientX - resizeStart.current.x;
-            const dy = touch.clientY - resizeStart.current.y;
-            setSize({
-                width: Math.max(minWidth, Math.min(maxWidth, cardSizeStart.current.width + dx)),
-                height: Math.max(minHeight, Math.min(maxHeight, cardSizeStart.current.height + dy))
-            });
-        };
-
-        const handleMouseUp = () => {
-            setIsResizing(false);
-        };
-
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
-        window.addEventListener('touchmove', handleTouchMove, { passive: false });
-        window.addEventListener('touchend', handleMouseUp);
-
-        return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-            window.removeEventListener('touchmove', handleTouchMove);
-            window.removeEventListener('touchend', handleMouseUp);
-        };
-    }, [isResizing]);
-
-    useEffect(() => {
-        if (!isMinimized && window.MathJax) {
-            setTimeout(() => {
-                try {
-                    window.MathJax.Hub.Queue(["Typeset", window.MathJax.Hub]);
-                } catch (e) {
-                    console.error("MathJax typesetting failed:", e);
-                }
-            }, 50);
-        }
-    }, [isMinimized]);
-
-    // Heuristic: If it has multiple spaces and at least one multi-letter English word, it is descriptive text.
-    const isText = result.type === 'text' || 
-                   (/\s+/.test(result.expression) && /[a-zA-Z]{3,}/.test(result.expression)) ||
-                   (/\s+/.test(result.answer) && /[a-zA-Z]{3,}/.test(result.answer)) ||
-                   /^[a-zA-Z\s.,?!'-]{5,}$/.test(result.expression) ||
-                   /^[a-zA-Z\s.,?!'-]{5,}$/.test(result.answer);
-
-    const latex = isText 
-        ? `${result.expression} = ${result.answer}`
-        : `\\(${result.expression} = ${result.answer}\\)`;
-
-    return (
-        <div 
-            className="absolute top-0 left-0 z-50 glassmorphic-card p-4 rounded-xl shadow-2xl cursor-move select-none flex flex-col overflow-hidden"
-            style={{ 
-                transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
-                width: isMinimized ? 'auto' : `${size.width}px`,
-                height: isMinimized ? 'auto' : `${size.height}px`,
-            }}
-            onMouseDown={handleMouseDown}
-            onTouchStart={handleTouchStart}
-        >
-            <div className="flex justify-between items-center gap-4 shrink-0">
-                <div className="flex items-center gap-2 overflow-hidden flex-1">
-                    <span className="text-xs font-bold px-2 py-1 bg-green-500/20 text-green-400 rounded-full border border-green-500/30 shrink-0">
-                        {result.confidence_score ? `${result.confidence_score}% Confident` : 'AI Result'}
-                    </span>
-                    {isMinimized && (
-                        <span className="text-xs text-gray-300 font-medium truncate flex-1" title={`${result.expression} = ${result.answer}`}>
-                            {result.expression.length > 25 ? `${result.expression.slice(0, 25)}...` : result.expression} = {result.answer}
-                        </span>
-                    )}
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-xs text-gray-400 font-mono">
-                        {result.latency ? `${result.latency}ms` : ''}
-                    </span>
-                    <button
-                        onClick={() => setIsMinimized(!isMinimized)}
-                        className="w-3.5 h-3.5 rounded-full bg-purple-500 hover:bg-purple-400 border border-purple-600/50 transition-all cursor-pointer flex items-center justify-center group relative shadow-sm"
-                        title={isMinimized ? "Maximize" : "Minimize"}
-                    >
-                        {isMinimized ? (
-                            /* macOS style plus icon on hover */
-                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                <span className="w-1.5 h-[1.5px] bg-purple-950 absolute" />
-                                <span className="h-1.5 w-[1.5px] bg-purple-950 absolute" />
-                            </div>
-                        ) : (
-                            /* macOS style minus icon on hover */
-                            <span className="w-1.5 h-[1.5px] bg-purple-950 opacity-0 group-hover:opacity-100 transition-opacity absolute" />
-                        )}
-                    </button>
-                </div>
-            </div>
-
-            {!isMinimized && (
-                <div className="mt-3 flex-1 flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 gap-2">
-                    <div className="latex-content text-white whitespace-normal break-words overflow-auto shrink-0 max-h-[40%] pr-1">
-                        {latex}
-                    </div>
-
-                    {result.thought_process && (
-                        <div className="flex-1 flex flex-col overflow-hidden border-t border-white/10 pt-2 min-h-0">
-                            <button
-                                onClick={() => setShowThoughtProcess(!showThoughtProcess)}
-                                className="flex justify-between items-center text-sm text-gray-300 hover:text-white py-1 shrink-0 cursor-pointer"
-                            >
-                                <span>View Thought Process</span>
-                                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showThoughtProcess ? 'rotate-180' : ''}`} />
-                            </button>
-                            {showThoughtProcess && (
-                                <div className="text-gray-400 text-sm leading-relaxed whitespace-pre-wrap flex-1 overflow-y-auto pr-1 mt-1 min-h-0">
-                                    {formatMathText(result.thought_process)}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {!isMinimized && (
-                <div 
-                    className="absolute bottom-1 right-1 w-4 h-4 cursor-se-resize flex items-end justify-end pointer-events-auto z-[60]"
-                    onMouseDown={handleResizeMouseDown}
-                    onTouchStart={handleResizeTouchStart}
-                >
-                    <svg className="w-2.5 h-2.5 text-gray-500 hover:text-gray-300 transition-colors pointer-events-none" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M10 0L0 10M10 4L4 10M10 8L8 10" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
-                    </svg>
-                </div>
-            )}
-        </div>
-    );
-};
+import { DraggableResultCard } from '@/components/DraggableResultCard';
+import { useMathCanvas } from './useMathCanvas';
+import { useCanvasSolver } from './useCanvasSolver';
+import { useCopilotChat } from './useCopilotChat';
 
 export default function Home() {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [isDrawing, setIsDrawing] = useState(false);
-    const [isEraser, setIsEraser] = useState(false);
-    const [color, setColor] = useState('rgb(255, 255, 255)');
+    const {
+        canvasRef,
+        drawBoundsRef,
+        isEraser,
+        setIsEraser,
+        color,
+        setColor,
+        selectedShape,
+        setSelectedShape,
+        isShapeMenuOpen,
+        setIsShapeMenuOpen,
+        isColorPickerOpen,
+        setIsColorPickerOpen,
+        windowSize,
+        resetCanvas,
+        startDrawing,
+        draw,
+        stopDrawing,
+        startDrawingTouch,
+        drawTouch,
+        stopDrawingTouch,
+    } = useMathCanvas();
 
-    const [dictOfVars, setDictOfVars] = useState({});
-    const [results, setResults] = useState<GeneratedResult[]>([]);
-    const [latexPosition, setLatexPosition] = useState({ x: 10, y: 200 });
-    const [isScanning, setIsScanning] = useState(false);
+    const {
+        dictOfVars,
+        results,
+        isScanning,
+        latexPosition,
+        setLatexPosition,
+        runRoute,
+    } = useCanvasSolver(canvasRef, drawBoundsRef);
+
+    const {
+        isCopilotOpen,
+        setIsCopilotOpen,
+        copilotMessages,
+        copilotInput,
+        setCopilotInput,
+        isCopilotLoading,
+        sendCopilotMessage,
+    } = useCopilotChat(dictOfVars, results);
+
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
-    const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
-    const [selectedShape, setSelectedShape] = useState<'freehand' | 'line' | 'rectangle' | 'circle' | 'triangle'>('freehand');
-    const [isShapeMenuOpen, setIsShapeMenuOpen] = useState(false);
-    const startPosRef = useRef({ x: 0, y: 0 });
-    const savedImageDataRef = useRef<ImageData | null>(null);
-    const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
-
-    // Math Co-Pilot state
-    const [isCopilotOpen, setIsCopilotOpen] = useState(false);
-    const [copilotMessages, setCopilotMessages] = useState<{ role: 'user' | 'ai', text: string }[]>([
-        { role: 'ai', text: "Ready to bend the rules of math? Draw your equations on the canvas, hit Run, and let's dissect the universe together. No problem is too wild!" }
-    ]);
-    const [copilotInput, setCopilotInput] = useState('');
-    const [isCopilotLoading, setIsCopilotLoading] = useState(false);
-    const sessionId = useRef((() => {
-        let id = sessionStorage.getItem('solveiq_copilot_session_id');
-        if (!id || !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(id)) {
-            id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
-            sessionStorage.setItem('solveiq_copilot_session_id', id);
-        }
-        return id;
-    })());
     const chatEndRef = useRef<HTMLDivElement>(null);
-
-    // Bounds tracking for canvas optimization
-    const drawBoundsRef = useRef({ minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
-
-    const updateBounds = (x: number, y: number) => {
-        if (x < drawBoundsRef.current.minX) drawBoundsRef.current.minX = x;
-        if (x > drawBoundsRef.current.maxX) drawBoundsRef.current.maxX = x;
-        if (y < drawBoundsRef.current.minY) drawBoundsRef.current.minY = y;
-        if (y > drawBoundsRef.current.maxY) drawBoundsRef.current.maxY = y;
-    };
-
-    // const lazyBrush = new LazyBrush({
-    //     radius: 10,
-    //     enabled: true,
-    //     initialPoint: { x: 0, y: 0 },
-    // });
-
-    useEffect(() => {
-        if (results.length > 0 && window.MathJax) {
-            setTimeout(() => {
-                window.MathJax.Hub.Queue(["Typeset", window.MathJax.Hub]);
-            }, 0)
-        }
-    }, [results]);
-
-    const colorRef = useRef(color);
-    useEffect(() => {
-        colorRef.current = color;
-    }, [color]);
-
-    useEffect(() => {
-        const canvas = canvasRef.current;
-
-        const handleResize = () => {
-            let tempCanvas: HTMLCanvasElement | null = null;
-            if (canvas) {
-                tempCanvas = document.createElement('canvas');
-                tempCanvas.width = canvas.width;
-                tempCanvas.height = canvas.height;
-                const tempCtx = tempCanvas.getContext('2d');
-                if (tempCtx) {
-                    tempCtx.drawImage(canvas, 0, 0);
-                }
-            }
-
-            // Update layout sizes in state
-            setWindowSize({ width: window.innerWidth, height: window.innerHeight });
-
-            // Restore canvas contents on the next paint cycle
-            requestAnimationFrame(() => {
-                if (canvas && tempCanvas) {
-                    const ctx = canvas.getContext('2d');
-                    if (ctx) {
-                        ctx.lineCap = 'round';
-                        ctx.lineWidth = 3;
-                        ctx.strokeStyle = colorRef.current;
-                        ctx.drawImage(tempCanvas, 0, 0);
-                    }
-                }
-            });
-        };
-
-        window.addEventListener('resize', handleResize);
-        return () => {
-            window.removeEventListener('resize', handleResize);
-        };
-    }, []);
-
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (canvas) {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                ctx.lineCap = 'round';
-                ctx.lineWidth = 3;
-            }
-        }
-    }, [windowSize]);
-
-    useEffect(() => {
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/MathJax.js?config=TeX-MML-AM_CHTML';
-        script.async = true;
-        document.head.appendChild(script);
-
-        script.onload = () => {
-            window.MathJax.Hub.Config({
-                tex2jax: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
-                CommonHTML: { linebreaks: { automatic: true } },
-                "HTML-CSS": { linebreaks: { automatic: true } },
-                SVG: { linebreaks: { automatic: true } }
-            });
-        };
-
-        return () => {
-            document.head.removeChild(script);
-        };
-    }, []);
 
     // Auto-scroll chat to bottom
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [copilotMessages, isCopilotLoading]);
-
-    const sendCopilotMessage = useCallback(async () => {
-        const text = copilotInput.trim();
-        if (!text || isCopilotLoading) return;
-
-        const canvasImage = ''; // Omit heavy image bytes since copilot backend is text-only Llama and doesn't use it
-
-        setCopilotMessages(prev => [...prev, { role: 'user', text }]);
-        setCopilotInput('');
-        setIsCopilotLoading(true);
-
-        try {
-            const res = await axios.post(
-                `${import.meta.env.VITE_API_URL}/copilot`,
-                {
-                    session_id: sessionId.current,
-                    message: text,
-                    canvas_image: canvasImage,
-                    dict_of_vars: dictOfVars,
-                    results: results.map(r => ({
-                        expression: r.expression,
-                        answer: r.answer,
-                        thought_process: r.thought_process,
-                    })),
-                },
-                {
-                    headers: {
-                        'X-App-Key': import.meta.env.VITE_APP_KEY || '',
-                    },
-                }
-            );
-            setCopilotMessages(prev => [...prev, { role: 'ai', text: res.data.reply }]);
-        } catch (err: any) {
-            const errorMsg = err.response?.data?.detail || err.message || 'Sorry, I ran into an error. Please try again.';
-            setCopilotMessages(prev => [...prev, { role: 'ai', text: `⚠️ ${errorMsg}` }]);
-        } finally {
-            setIsCopilotLoading(false);
-        }
-    }, [copilotInput, isCopilotLoading, dictOfVars, results]);
-
-
-    const resetCanvas = () => {
-        const canvas = canvasRef.current;
-        if (canvas) {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-            }
-        }
-        drawBoundsRef.current = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
-        setResults([]);
-        setDictOfVars({});
-    };
-
-    const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
-        const canvas = canvasRef.current;
-        if (canvas) {
-            canvas.style.background = 'black';
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                const x = e.nativeEvent.offsetX;
-                const y = e.nativeEvent.offsetY;
-                setIsDrawing(true);
-                
-                if (isEraser || selectedShape === 'freehand') {
-                    ctx.beginPath();
-                    ctx.moveTo(x, y);
-                    if (!isEraser) {
-                        updateBounds(x, y);
-                    }
-                } else {
-                    startPosRef.current = { x, y };
-                    savedImageDataRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                }
-            }
-        }
-    };
-    const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
-        if (!isDrawing) {
-            return;
-        }
-        const canvas = canvasRef.current;
-        if (canvas) {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                const x = e.nativeEvent.offsetX;
-                const y = e.nativeEvent.offsetY;
-
-                if (isEraser || selectedShape === 'freehand') {
-                    if (isEraser) {
-                        ctx.globalCompositeOperation = 'destination-out';
-                        ctx.lineWidth = 20; // Thicker line for erasing
-                    } else {
-                        ctx.globalCompositeOperation = 'source-over';
-                        ctx.strokeStyle = color;
-                        ctx.lineWidth = 3;
-                        updateBounds(x, y);
-                    }
-                    ctx.lineTo(x, y);
-                    ctx.stroke();
-                } else {
-                    // Shape Tool preview mode
-                    if (savedImageDataRef.current) {
-                        ctx.putImageData(savedImageDataRef.current, 0, 0);
-                    }
-                    ctx.globalCompositeOperation = 'source-over';
-                    ctx.strokeStyle = color;
-                    ctx.lineWidth = 3;
-                    ctx.beginPath();
-                    
-                    const sx = startPosRef.current.x;
-                    const sy = startPosRef.current.y;
-                    
-                    if (selectedShape === 'line') {
-                        ctx.moveTo(sx, sy);
-                        ctx.lineTo(x, y);
-                    } else if (selectedShape === 'rectangle') {
-                        ctx.rect(sx, sy, x - sx, y - sy);
-                    } else if (selectedShape === 'circle') {
-                        const dx = x - sx;
-                        const dy = y - sy;
-                        const radius = Math.sqrt(dx * dx + dy * dy);
-                        ctx.arc(sx, sy, radius, 0, 2 * Math.PI);
-                    } else if (selectedShape === 'triangle') {
-                        ctx.moveTo(sx, sy);
-                        ctx.lineTo(sx, y);
-                        ctx.lineTo(x, y);
-                        ctx.closePath();
-                    }
-                    ctx.stroke();
-                }
-            }
-        }
-    };
-    const stopDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
-        if (!isDrawing) return;
-        setIsDrawing(false);
-
-        const canvas = canvasRef.current;
-        if (canvas && !isEraser && selectedShape !== 'freehand') {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                const x = e.nativeEvent?.offsetX ?? startPosRef.current.x;
-                const y = e.nativeEvent?.offsetY ?? startPosRef.current.y;
-                const sx = startPosRef.current.x;
-                const sy = startPosRef.current.y;
-
-                updateBounds(sx, sy);
-                if (selectedShape === 'circle') {
-                    const dx = x - sx;
-                    const dy = y - sy;
-                    const radius = Math.sqrt(dx * dx + dy * dy);
-                    updateBounds(sx - radius, sy - radius);
-                    updateBounds(sx + radius, sy + radius);
-                } else {
-                    updateBounds(x, y);
-                }
-            }
-        }
-    };
-
-    const getTouchPos = (e: React.TouchEvent<HTMLCanvasElement>) => {
-        const canvas = canvasRef.current;
-        if (!canvas) return { x: 0, y: 0 };
-        const rect = canvas.getBoundingClientRect();
-        const touch = e.touches[0] || e.changedTouches[0];
-        return {
-            x: touch.clientX - rect.left,
-            y: touch.clientY - rect.top
-        };
-    };
-
-    const startDrawingTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
-        const canvas = canvasRef.current;
-        if (canvas) {
-            canvas.style.background = 'black';
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                const pos = getTouchPos(e);
-                setIsDrawing(true);
-                
-                if (isEraser || selectedShape === 'freehand') {
-                    ctx.beginPath();
-                    ctx.moveTo(pos.x, pos.y);
-                    if (!isEraser) {
-                        updateBounds(pos.x, pos.y);
-                    }
-                } else {
-                    startPosRef.current = { x: pos.x, y: pos.y };
-                    savedImageDataRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                }
-            }
-        }
-    };
-
-    const drawTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
-        if (!isDrawing) return;
-        const canvas = canvasRef.current;
-        if (canvas) {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                const pos = getTouchPos(e);
-
-                if (isEraser || selectedShape === 'freehand') {
-                    if (isEraser) {
-                        ctx.globalCompositeOperation = 'destination-out';
-                        ctx.lineWidth = 20;
-                    } else {
-                        ctx.globalCompositeOperation = 'source-over';
-                        ctx.strokeStyle = color;
-                        ctx.lineWidth = 3;
-                        updateBounds(pos.x, pos.y);
-                    }
-                    ctx.lineTo(pos.x, pos.y);
-                    ctx.stroke();
-                } else {
-                    // Shape Tool preview mode
-                    if (savedImageDataRef.current) {
-                        ctx.putImageData(savedImageDataRef.current, 0, 0);
-                    }
-                    ctx.globalCompositeOperation = 'source-over';
-                    ctx.strokeStyle = color;
-                    ctx.lineWidth = 3;
-                    ctx.beginPath();
-                    
-                    const sx = startPosRef.current.x;
-                    const sy = startPosRef.current.y;
-                    
-                    if (selectedShape === 'line') {
-                        ctx.moveTo(sx, sy);
-                        ctx.lineTo(pos.x, pos.y);
-                    } else if (selectedShape === 'rectangle') {
-                        ctx.rect(sx, sy, pos.x - sx, pos.y - sy);
-                    } else if (selectedShape === 'circle') {
-                        const dx = pos.x - sx;
-                        const dy = pos.y - sy;
-                        const radius = Math.sqrt(dx * dx + dy * dy);
-                        ctx.arc(sx, sy, radius, 0, 2 * Math.PI);
-                    } else if (selectedShape === 'triangle') {
-                        ctx.moveTo(sx, sy);
-                        ctx.lineTo(sx, pos.y);
-                        ctx.lineTo(pos.x, pos.y);
-                        ctx.closePath();
-                    }
-                    ctx.stroke();
-                }
-            }
-        }
-    };
-
-    const stopDrawingTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
-        if (!isDrawing) return;
-        setIsDrawing(false);
-
-        const canvas = canvasRef.current;
-        if (canvas && !isEraser && selectedShape !== 'freehand') {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                const pos = getTouchPos(e);
-                const sx = startPosRef.current.x;
-                const sy = startPosRef.current.y;
-
-                updateBounds(sx, sy);
-                if (selectedShape === 'circle') {
-                    const dx = pos.x - sx;
-                    const dy = pos.y - sy;
-                    const radius = Math.sqrt(dx * dx + dy * dy);
-                    updateBounds(sx - radius, sy - radius);
-                    updateBounds(sx + radius, sy + radius);
-                } else {
-                    updateBounds(pos.x, pos.y);
-                }
-            }
-        }
-    };
-
-    const runRoute = async () => {
-        const canvas = canvasRef.current;
-
-        if (canvas) {
-            const bounds = drawBoundsRef.current;
-
-            if (bounds.minX === Infinity || bounds.minY === Infinity) {
-                notifications.show({
-                    title: 'Empty Canvas',
-                    message: 'Please draw something on the canvas first!',
-                    color: 'yellow',
-                    autoClose: 4000
-                });
-                return;
-            }
-
-            setIsScanning(true);
-            try {
-                // Calculate cropped region with a padding of 20px
-                const padding = 20;
-                const cropX = Math.max(0, bounds.minX - padding);
-                const cropY = Math.max(0, bounds.minY - padding);
-                const cropWidth = Math.min(canvas.width - cropX, (bounds.maxX - bounds.minX) + padding * 2);
-                const cropHeight = Math.min(canvas.height - cropY, (bounds.maxY - bounds.minY) + padding * 2);
-
-                const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = cropWidth;
-                tempCanvas.height = cropHeight;
-                const tempCtx = tempCanvas.getContext('2d');
-                if (tempCtx) {
-                    tempCtx.fillStyle = 'black';
-                    tempCtx.fillRect(0, 0, cropWidth, cropHeight);
-                    tempCtx.drawImage(canvas, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
-                }
-                const croppedImageBase64 = tempCanvas.toDataURL('image/png');
-
-                const response = await axios({
-                    method: 'post',
-                    url: `${import.meta.env.VITE_API_URL}/calculate`,
-                    data: {
-                        image: croppedImageBase64,
-                        dict_of_vars: dictOfVars
-                    },
-                    headers: {
-                        'X-App-Key': import.meta.env.VITE_APP_KEY || ''
-                    }
-                });
-
-                const resp = await response.data;
-                console.log('Response', resp);
-                
-                const newVars = { ...dictOfVars };
-                resp.data.forEach((data: Response) => {
-                    if (data.assign === true) {
-                        (newVars as any)[data.expr] = data.result;
-                    }
-                });
-                setDictOfVars(newVars);
-
-                // Calculate center point from the pre-tracked bounds
-                const centerX = (bounds.minX + bounds.maxX) / 2;
-                const centerY = (bounds.minY + bounds.maxY) / 2;
-
-                // Clamp position so card is within screen bounds
-                const cardWidth = window.innerWidth < 640 ? window.innerWidth - 32 : 300;
-                const clampedX = Math.max(16, Math.min(centerX - cardWidth / 2, window.innerWidth - cardWidth - 16));
-                const clampedY = Math.max(80, Math.min(centerY, window.innerHeight - 200));
-
-                setLatexPosition({ x: clampedX, y: clampedY });
-                
-                const newResults: GeneratedResult[] = resp.data.map((data: Response) => ({
-                    expression: data.expr,
-                    answer: data.result,
-                    type: data.type,
-                    thought_process: data.thought_process,
-                    confidence_score: data.confidence_score,
-                    latency: data.latency
-                }));
-
-                // Immediately update results and clear canvas (no artificial delay!)
-                setResults([...results, ...newResults]);
-                const ctx = canvas.getContext('2d');
-                if (ctx) {
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                }
-                drawBoundsRef.current = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
-
-            } catch (error: any) {
-                console.error("Failed to run AI", error);
-                const errorMsg = error.response?.data?.detail || error.message || "Failed to process image";
-                notifications.show({
-                    title: 'AI API Error',
-                    message: `${errorMsg}. Please wait a moment and try again.`,
-                    color: 'red',
-                    autoClose: 6000
-                });
-            } finally {
-                setIsScanning(false);
-            }
-        }
-    };
 
     return (
         <>
@@ -824,7 +70,7 @@ export default function Home() {
 
             {/* Agent Memory Side Panel */}
             <div className={`absolute top-0 left-0 w-64 h-full bg-black/90 backdrop-blur-md border-r border-white/10 p-5 z-40 text-white shadow-2xl transition-transform duration-300 ease-in-out pt-[calc(1.25rem+env(safe-area-inset-top))] pl-[calc(1.25rem+env(safe-area-inset-left))] ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                {/* SolveIQ Logo Branding (spaced for the toggle button) */}
+                {/* SolveIQ Logo Branding */}
                 <div className="flex items-center gap-2 mb-6 pb-4 border-b border-white/10 pl-12">
                     <span className="text-xl font-extrabold tracking-tight">
                         solve<span className="text-[#d97706]">IQ</span>
@@ -857,7 +103,7 @@ export default function Home() {
                 </Button>
             </div>
 
-            {/* Centered Horizontal Toolbar (inspired by Excalidraw Whiteboards) */}
+            {/* Centered Horizontal Toolbar */}
             <div className="absolute z-50 top-[calc(1rem+env(safe-area-inset-top))] left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-[#1e1e1e] border border-[#333] p-1.5 rounded-xl shadow-lg pointer-events-auto">
                 {/* Erase / Draw Button */}
                 <Button
@@ -908,16 +154,16 @@ export default function Home() {
                     {isShapeMenuOpen && (
                         <div className="absolute top-11 left-1/2 -translate-x-1/2 bg-[#18181c] border border-[#2d2d30] p-1 rounded-xl shadow-2xl z-50 flex flex-col gap-0.5 min-w-[120px] pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-150">
                             {[
-                                { id: 'freehand', label: 'Pen', icon: <Pen size={13} /> },
-                                { id: 'line', label: 'Line', icon: <Slash size={13} /> },
-                                { id: 'rectangle', label: 'Rectangle', icon: <Square size={13} /> },
-                                { id: 'circle', label: 'Circle', icon: <Circle size={13} /> },
-                                { id: 'triangle', label: 'Triangle', icon: <Triangle size={13} /> },
+                                { id: 'freehand' as const, label: 'Pen', icon: <Pen size={13} /> },
+                                { id: 'line' as const, label: 'Line', icon: <Slash size={13} /> },
+                                { id: 'rectangle' as const, label: 'Rectangle', icon: <Square size={13} /> },
+                                { id: 'circle' as const, label: 'Circle', icon: <Circle size={13} /> },
+                                { id: 'triangle' as const, label: 'Triangle', icon: <Triangle size={13} /> },
                             ].map((tool) => (
                                 <button
                                     key={tool.id}
                                     onClick={() => {
-                                        setSelectedShape(tool.id as any);
+                                        setSelectedShape(tool.id);
                                         setIsEraser(false);
                                         setIsShapeMenuOpen(false);
                                     }}
@@ -950,7 +196,7 @@ export default function Home() {
                         />
                     </button>
                     
-                    {/* Color Picker Popover (centered below center bar) */}
+                    {/* Color Picker Popover */}
                     {isColorPickerOpen && (
                         <div className="absolute top-11 left-1/2 -translate-x-1/2 bg-[#18181c] border border-[#2d2d30] p-3 rounded-xl shadow-2xl z-50 flex flex-col gap-2 min-w-[200px] pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-150">
                             <div className="grid grid-cols-6 gap-2">
@@ -1012,6 +258,7 @@ export default function Home() {
 
             {isScanning && <div className="scanning-laser" />}
 
+            {/* Floating Copilot Toggle Button */}
             <button
                 onClick={() => setIsCopilotOpen(!isCopilotOpen)}
                 className="absolute bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-tr from-rose-500 via-orange-500 to-amber-400 flex items-center justify-center shadow-lg shadow-orange-500/40 hover:scale-110 active:scale-95 transition-all duration-200 border border-white/20 cursor-pointer"
@@ -1020,6 +267,7 @@ export default function Home() {
                 {isCopilotOpen ? <X size={22} className="text-white" /> : <MessageSquare size={22} className="text-white" />}
             </button>
 
+            {/* Copilot Sidebar Panel */}
             {isCopilotOpen && (
                 <div className="absolute bottom-24 right-4 left-4 sm:left-auto sm:right-6 z-50 w-auto sm:w-[360px] h-[480px] sm:h-[520px] flex flex-col rounded-3xl overflow-hidden shadow-2xl border border-stone-200/80 bg-white/95 backdrop-blur-md">
                     <div className="flex-1 overflow-y-auto px-5 pb-5 pt-8 flex flex-col gap-4 scrollbar-thin">

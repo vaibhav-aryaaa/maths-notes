@@ -1,0 +1,286 @@
+import { useEffect, useRef, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
+
+import type { GeneratedResult } from '@/types';
+
+declare global {
+    interface Window {
+        MathJax?: {
+            Hub: {
+                Queue: (args: unknown[]) => void;
+                Config: (config: Record<string, unknown>) => void;
+            };
+        };
+    }
+}
+
+const formatMathText = (text: string) => {
+    if (!text) return '';
+    
+    // Replace literal "\n" strings (escaped) with actual newlines
+    let formatted = text.replace(/\\n/g, '\n');
+    
+    // Replace caret notation for exponents (e.g., a^2 -> a²)
+    const superscripts: Record<string, string> = {
+        '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', 
+        '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹'
+    };
+    formatted = formatted.replace(/\^([0-9])/g, (_, num) => superscripts[num] || `^${num}`);
+    
+    // Replace escaped unicode square root symbols with the actual symbol
+    formatted = formatted.replace(/\\u221a/gi, '√');
+    
+    return formatted;
+};
+
+interface DraggableResultCardProps {
+    result: GeneratedResult;
+    defaultPosition: { x: number; y: number };
+    setPosition?: (pos: { x: number; y: number }) => void;
+}
+
+export const DraggableResultCard = ({ result, defaultPosition }: DraggableResultCardProps) => {
+    const [position, setPosition] = useState(defaultPosition);
+    const [size, setSize] = useState(() => {
+        const w = typeof window !== 'undefined' ? Math.min(450, window.innerWidth - 32) : 450;
+        return { width: w, height: 280 };
+    });
+    const [isDragging, setIsDragging] = useState(false);
+    const [isResizing, setIsResizing] = useState(false);
+    const [isMinimized, setIsMinimized] = useState(false);
+    const [showThoughtProcess, setShowThoughtProcess] = useState(false);
+
+    const dragStart = useRef({ x: 0, y: 0 });
+    const cardStart = useRef({ x: 0, y: 0 });
+    
+    const resizeStart = useRef({ x: 0, y: 0 });
+    const cardSizeStart = useRef({ width: 0, height: 0 });
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        const target = e.target as HTMLElement;
+        if (target.closest('button') || target.closest('[data-slot^="accordion"]')) {
+            return;
+        }
+        setIsDragging(true);
+        dragStart.current = { x: e.clientX, y: e.clientY };
+        cardStart.current = { x: position.x, y: position.y };
+        e.preventDefault(); // Prevents default text-selection / image-ghosting during drag
+    };
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        const target = e.target as HTMLElement;
+        if (target.closest('button') || target.closest('[data-slot^="accordion"]')) {
+            return;
+        }
+        const touch = e.touches[0];
+        setIsDragging(true);
+        dragStart.current = { x: touch.clientX, y: touch.clientY };
+        cardStart.current = { x: position.x, y: position.y };
+    };
+
+    const handleResizeMouseDown = (e: React.MouseEvent) => {
+        setIsResizing(true);
+        resizeStart.current = { x: e.clientX, y: e.clientY };
+        cardSizeStart.current = { width: size.width, height: size.height };
+        e.preventDefault();
+        e.stopPropagation(); // Stops drag listener from triggering
+    };
+
+    const handleResizeTouchStart = (e: React.TouchEvent) => {
+        const touch = e.touches[0];
+        setIsResizing(true);
+        resizeStart.current = { x: touch.clientX, y: touch.clientY };
+        cardSizeStart.current = { width: size.width, height: size.height };
+        e.stopPropagation(); // Stops drag listener from triggering
+    };
+
+    useEffect(() => {
+        if (!isDragging) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            const dx = e.clientX - dragStart.current.x;
+            const dy = e.clientY - dragStart.current.y;
+            setPosition({
+                x: cardStart.current.x + dx,
+                y: cardStart.current.y + dy
+            });
+        };
+
+        const handleTouchMove = (e: TouchEvent) => {
+            const touch = e.touches[0];
+            const dx = touch.clientX - dragStart.current.x;
+            const dy = touch.clientY - dragStart.current.y;
+            setPosition({
+                x: cardStart.current.x + dx,
+                y: cardStart.current.y + dy
+            });
+        };
+
+        const handleMouseUp = () => {
+            setIsDragging(false);
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        window.addEventListener('touchmove', handleTouchMove, { passive: false });
+        window.addEventListener('touchend', handleMouseUp);
+        
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+            window.removeEventListener('touchmove', handleTouchMove);
+            window.removeEventListener('touchend', handleMouseUp);
+        };
+    }, [isDragging]);
+
+    useEffect(() => {
+        if (!isResizing) return;
+
+        const minWidth = 300;
+        const minHeight = 180;
+        const maxWidth = Math.min(800, window.innerWidth - 32);
+        const maxHeight = Math.min(800, window.innerHeight - 32);
+
+        const handleMouseMove = (e: MouseEvent) => {
+            const dx = e.clientX - resizeStart.current.x;
+            const dy = e.clientY - resizeStart.current.y;
+            setSize({
+                width: Math.max(minWidth, Math.min(maxWidth, cardSizeStart.current.width + dx)),
+                height: Math.max(minHeight, Math.min(maxHeight, cardSizeStart.current.height + dy))
+            });
+        };
+
+        const handleTouchMove = (e: TouchEvent) => {
+            const touch = e.touches[0];
+            const dx = touch.clientX - resizeStart.current.x;
+            const dy = touch.clientY - resizeStart.current.y;
+            setSize({
+                width: Math.max(minWidth, Math.min(maxWidth, cardSizeStart.current.width + dx)),
+                height: Math.max(minHeight, Math.min(maxHeight, cardSizeStart.current.height + dy))
+            });
+        };
+
+        const handleMouseUp = () => {
+            setIsResizing(false);
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        window.addEventListener('touchmove', handleTouchMove, { passive: false });
+        window.addEventListener('touchend', handleMouseUp);
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+            window.removeEventListener('touchmove', handleTouchMove);
+            window.removeEventListener('touchend', handleMouseUp);
+        };
+    }, [isResizing]);
+
+    useEffect(() => {
+        if (!isMinimized && window.MathJax) {
+            setTimeout(() => {
+                try {
+                    window.MathJax?.Hub.Queue(["Typeset", window.MathJax.Hub]);
+                } catch (e) {
+                    console.error("MathJax typesetting failed:", e);
+                }
+            }, 50);
+        }
+    }, [isMinimized]);
+
+    // Heuristic: If it has multiple spaces and at least one multi-letter English word, it is descriptive text.
+    const isText = result.type === 'text' || 
+                   (/\s+/.test(result.expression) && /[a-zA-Z]{3,}/.test(result.expression)) ||
+                   (/\s+/.test(result.answer) && /[a-zA-Z]{3,}/.test(result.answer)) ||
+                   /^[a-zA-Z\s.,?!'-]{5,}$/.test(result.expression) ||
+                   /^[a-zA-Z\s.,?!'-]{5,}$/.test(result.answer);
+
+    const latex = isText 
+        ? `${result.expression} = ${result.answer}`
+        : `\\(${result.expression} = ${result.answer}\\)`;
+
+    return (
+        <div 
+            className="absolute top-0 left-0 z-50 glassmorphic-card p-4 rounded-xl shadow-2xl cursor-move select-none flex flex-col overflow-hidden"
+            style={{ 
+                transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
+                width: isMinimized ? 'auto' : `${size.width}px`,
+                height: isMinimized ? 'auto' : `${size.height}px`,
+            }}
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+        >
+            <div className="flex justify-between items-center gap-4 shrink-0">
+                <div className="flex items-center gap-2 overflow-hidden flex-1">
+                    <span className="text-xs font-bold px-2 py-1 bg-green-500/20 text-green-400 rounded-full border border-green-500/30 shrink-0">
+                        {result.confidence_score ? `${result.confidence_score}% Confident` : 'AI Result'}
+                    </span>
+                    {isMinimized && (
+                        <span className="text-xs text-gray-300 font-medium truncate flex-1" title={`${result.expression} = ${result.answer}`}>
+                            {result.expression.length > 25 ? `${result.expression.slice(0, 25)}...` : result.expression} = {result.answer}
+                        </span>
+                    )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs text-gray-400 font-mono">
+                        {result.latency ? `${result.latency}ms` : ''}
+                    </span>
+                    <button
+                        onClick={() => setIsMinimized(!isMinimized)}
+                        className="w-3.5 h-3.5 rounded-full bg-purple-500 hover:bg-purple-400 border border-purple-600/50 transition-all cursor-pointer flex items-center justify-center group relative shadow-sm"
+                        title={isMinimized ? "Maximize" : "Minimize"}
+                    >
+                        {isMinimized ? (
+                            /* macOS style plus icon on hover */
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <span className="w-1.5 h-[1.5px] bg-purple-950 absolute" />
+                                <span className="h-1.5 w-[1.5px] bg-purple-950 absolute" />
+                            </div>
+                        ) : (
+                            /* macOS style minus icon on hover */
+                            <span className="w-1.5 h-[1.5px] bg-purple-950 opacity-0 group-hover:opacity-100 transition-opacity absolute" />
+                        )}
+                    </button>
+                </div>
+            </div>
+
+            {!isMinimized && (
+                <div className="mt-3 flex-1 flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 gap-2">
+                    <div className="latex-content text-white whitespace-normal break-words overflow-auto shrink-0 max-h-[40%] pr-1">
+                        {latex}
+                    </div>
+
+                    {result.thought_process && (
+                        <div className="flex-1 flex flex-col overflow-hidden border-t border-white/10 pt-2 min-h-0">
+                            <button
+                                onClick={() => setShowThoughtProcess(!showThoughtProcess)}
+                                className="flex justify-between items-center text-sm text-gray-300 hover:text-white py-1 shrink-0 cursor-pointer"
+                            >
+                                <span>View Thought Process</span>
+                                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showThoughtProcess ? 'rotate-180' : ''}`} />
+                            </button>
+                            {showThoughtProcess && (
+                                <div className="text-gray-400 text-sm leading-relaxed whitespace-pre-wrap flex-1 overflow-y-auto pr-1 mt-1 min-h-0">
+                                    {formatMathText(result.thought_process)}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {!isMinimized && (
+                <div 
+                    className="absolute bottom-1 right-1 w-4 h-4 cursor-se-resize flex items-end justify-end pointer-events-auto z-[60]"
+                    onMouseDown={handleResizeMouseDown}
+                    onTouchStart={handleResizeTouchStart}
+                >
+                    <svg className="w-2.5 h-2.5 text-gray-500 hover:text-gray-300 transition-colors pointer-events-none" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 0L0 10M10 4L4 10M10 8L8 10" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+                    </svg>
+                </div>
+            )}
+        </div>
+    );
+};
