@@ -2,6 +2,7 @@ import base64
 import copy
 import hashlib
 import json
+import logging
 import time
 from collections import OrderedDict
 from io import BytesIO
@@ -15,6 +16,7 @@ from rate_limiter import limiter
 from schema import ImageData
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # In-memory query cache with LRU eviction and 10-minute TTL
 _result_cache: OrderedDict[str, dict] = OrderedDict()
@@ -31,8 +33,7 @@ async def run(request: Request, data: ImageData):
         image_bytes = BytesIO(image_data)
         image = Image.open(image_bytes)
     except Exception:
-        import traceback
-        traceback.print_exc()
+        logger.exception("Failed to decode base64 image data")
         raise HTTPException(
             status_code=400,
             detail="Invalid or malformed base64 image data"
@@ -57,6 +58,8 @@ async def run(request: Request, data: ImageData):
             detail=f"Unsupported image format: {image.format}. Allowed formats are PNG, JPEG, and WEBP."
         )
 
+    logger.info("Processing image calculation request. Dimensions: %dx%d, Format: %s", image.width, image.height, image.format)
+
     # 2. Check cache first
     vars_encoded = json.dumps(data.dict_of_vars, sort_keys=True).encode('utf-8')
     key_hash = hashlib.sha256(image_data + vars_encoded).hexdigest()
@@ -76,7 +79,7 @@ async def run(request: Request, data: ImageData):
                 item['latency'] = 0
                 formatted_responses.append(item)
 
-            print("response in route (cached hit): ", formatted_responses)
+            logger.debug("response in route (cached hit): %s", formatted_responses)
             return {
                 "message": "Image processed successfully",
                 "type": "success",
@@ -93,15 +96,13 @@ async def run(request: Request, data: ImageData):
         responses = analyze_image(image, dict_of_vars=data.dict_of_vars)
         end_time = time.time()
     except AIParsingError:
-        import traceback
-        traceback.print_exc()
+        logger.exception("Failed parsing AI JSON response")
         raise HTTPException(
             status_code=502,
             detail="The AI provider returned a response that could not be parsed. Please try drawing more clearly or check for stray marks."
         )
     except Exception:
-        import traceback
-        traceback.print_exc()
+        logger.exception("Failed calling Gemini API")
         raise HTTPException(
             status_code=502,
             detail="The AI provider failed to process this request. Please try again."
@@ -122,7 +123,7 @@ async def run(request: Request, data: ImageData):
         response['latency'] = latency
         formatted_responses.append(response)
 
-    print('response in route: ', formatted_responses)
+    logger.debug('response in route: %s', formatted_responses)
     return {
         "message": "Image processed successfully",
         "type": "success",

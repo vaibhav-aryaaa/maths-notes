@@ -1,5 +1,6 @@
 import datetime
 import json
+import logging
 import time
 
 import httpx
@@ -12,6 +13,7 @@ from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponen
 from constants import GEMINI_API_KEY
 
 client = genai.Client(api_key=GEMINI_API_KEY)
+logger = logging.getLogger(__name__)
 
 def is_transient_gemini_error(exception):
     if isinstance(exception, ServerError):
@@ -39,7 +41,7 @@ def _generate_content_with_retry(prompt, img):
         return res
     except Exception as e:
         latency = round((time.time() - start_time) * 1000)
-        print(f"[Gemini API Retry] Call failed. Latency: {latency}ms. Error class: {e.__class__.__name__}. Error detail: {e}")
+        logger.warning("[Gemini API Retry] Call failed. Latency: %dms. Error class: %s. Error detail: %s", latency, e.__class__.__name__, e)
         raise
 
 class AIParsingError(Exception):
@@ -78,26 +80,26 @@ def analyze_image(img: Image, dict_of_vars: dict, is_retry: bool = False):
         prompt += "\n\nIMPORTANT: Your last response was not valid JSON. Return ONLY valid JSON, no other text."
 
     response = _generate_content_with_retry(prompt, img)
-    print(response.text)
+    logger.debug("Gemini response text: %s", response.text)
     answers = []
     try:
         answers = json.loads(response.text)
     except Exception as e:
-        print(f"Error in parsing response on attempt {'2' if is_retry else '1'}: {e}")
+        logger.warning("Error in parsing response on attempt %s: %s", '2' if is_retry else '1', e)
         if not is_retry:
-            print("[AIParsingError] First attempt failed. Retrying with explicit JSON guidelines...")
+            logger.info("[AIParsingError] First attempt failed. Retrying with explicit JSON guidelines...")
             return analyze_image(img, dict_of_vars, is_retry=True)
         else:
             # Structurally log the failure context
-            timestamp = datetime.datetime.utcnow().isoformat()
-            print("\n=== AIParsingError Debug Context ===")
-            print(f"Timestamp: {timestamp}")
-            print("Prompt Version: v1.0 (PEMDAS-JSON-Rules)")
-            print(f"Raw Response Text: {response.text}")
-            print("====================================\n")
+            timestamp = datetime.datetime.now(datetime.UTC).isoformat()
+            logger.error(
+                "AIParsingError Debug Context - Timestamp: %s, Prompt: v1.0 (PEMDAS-JSON-Rules), Raw Response: %s",
+                timestamp,
+                response.text
+            )
             raise AIParsingError("The AI provider returned a response that could not be parsed as JSON.", response.text)
 
-    print('returned answer ', answers)
+    logger.debug('returned answer: %s', answers)
     for answer in answers:
         if 'assign' in answer:
             answer['assign'] = True

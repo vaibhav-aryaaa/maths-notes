@@ -2,6 +2,7 @@
 import { Button } from '@/components/ui/button';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import axios from 'axios';
+import { notifications } from '@mantine/notifications';
 import { SWATCHES } from '@/constants';
 import { Eraser, Pen, MessageSquare, X, Menu, RotateCcw, Sparkles, ChevronDown, Square, Circle, Triangle, Slash } from 'lucide-react';
 
@@ -715,9 +716,13 @@ export default function Home() {
         if (canvas) {
             const bounds = drawBoundsRef.current;
 
-            // Check if anything was actually drawn
             if (bounds.minX === Infinity || bounds.minY === Infinity) {
-                alert("Please draw something on the canvas first!");
+                notifications.show({
+                    title: 'Empty Canvas',
+                    message: 'Please draw something on the canvas first!',
+                    color: 'yellow',
+                    autoClose: 4000
+                });
                 return;
             }
 
@@ -794,7 +799,13 @@ export default function Home() {
 
             } catch (error: any) {
                 console.error("Failed to run AI", error);
-                alert(`AI API Error: ${error.response?.data?.message || error.message || "Failed to process image"}. You may have hit a rate limit. Please wait a moment and try again.`);
+                const errorMsg = error.response?.data?.detail || error.message || "Failed to process image";
+                notifications.show({
+                    title: 'AI API Error',
+                    message: `${errorMsg}. Please wait a moment and try again.`,
+                    color: 'red',
+                    autoClose: 6000
+                });
             } finally {
                 setIsScanning(false);
             }

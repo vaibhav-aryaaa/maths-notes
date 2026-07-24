@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import '@mantine/core/styles.css';
 import { MantineProvider } from '@mantine/core';
+import { Notifications } from '@mantine/notifications';
+import '@mantine/notifications/styles.css';
 
 import Home from '@/screens/home';
 import Landing from '@/screens/landing';
@@ -12,6 +14,7 @@ const App = () => {
 
     return (
         <MantineProvider>
+            <Notifications />
             <div className="relative w-full h-screen overflow-hidden bg-black">
                 
                 {/* The main application board (rendered but hidden under the landing page until started) */}

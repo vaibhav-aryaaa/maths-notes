@@ -51,7 +51,7 @@ def _chat_completions_create_with_retry(messages):
         return response
     except Exception as e:
         latency = round((time.time() - start_time) * 1000)
-        print(f"[Groq API Retry] Call failed. Latency: {latency}ms. Error class: {e.__class__.__name__}. Error detail: {e}")
+        logger.warning("[Groq API Retry] Call failed. Latency: %dms. Error class: %s. Error detail: %s", latency, e.__class__.__name__, e)
         raise
 
 

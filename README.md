@@ -97,6 +97,28 @@ graph TD
 
 ---
 
+## 🔒 API Specifications & Security
+
+### Request Size Limit
+*   The API enforces a global request body limit of **8 MB**. Any request exceeding this limit will immediately return a `413 Payload Too Large` error.
+
+### Error Handling & Validation
+*   All routes implement consistent request body validation. If a request body is malformed or violates schema validation (e.g. invalid base64 image strings), the server will return a clean and structured `422 Unprocessable Content` response containing validation details:
+    ```json
+    {
+      "detail": "Request validation failed",
+      "errors": [
+        {
+          "field": "image",
+          "message": "Value error, Image string cannot be empty",
+          "type": "value_error"
+        }
+      ]
+    }
+    ```
+
+---
+
 ## 🗺️ Roadmap & Future Enhancements
 
 - [ ] **Copilot Canvas Vision**: Give the Co-Pilot the actual canvas image (via Gemini) instead of text-only context, so it can genuinely reason about what's drawn.
