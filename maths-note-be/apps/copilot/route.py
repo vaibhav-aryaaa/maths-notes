@@ -1,6 +1,9 @@
-from fastapi import APIRouter
+import re
+from fastapi import APIRouter, Request, Depends, HTTPException
 from pydantic import BaseModel
 from apps.copilot.utils import chat_with_copilot
+from rate_limiter import limiter
+from auth import verify_app_key
 
 router = APIRouter()
 
@@ -11,8 +14,11 @@ class ChatRequest(BaseModel):
     dict_of_vars: dict
     results: list = []   # AI-solved results from the canvas
 
-@router.post("")
-async def copilot_chat(data: ChatRequest):
+@router.post("", dependencies=[Depends(verify_app_key)])
+@limiter.limit("10/minute")
+async def copilot_chat(request: Request, data: ChatRequest):
+    if not re.fullmatch(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}', data.session_id):
+        raise HTTPException(status_code=400, detail="Invalid session_id format. Must be UUIDv4.")
     try:
         reply = chat_with_copilot(
             session_id=data.session_id,
@@ -21,8 +27,11 @@ async def copilot_chat(data: ChatRequest):
             dict_of_vars=data.dict_of_vars,
             results=data.results,
         )
-        return {"reply": reply, "status": "success"}
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return {"reply": f"Error: {str(e)}", "status": "error"}
+        raise HTTPException(
+            status_code=502,
+            detail="The AI provider failed to process this request. Please try again."
+        )
+    return {"reply": reply, "status": "success"}

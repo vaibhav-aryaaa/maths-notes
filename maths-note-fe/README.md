@@ -71,3 +71,14 @@ export default defineConfig([
   },
 ])
 ```
+
+## Security Features
+
+### 1. Rate Limiting (Option A)
+The backend uses `slowapi` to enforce request rate limits keyed by client IP address. Public endpoints (`/calculate` and `/copilot`) are capped at **10 requests per minute**. When exceeded, the server returns a `429 Too Many Requests` status with a `Retry-After` header.
+
+### 2. Lightweight Authentication (Option B)
+Requests to `/calculate` and `/copilot` must include a valid shared secret in the `X-App-Key` header (defined by the `VITE_APP_KEY` env variable). 
+
+> [!CAUTION]
+> **Security Caveat**: Since this key is loaded in the client-side JavaScript bundle, it is public-facing and serves primarily as a deterrent against casual scraping or direct API execution. For complete defense-in-depth, it must be paired with the IP-based rate limiter (Option A) described above.

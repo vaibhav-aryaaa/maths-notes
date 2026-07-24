@@ -324,7 +324,14 @@ export default function Home() {
     ]);
     const [copilotInput, setCopilotInput] = useState('');
     const [isCopilotLoading, setIsCopilotLoading] = useState(false);
-    const sessionId = useRef(`session_${Date.now()}`);
+    const sessionId = useRef((() => {
+        let id = sessionStorage.getItem('solveiq_copilot_session_id');
+        if (!id || !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(id)) {
+            id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+            sessionStorage.setItem('solveiq_copilot_session_id', id);
+        }
+        return id;
+    })());
     const chatEndRef = useRef<HTMLDivElement>(null);
 
     // Bounds tracking for canvas optimization
@@ -450,20 +457,29 @@ export default function Home() {
         setIsCopilotLoading(true);
 
         try {
-            const res = await axios.post(`${import.meta.env.VITE_API_URL}/copilot`, {
-                session_id: sessionId.current,
-                message: text,
-                canvas_image: canvasImage,
-                dict_of_vars: dictOfVars,
-                results: results.map(r => ({
-                    expression: r.expression,
-                    answer: r.answer,
-                    thought_process: r.thought_process,
-                })),
-            });
+            const res = await axios.post(
+                `${import.meta.env.VITE_API_URL}/copilot`,
+                {
+                    session_id: sessionId.current,
+                    message: text,
+                    canvas_image: canvasImage,
+                    dict_of_vars: dictOfVars,
+                    results: results.map(r => ({
+                        expression: r.expression,
+                        answer: r.answer,
+                        thought_process: r.thought_process,
+                    })),
+                },
+                {
+                    headers: {
+                        'X-App-Key': import.meta.env.VITE_APP_KEY || '',
+                    },
+                }
+            );
             setCopilotMessages(prev => [...prev, { role: 'ai', text: res.data.reply }]);
         } catch (err: any) {
-            setCopilotMessages(prev => [...prev, { role: 'ai', text: '⚠️ Sorry, I ran into an error. Please try again.' }]);
+            const errorMsg = err.response?.data?.detail || err.message || 'Sorry, I ran into an error. Please try again.';
+            setCopilotMessages(prev => [...prev, { role: 'ai', text: `⚠️ ${errorMsg}` }]);
         } finally {
             setIsCopilotLoading(false);
         }
@@ -739,6 +755,9 @@ export default function Home() {
                     data: {
                         image: croppedImageBase64,
                         dict_of_vars: dictOfVars
+                    },
+                    headers: {
+                        'X-App-Key': import.meta.env.VITE_APP_KEY || ''
                     }
                 });
 

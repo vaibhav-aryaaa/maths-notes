@@ -4,21 +4,26 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from apps.calculator.route import router as calculator_router
 from apps.copilot.route import router as copilot_router
-from constants import SERVER_URL, PORT, ENV
+from constants import SERVER_URL, PORT, ENV, ALLOWED_ORIGINS
+from rate_limiter import limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 

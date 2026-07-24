@@ -1,5 +1,7 @@
 import json
 import base64
+import time
+from collections import OrderedDict
 from PIL import Image
 from io import BytesIO
 from groq import Groq
@@ -8,8 +10,41 @@ from constants import GROQ_API_KEY
 client = Groq(api_key=GROQ_API_KEY)
 MODEL = "llama-3.3-70b-versatile"
 
-# In-memory session store: session_id -> list of messages
-_sessions: dict[str, list] = {}
+# In-memory session store with LRU eviction and TTL sweep
+_sessions: OrderedDict[str, dict] = OrderedDict()
+
+def _sweep_idle_sessions():
+    now = time.time()
+    ttl = 30 * 60  # 30 minutes in seconds
+    to_delete = [
+        sid for sid, session in _sessions.items()
+        if now - session["last_active"] > ttl
+    ]
+    for sid in to_delete:
+        _sessions.pop(sid, None)
+
+def _get_or_create_session(session_id: str) -> list:
+    _sweep_idle_sessions()
+    
+    now = time.time()
+    if session_id in _sessions:
+        _sessions.move_to_end(session_id)
+        session = _sessions[session_id]
+        session["last_active"] = now
+        return session["history"]
+        
+    if len(_sessions) >= 1000:
+        _sessions.popitem(last=False)
+        
+    history = []
+    _sessions[session_id] = {"history": history, "last_active": now}
+    return history
+
+def _save_session(session_id: str, history: list):
+    if session_id in _sessions:
+        _sessions[session_id]["history"] = history
+        _sessions[session_id]["last_active"] = time.time()
+        _sessions.move_to_end(session_id)
 
 
 def _build_system_prompt(dict_of_vars: dict, results: list) -> str:
@@ -43,8 +78,8 @@ def chat_with_copilot(session_id: str, user_message: str, canvas_b64: str, dict_
     """
     system_prompt = _build_system_prompt(dict_of_vars, results)
 
-    # Get or init conversation history (excludes system message — we inject it fresh)
-    history = _sessions.get(session_id, [])
+    # Get or init conversation history
+    history = _get_or_create_session(session_id)
 
     # Append the new user message
     history.append({"role": "user", "content": user_message})
@@ -62,6 +97,6 @@ def chat_with_copilot(session_id: str, user_message: str, canvas_b64: str, dict_
     history.append({"role": "assistant", "content": reply})
 
     # Save back
-    _sessions[session_id] = history
+    _save_session(session_id, history)
 
     return reply
