@@ -207,12 +207,9 @@ const DraggableResultCard = ({ result, defaultPosition }: { result: GeneratedRes
                    /^[a-zA-Z\s.,?!'-]{5,}$/.test(result.expression) ||
                    /^[a-zA-Z\s.,?!'-]{5,}$/.test(result.answer);
 
-    let latex = '';
-    if (isText) {
-        latex = `${result.expression} = ${result.answer}`;
-    } else {
-        latex = `\\(${result.expression} = ${result.answer}\\)`;
-    }
+    const latex = isText 
+        ? `${result.expression} = ${result.answer}`
+        : `\\(${result.expression} = ${result.answer}\\)`;
 
     return (
         <div 
@@ -304,7 +301,7 @@ export default function Home() {
     const [isDrawing, setIsDrawing] = useState(false);
     const [isEraser, setIsEraser] = useState(false);
     const [color, setColor] = useState('rgb(255, 255, 255)');
-    const [reset, setReset] = useState(false);
+
     const [dictOfVars, setDictOfVars] = useState({});
     const [results, setResults] = useState<GeneratedResult[]>([]);
     const [latexPosition, setLatexPosition] = useState({ x: 10, y: 200 });
@@ -357,15 +354,6 @@ export default function Home() {
             }, 0)
         }
     }, [results]);
-
-    useEffect(() => {
-        if (reset) {
-            resetCanvas();
-            setResults([]);
-            setDictOfVars({});
-            setReset(false);
-        }
-    }, [reset]);
 
     const colorRef = useRef(color);
     useEffect(() => {
@@ -483,7 +471,7 @@ export default function Home() {
         } finally {
             setIsCopilotLoading(false);
         }
-    }, [copilotInput, isCopilotLoading, dictOfVars]);
+    }, [copilotInput, isCopilotLoading, dictOfVars, results]);
 
 
     const resetCanvas = () => {
@@ -495,6 +483,8 @@ export default function Home() {
             }
         }
         drawBoundsRef.current = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+        setResults([]);
+        setDictOfVars({});
     };
 
     const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -745,6 +735,8 @@ export default function Home() {
                 tempCanvas.height = cropHeight;
                 const tempCtx = tempCanvas.getContext('2d');
                 if (tempCtx) {
+                    tempCtx.fillStyle = 'black';
+                    tempCtx.fillRect(0, 0, cropWidth, cropHeight);
                     tempCtx.drawImage(canvas, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
                 }
                 const croppedImageBase64 = tempCanvas.toDataURL('image/png');
@@ -869,7 +861,7 @@ export default function Home() {
 
                 {/* Reset Button */}
                 <Button
-                    onClick={() => setReset(true)}
+                    onClick={resetCanvas}
                     className="bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] text-white border border-[#444] transition-all p-2 h-8 flex items-center justify-center gap-1.5 rounded-lg min-w-[70px]"
                     variant="default"
                     title="Reset Canvas"

@@ -1,13 +1,21 @@
 import json
-import base64
+import logging
 import time
 from collections import OrderedDict
-from PIL import Image
-from io import BytesIO
+
 import httpx
-from groq import Groq, APIStatusError, APIConnectionError, RateLimitError, InternalServerError
+from groq import (
+    APIConnectionError,
+    APIStatusError,
+    Groq,
+    InternalServerError,
+    RateLimitError,
+)
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
+
 from constants import GROQ_API_KEY
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
+
+logger = logging.getLogger(__name__)
 
 client = Groq(api_key=GROQ_API_KEY)
 MODEL = "llama-3.3-70b-versatile"
@@ -44,7 +52,9 @@ def _chat_completions_create_with_retry(messages):
     except Exception as e:
         latency = round((time.time() - start_time) * 1000)
         print(f"[Groq API Retry] Call failed. Latency: {latency}ms. Error class: {e.__class__.__name__}. Error detail: {e}")
-        raise e
+        raise
+
+
 
 # In-memory session store with LRU eviction and TTL sweep
 _sessions: OrderedDict[str, dict] = OrderedDict()
@@ -61,31 +71,38 @@ def _sweep_idle_sessions():
 
 def _get_or_create_session(session_id: str) -> list:
     _sweep_idle_sessions()
-    
+
     now = time.time()
     if session_id in _sessions:
         _sessions.move_to_end(session_id)
         session = _sessions[session_id]
         session["last_active"] = now
-        return session["history"]
-        
-    if len(_sessions) >= 1000:
-        _sessions.popitem(last=False)
-        
-    history = []
-    _sessions[session_id] = {"history": history, "last_active": now}
-    return history
+        # Enforce maximum 20 messages
+        if len(session["messages"]) > 20:
+            session["messages"] = session["messages"][-20:]
+        return session["messages"]
 
-def _save_session(session_id: str, history: list):
+    if len(_sessions) >= 1000:
+        evicted_key, _ = _sessions.popitem(last=False)
+        logger.warning(f"Evicted oldest session due to capacity limit: {evicted_key}")
+
+    messages = []
+    _sessions[session_id] = {"messages": messages, "last_active": now}
+    return messages
+
+def _save_session(session_id: str, messages: list):
     if session_id in _sessions:
-        _sessions[session_id]["history"] = history
+        # Enforce maximum 20 messages
+        if len(messages) > 20:
+            messages = messages[-20:]
+        _sessions[session_id]["messages"] = messages
         _sessions[session_id]["last_active"] = time.time()
         _sessions.move_to_end(session_id)
 
 
 def _build_system_prompt(dict_of_vars: dict, results: list) -> str:
     vars_str = json.dumps(dict_of_vars, ensure_ascii=False) if dict_of_vars else "{}"
-    
+
     results_str = ""
     if results:
         lines = []
@@ -114,20 +131,28 @@ def chat_with_copilot(session_id: str, user_message: str, canvas_b64: str, dict_
     """
     system_prompt = _build_system_prompt(dict_of_vars, results)
 
-    # Get or init conversation history
-    history = _get_or_create_session(session_id)
+    # Get or init conversation messages history
+    session_messages = _get_or_create_session(session_id)
 
     # Append the new user message
-    history.append({"role": "user", "content": user_message})
+    session_messages.append({"role": "user", "content": user_message})
 
-    messages = [{"role": "system", "content": system_prompt}] + history
+    # Enforce cap of 20 messages before sending to Groq
+    if len(session_messages) > 20:
+        session_messages = session_messages[-20:]
+
+    messages = [{"role": "system", "content": system_prompt}] + session_messages
 
     response = _chat_completions_create_with_retry(messages)
 
     reply = response.choices[0].message.content
-    history.append({"role": "assistant", "content": reply})
+    session_messages.append({"role": "assistant", "content": reply})
+
+    # Enforce cap of 20 messages before saving back
+    if len(session_messages) > 20:
+        session_messages = session_messages[-20:]
 
     # Save back
-    _save_session(session_id, history)
+    _save_session(session_id, session_messages)
 
     return reply

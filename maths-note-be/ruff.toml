@@ -1,0 +1,9 @@
+# ruff.toml
+# Ruff configuration for maths-note-be
+
+line-length = 120
+target-version = "py313"
+
+[lint]
+select = ["E", "F", "I", "W", "UP"]
+ignore = ["E501"]

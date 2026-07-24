@@ -1,9 +1,11 @@
 import re
-from fastapi import APIRouter, Request, Depends, HTTPException
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+
 from apps.copilot.utils import chat_with_copilot
-from rate_limiter import limiter
 from auth import verify_app_key
+from rate_limiter import limiter
 
 router = APIRouter()
 
@@ -27,7 +29,7 @@ async def copilot_chat(request: Request, data: ChatRequest):
             dict_of_vars=data.dict_of_vars,
             results=data.results,
         )
-    except Exception as e:
+    except Exception:
         import traceback
         traceback.print_exc()
         raise HTTPException(

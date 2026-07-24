@@ -1,15 +1,18 @@
 from contextlib import asynccontextmanager
+
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
-from apps.calculator.route import router as calculator_router
-from apps.copilot.route import router as copilot_router
-from constants import SERVER_URL, PORT, ENV, ALLOWED_ORIGINS
-from rate_limiter import limiter
-from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
+
+from apps.calculator.route import router as calculator_router
+from apps.copilot.route import router as copilot_router
+from constants import ALLOWED_ORIGINS, ENV, PORT, SERVER_URL
+from rate_limiter import limiter
+
 
 class LimitUploadSizeMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, max_upload_size: int = 8 * 1024 * 1024):
@@ -41,7 +44,7 @@ app.add_middleware(
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=False,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "X-App-Key"],
 )
 
 

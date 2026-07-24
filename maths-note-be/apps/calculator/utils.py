@@ -1,27 +1,24 @@
 import datetime
+import json
+import time
+
+import httpx
 from google import genai
 from google.genai import types
-import ast
-import json
-from PIL import Image
-from constants import GEMINI_API_KEY
-
-import time
-import httpx
 from google.genai.errors import APIError, ServerError
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
+from PIL import Image
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
+
+from constants import GEMINI_API_KEY
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 def is_transient_gemini_error(exception):
     if isinstance(exception, ServerError):
         return True
-    if isinstance(exception, APIError):
-        if getattr(exception, "code", None) == 429:
-            return True
-    if isinstance(exception, (httpx.HTTPError, ConnectionError, TimeoutError)):
+    if isinstance(exception, APIError) and getattr(exception, "code", None) == 429:
         return True
-    return False
+    return bool(isinstance(exception, (httpx.HTTPError, ConnectionError, TimeoutError)))
 
 @retry(
     stop=stop_after_attempt(3),
@@ -43,7 +40,7 @@ def _generate_content_with_retry(prompt, img):
     except Exception as e:
         latency = round((time.time() - start_time) * 1000)
         print(f"[Gemini API Retry] Call failed. Latency: {latency}ms. Error class: {e.__class__.__name__}. Error detail: {e}")
-        raise e
+        raise
 
 class AIParsingError(Exception):
     def __init__(self, message, raw_response):
@@ -93,11 +90,11 @@ def analyze_image(img: Image, dict_of_vars: dict, is_retry: bool = False):
         else:
             # Structurally log the failure context
             timestamp = datetime.datetime.utcnow().isoformat()
-            print(f"\n=== AIParsingError Debug Context ===")
+            print("\n=== AIParsingError Debug Context ===")
             print(f"Timestamp: {timestamp}")
-            print(f"Prompt Version: v1.0 (PEMDAS-JSON-Rules)")
+            print("Prompt Version: v1.0 (PEMDAS-JSON-Rules)")
             print(f"Raw Response Text: {response.text}")
-            print(f"====================================\n")
+            print("====================================\n")
             raise AIParsingError("The AI provider returned a response that could not be parsed as JSON.", response.text)
 
     print('returned answer ', answers)

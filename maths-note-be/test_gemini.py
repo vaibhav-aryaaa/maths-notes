@@ -1,13 +1,9 @@
-import google.generativeai as genai
-from PIL import Image
-import json
-import base64
 import os
-import io
 
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY", "")) # Replace with actual key logic if needed, but we can just use dotenv
-
+import google.generativeai as genai
 from dotenv import load_dotenv
+from PIL import Image
+
 load_dotenv("/Users/vaibhavarya/Documents/Culture/math-note/maths-note-be/.env")
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
