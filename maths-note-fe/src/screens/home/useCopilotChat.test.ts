@@ -67,4 +67,47 @@ describe('useCopilotChat', () => {
         expect(result.current.copilotMessages.length).toBe(3);
         expect(result.current.copilotMessages[2].text).toContain('Network Error');
     });
+
+    it('should map grouped results correctly in copilot API payload', async () => {
+        const mockResponse = {
+            data: {
+                reply: 'Solution details mapped'
+            }
+        };
+        vi.mocked(axios.post).mockResolvedValue(mockResponse);
+
+        const mockResults = [
+            {
+                id: 'abc-123',
+                solutions: [
+                    { expression: 'x', answer: '3', type: 'math' },
+                    { expression: 'x', answer: '-3', type: 'math' }
+                ],
+                thought_process: 'Solve x^2 = 9',
+                confidence_score: 99,
+                latency: 200
+            }
+        ];
+
+        const { result } = renderHook(() => useCopilotChat({ x: '3' }, mockResults));
+
+        act(() => {
+            result.current.setCopilotInput('Analyze the result');
+        });
+
+        await act(async () => {
+            await result.current.sendCopilotMessage();
+        });
+
+        expect(axios.post).toHaveBeenCalledWith(
+            expect.any(String),
+            expect.objectContaining({
+                results: [
+                    { expression: 'x', answer: '3', thought_process: 'Solve x^2 = 9' },
+                    { expression: 'x', answer: '-3', thought_process: 'Solve x^2 = 9' }
+                ]
+            }),
+            expect.any(Object)
+        );
+    });
 });

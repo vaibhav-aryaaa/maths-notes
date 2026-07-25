@@ -55,6 +55,7 @@ export const DraggableResultCard = ({ result, defaultPosition }: DraggableResult
     
     const resizeStart = useRef({ x: 0, y: 0 });
     const cardSizeStart = useRef({ width: 0, height: 0 });
+    const cardRef = useRef<HTMLDivElement>(null);
 
     const handleMouseDown = (e: React.MouseEvent) => {
         const target = e.target as HTMLElement;
@@ -177,31 +178,44 @@ export const DraggableResultCard = ({ result, defaultPosition }: DraggableResult
         };
     }, [isResizing]);
 
+    const serializedSolutions = JSON.stringify(result.solutions);
+
     useEffect(() => {
-        if (!isMinimized && window.MathJax) {
+        if (!isMinimized && window.MathJax && cardRef.current) {
+            const cardEl = cardRef.current;
             setTimeout(() => {
                 try {
-                    window.MathJax?.Hub.Queue(["Typeset", window.MathJax.Hub]);
+                    window.MathJax?.Hub.Queue(["Typeset", window.MathJax.Hub, cardEl]);
                 } catch (e) {
                     console.error("MathJax typesetting failed:", e);
                 }
             }, 50);
         }
-    }, [isMinimized]);
+    }, [isMinimized, serializedSolutions]);
 
-    // Heuristic: If it has multiple spaces and at least one multi-letter English word, it is descriptive text.
-    const isText = result.type === 'text' || 
-                   (/\s+/.test(result.expression) && /[a-zA-Z]{3,}/.test(result.expression)) ||
-                   (/\s+/.test(result.answer) && /[a-zA-Z]{3,}/.test(result.answer)) ||
-                   /^[a-zA-Z\s.,?!'-]{5,}$/.test(result.expression) ||
-                   /^[a-zA-Z\s.,?!'-]{5,}$/.test(result.answer);
+    const renderedSolutions = result.solutions.map((sol, index) => {
+        const isText = sol.type === 'text' || 
+                       (/\s+/.test(sol.expression) && /[a-zA-Z]{3,}/.test(sol.expression)) ||
+                       (/\s+/.test(sol.answer) && /[a-zA-Z]{3,}/.test(sol.answer)) ||
+                       /^[a-zA-Z\s.,?!'-]{5,}$/.test(sol.expression) ||
+                       /^[a-zA-Z\s.,?!'-]{5,}$/.test(sol.answer);
 
-    const latex = isText 
-        ? `${result.expression} = ${result.answer}`
-        : `\\(${result.expression} = ${result.answer}\\)`;
+        const latexStr = isText 
+            ? `${sol.expression} = ${sol.answer}`
+            : `\\(${sol.expression} = ${sol.answer}\\)`;
+
+        return (
+            <div key={index} className="text-white text-base sm:text-lg font-medium leading-relaxed">
+                {latexStr}
+            </div>
+        );
+    });
+
+    const summaryText = result.solutions.map(s => `${s.expression} = ${s.answer}`).join(', ');
 
     return (
         <div 
+            ref={cardRef}
             className="absolute top-0 left-0 z-50 glassmorphic-card p-4 rounded-xl shadow-2xl cursor-move select-none flex flex-col overflow-hidden"
             style={{ 
                 transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
@@ -217,8 +231,8 @@ export const DraggableResultCard = ({ result, defaultPosition }: DraggableResult
                         {result.confidence_score ? `${result.confidence_score}% Confident` : 'AI Result'}
                     </span>
                     {isMinimized && (
-                        <span className="text-xs text-gray-300 font-medium truncate flex-1" title={`${result.expression} = ${result.answer}`}>
-                            {result.expression.length > 25 ? `${result.expression.slice(0, 25)}...` : result.expression} = {result.answer}
+                        <span className="text-xs text-gray-300 font-medium truncate flex-1" title={summaryText}>
+                            {summaryText}
                         </span>
                     )}
                 </div>
@@ -244,11 +258,11 @@ export const DraggableResultCard = ({ result, defaultPosition }: DraggableResult
                     </button>
                 </div>
             </div>
-
+            
             {!isMinimized && (
                 <div className="mt-3 flex-1 flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 gap-2">
-                    <div className="latex-content text-white whitespace-normal break-words overflow-auto shrink-0 max-h-[40%] pr-1">
-                        {latex}
+                    <div className="latex-content text-white whitespace-normal break-words overflow-y-auto shrink-0 max-h-[45%] pr-1 flex flex-col gap-1.5 scrollbar-thin">
+                        {renderedSolutions}
                     </div>
 
                     {result.thought_process && (

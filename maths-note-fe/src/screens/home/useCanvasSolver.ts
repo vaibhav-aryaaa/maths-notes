@@ -80,17 +80,27 @@ export const useCanvasSolver = (
 
             setLatexPosition({ x: clampedX, y: clampedY });
             
-            const newResults: GeneratedResult[] = resp.data.map((data: CalculateResponseItem) => ({
-                expression: data.expr,
-                answer: data.result,
-                type: data.type,
-                thought_process: data.thought_process,
-                confidence_score: data.confidence_score,
-                latency: data.latency
-            }));
+            if (resp.data && resp.data.length > 0) {
+                const solutions = resp.data.map((data: CalculateResponseItem) => ({
+                    expression: data.expr,
+                    answer: data.result,
+                    type: data.type
+                }));
 
-            // Immediately update results and clear canvas
-            setResults(prev => [...prev, ...newResults]);
+                const maxConfidence = Math.max(...resp.data.map((d: CalculateResponseItem) => d.confidence_score || 0));
+                const maxLatency = Math.max(...resp.data.map((d: CalculateResponseItem) => d.latency || 0));
+                const thoughtProcess = resp.data.find((d: CalculateResponseItem) => d.thought_process)?.thought_process;
+
+                const newResult: GeneratedResult = {
+                    id: crypto.randomUUID(),
+                    solutions,
+                    thought_process: thoughtProcess,
+                    confidence_score: maxConfidence > 0 ? maxConfidence : undefined,
+                    latency: maxLatency > 0 ? maxLatency : undefined
+                };
+
+                setResults(prev => [...prev, newResult]);
+            }
             const ctx = canvas.getContext('2d');
             if (ctx) {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);

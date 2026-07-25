@@ -37,11 +37,13 @@ export const useCopilotChat = (dictOfVars: DictOfVars, results: GeneratedResult[
                     message: text,
                     canvas_image: '',
                     dict_of_vars: dictOfVars,
-                    results: results.map(r => ({
-                        expression: r.expression,
-                        answer: r.answer,
-                        thought_process: r.thought_process,
-                    })),
+                    results: results.flatMap(r =>
+                        r.solutions.map(sol => ({
+                            expression: sol.expression,
+                            answer: sol.answer,
+                            thought_process: r.thought_process,
+                        }))
+                    ),
                 },
                 {
                     headers: {

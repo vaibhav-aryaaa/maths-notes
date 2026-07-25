@@ -1,7 +1,12 @@
-export interface GeneratedResult {
+export interface GeneratedSolution {
     expression: string;
     answer: string;
     type?: string;
+}
+
+export interface GeneratedResult {
+    id: string;
+    solutions: GeneratedSolution[];
     thought_process?: string;
     confidence_score?: number;
     latency?: number;

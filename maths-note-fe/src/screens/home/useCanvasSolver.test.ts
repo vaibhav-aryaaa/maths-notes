@@ -82,9 +82,10 @@ describe('useCanvasSolver', () => {
         expect(result.current.dictOfVars).toEqual({ x: '5' });
         expect(result.current.results.length).toBe(1);
         expect(result.current.results[0]).toEqual({
-            expression: 'x',
-            answer: '5',
-            type: 'math',
+            id: expect.any(String),
+            solutions: [
+                { expression: 'x', answer: '5', type: 'math' }
+            ],
             thought_process: 'Solves x = 5',
             confidence_score: 95,
             latency: 120

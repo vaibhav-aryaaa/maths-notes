@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 export const useMathCanvas = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
+    const [isCanvasEmpty, setIsCanvasEmpty] = useState(true);
     const [isEraser, setIsEraser] = useState(false);
     const [color, setColor] = useState('rgb(255, 255, 255)');
     const [selectedShape, setSelectedShape] = useState<'freehand' | 'line' | 'rectangle' | 'circle' | 'triangle'>('freehand');
@@ -18,6 +19,37 @@ export const useMathCanvas = () => {
     
     // Bounds tracking for canvas crop optimization
     const drawBoundsRef = useRef({ minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+
+    interface HistoryState {
+        imageData: ImageData;
+        bounds: { minX: number; minY: number; maxX: number; maxY: number };
+    }
+
+    const undoStackRef = useRef<HistoryState[]>([]);
+    const redoStackRef = useRef<HistoryState[]>([]);
+    const [canUndo, setCanUndo] = useState(false);
+    const [canRedo, setCanRedo] = useState(false);
+
+    const saveState = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const state: HistoryState = {
+            imageData: ctx.getImageData(0, 0, canvas.width, canvas.height),
+            bounds: { ...drawBoundsRef.current }
+        };
+
+        undoStackRef.current.push(state);
+        if (undoStackRef.current.length > 50) {
+            undoStackRef.current.shift();
+        }
+        
+        redoStackRef.current = [];
+        setCanUndo(true);
+        setCanRedo(false);
+    };
 
     const updateBounds = (x: number, y: number) => {
         if (x < drawBoundsRef.current.minX) drawBoundsRef.current.minX = x;
@@ -90,6 +122,11 @@ export const useMathCanvas = () => {
             }
         }
         drawBoundsRef.current = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+        setIsCanvasEmpty(true);
+        undoStackRef.current = [];
+        redoStackRef.current = [];
+        setCanUndo(false);
+        setCanRedo(false);
     };
 
     const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -98,9 +135,11 @@ export const useMathCanvas = () => {
             canvas.style.background = 'black';
             const ctx = canvas.getContext('2d');
             if (ctx) {
+                saveState();
                 const x = e.nativeEvent.offsetX;
                 const y = e.nativeEvent.offsetY;
                 setIsDrawing(true);
+                setIsCanvasEmpty(false);
                 
                 if (isEraser || selectedShape === 'freehand') {
                     ctx.beginPath();
@@ -216,8 +255,10 @@ export const useMathCanvas = () => {
             canvas.style.background = 'black';
             const ctx = canvas.getContext('2d');
             if (ctx) {
-                const pos = getTouchPos(e);
-                setIsDrawing(true);
+                 saveState();
+                 const pos = getTouchPos(e);
+                 setIsDrawing(true);
+                 setIsCanvasEmpty(false);
                 
                 if (isEraser || selectedShape === 'freehand') {
                     ctx.beginPath();
@@ -314,6 +355,43 @@ export const useMathCanvas = () => {
         }
     };
 
+    const drawStrokes = (strokes: { x: number; y: number }[][]) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        // Reset canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        canvas.style.background = 'black';
+
+        // Reset bounds
+        drawBoundsRef.current = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+        setIsCanvasEmpty(false);
+        undoStackRef.current = [];
+        redoStackRef.current = [];
+        setCanUndo(false);
+        setCanRedo(false);
+
+        // Draw each stroke
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = colorRef.current;
+        ctx.lineWidth = 3;
+
+        strokes.forEach(stroke => {
+            if (stroke.length === 0) return;
+            ctx.beginPath();
+            ctx.moveTo(stroke[0].x, stroke[0].y);
+            updateBounds(stroke[0].x, stroke[0].y);
+
+            for (let i = 1; i < stroke.length; i++) {
+                ctx.lineTo(stroke[i].x, stroke[i].y);
+                updateBounds(stroke[i].x, stroke[i].y);
+            }
+            ctx.stroke();
+        });
+    };
+
     return {
         canvasRef,
         drawBoundsRef,
@@ -336,5 +414,52 @@ export const useMathCanvas = () => {
         startDrawingTouch,
         drawTouch,
         stopDrawingTouch,
+        drawStrokes,
+        isCanvasEmpty,
+        setIsCanvasEmpty,
+        canUndo,
+        canRedo,
+        undo: () => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            if (undoStackRef.current.length === 0) return;
+
+            const currentState: HistoryState = {
+                imageData: ctx.getImageData(0, 0, canvas.width, canvas.height),
+                bounds: { ...drawBoundsRef.current }
+            };
+            redoStackRef.current.push(currentState);
+            setCanRedo(true);
+
+            const prevState = undoStackRef.current.pop()!;
+            ctx.putImageData(prevState.imageData, 0, 0);
+            drawBoundsRef.current = { ...prevState.bounds };
+            setIsCanvasEmpty(prevState.bounds.minX === Infinity);
+            setCanUndo(undoStackRef.current.length > 0);
+        },
+        redo: () => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            if (redoStackRef.current.length === 0) return;
+
+            const currentState: HistoryState = {
+                imageData: ctx.getImageData(0, 0, canvas.width, canvas.height),
+                bounds: { ...drawBoundsRef.current }
+            };
+            undoStackRef.current.push(currentState);
+            setCanUndo(true);
+
+            const nextState = redoStackRef.current.pop()!;
+            ctx.putImageData(nextState.imageData, 0, 0);
+            drawBoundsRef.current = { ...nextState.bounds };
+            setIsCanvasEmpty(nextState.bounds.minX === Infinity);
+            setCanRedo(redoStackRef.current.length > 0);
+        },
     };
 };

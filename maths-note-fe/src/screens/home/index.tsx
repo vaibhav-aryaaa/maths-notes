@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { SWATCHES } from '@/constants';
-import { Eraser, Pen, MessageSquare, X, Menu, RotateCcw, Sparkles, ChevronDown, Square, Circle, Triangle, Slash } from 'lucide-react';
+import { Eraser, Pen, MessageSquare, X, Menu, RotateCcw, Sparkles, ChevronDown, Square, Circle, Triangle, Slash, Undo2, Redo2 } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { useMathCanvas } from './useMathCanvas';
 import { useCanvasSolver } from './useCanvasSolver';
 import { useCopilotChat } from './useCopilotChat';
+import { Modal } from '@mantine/core';
+
+import { EXAMPLE_PROBLEMS } from '@/data/exampleProblems';
 
 export default function Home() {
     const {
@@ -29,11 +32,19 @@ export default function Home() {
         startDrawingTouch,
         drawTouch,
         stopDrawingTouch,
+        drawStrokes,
+        isCanvasEmpty,
+        canUndo,
+        canRedo,
+        undo,
+        redo,
     } = useMathCanvas();
 
     const {
         dictOfVars,
+        setDictOfVars,
         results,
+        setResults,
         isScanning,
         latexPosition,
         setLatexPosition,
@@ -49,6 +60,79 @@ export default function Home() {
         isCopilotLoading,
         sendCopilotMessage,
     } = useCopilotChat(dictOfVars, results);
+
+    const handleTryExample = (strokes: { x: number; y: number }[][]) => {
+        setResults([]);
+        setDictOfVars({});
+        drawStrokes(strokes);
+        setTimeout(() => {
+            runRoute();
+        }, 600);
+    };
+
+    const showExamples = isCanvasEmpty && results.length === 0;
+
+    const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const activeTag = document.activeElement?.tagName.toLowerCase();
+            if (activeTag === 'input' || activeTag === 'textarea' || document.activeElement?.getAttribute('contenteditable') === 'true') {
+                return;
+            }
+
+            const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+            const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+
+            // Undo: cmd/ctrl + z
+            if (cmdOrCtrl && !e.shiftKey && e.key.toLowerCase() === 'z') {
+                e.preventDefault();
+                undo();
+            }
+            // Redo: cmd/ctrl + shift + z
+            else if (cmdOrCtrl && e.shiftKey && e.key.toLowerCase() === 'z') {
+                e.preventDefault();
+                redo();
+            }
+            // Pen: P
+            else if (!cmdOrCtrl && !e.altKey && e.key.toLowerCase() === 'p') {
+                setIsEraser(false);
+                setSelectedShape('freehand');
+            }
+            // Eraser: E
+            else if (!cmdOrCtrl && !e.altKey && e.key.toLowerCase() === 'e') {
+                setIsEraser(true);
+            }
+            // Line: L
+            else if (!cmdOrCtrl && !e.altKey && e.key.toLowerCase() === 'l') {
+                setIsEraser(false);
+                setSelectedShape('line');
+            }
+            // Rectangle: R
+            else if (!cmdOrCtrl && !e.altKey && e.key.toLowerCase() === 'r') {
+                setIsEraser(false);
+                setSelectedShape('rectangle');
+            }
+            // Circle: C
+            else if (!cmdOrCtrl && !e.altKey && e.key.toLowerCase() === 'c') {
+                setIsEraser(false);
+                setSelectedShape('circle');
+            }
+            // Triangle: T
+            else if (!cmdOrCtrl && !e.altKey && e.key.toLowerCase() === 't') {
+                setIsEraser(false);
+                setSelectedShape('triangle');
+            }
+            // Help: ? (shift + /)
+            else if (e.key === '?') {
+                e.preventDefault();
+                setIsShortcutsOpen(true);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [undo, redo, setIsEraser, setSelectedShape]);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
     const chatEndRef = useRef<HTMLDivElement>(null);
@@ -125,6 +209,28 @@ export default function Home() {
                 >
                     <RotateCcw size={14} className="text-red-400" />
                     <span className="text-xs font-semibold select-none font-sans">Reset</span>
+                </Button>
+
+                {/* Undo Button */}
+                <Button
+                    onClick={undo}
+                    disabled={!canUndo}
+                    className="bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] text-white border border-[#444] transition-all p-2 h-8 w-8 flex items-center justify-center rounded-lg disabled:opacity-35 disabled:hover:bg-[#2c2c2c]/50 disabled:cursor-not-allowed cursor-pointer"
+                    variant="default"
+                    title="Undo (Ctrl+Z / ⌘+Z)"
+                >
+                    <Undo2 size={14} className="text-gray-300" />
+                </Button>
+
+                {/* Redo Button */}
+                <Button
+                    onClick={redo}
+                    disabled={!canRedo}
+                    className="bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] text-white border border-[#444] transition-all p-2 h-8 w-8 flex items-center justify-center rounded-lg disabled:opacity-35 disabled:hover:bg-[#2c2c2c]/50 disabled:cursor-not-allowed cursor-pointer"
+                    variant="default"
+                    title="Redo (Ctrl+Shift+Z / ⌘+Shift+Z)"
+                >
+                    <Redo2 size={14} className="text-gray-300" />
                 </Button>
 
                 {/* Divider */}
@@ -216,6 +322,19 @@ export default function Home() {
                         </div>
                     )}
                 </div>
+
+                {/* Divider */}
+                <div className="h-5 w-[1px] bg-[#333] mx-1" />
+
+                {/* Keyboard Shortcuts Button */}
+                <Button
+                    onClick={() => setIsShortcutsOpen(true)}
+                    className="bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] text-white border border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 w-8 transition-all hover:scale-105 active:scale-95 cursor-pointer text-gray-300 font-bold font-sans text-xs"
+                    variant="default"
+                    title="Keyboard Shortcuts (?)"
+                >
+                    ?
+                </Button>
             </div>
 
             {/* Top Right Run Button */}
@@ -257,6 +376,37 @@ export default function Home() {
             ))}
 
             {isScanning && <div className="scanning-laser" />}
+
+            {showExamples && (
+                <div className="absolute top-[40%] sm:top-[35%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-6 max-w-lg w-full px-6 text-center select-none pointer-events-none">
+                    <div className="flex flex-col items-center gap-2 pointer-events-auto">
+                        <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                            Unlock the Power of <span className="text-amber-500">SolveIQ</span>
+                        </h2>
+                        <p className="text-gray-400 text-sm max-w-sm">
+                            Draw your equations or click one of our pre-baked math examples below to see SolveIQ scan and solve in real-time.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full mt-2 pointer-events-auto">
+                        {EXAMPLE_PROBLEMS.map((problem) => (
+                            <button
+                                key={problem.id}
+                                onClick={() => handleTryExample(problem.strokes)}
+                                className="cursor-pointer flex flex-col text-left p-3.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 active:scale-[0.98] transition-all text-white backdrop-blur-md shadow-lg group"
+                            >
+                                <span className="text-sm font-bold text-amber-400 group-hover:text-amber-300 flex items-center gap-1.5">
+                                    <Sparkles size={13} className="text-amber-500 animate-pulse" />
+                                    {problem.name}
+                                </span>
+                                <span className="text-xs text-gray-400 mt-1 leading-normal line-clamp-2">
+                                    {problem.description}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Floating Copilot Toggle Button */}
             <button
@@ -342,6 +492,64 @@ export default function Home() {
                     </div>
                 </div>
             )}
+            <Modal
+                opened={isShortcutsOpen}
+                onClose={() => setIsShortcutsOpen(false)}
+                title={<span className="font-bold text-white">Keyboard Shortcuts Reference</span>}
+                centered
+                styles={{
+                    content: {
+                        backgroundColor: '#1c1917',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '16px',
+                        color: 'white',
+                    },
+                    header: {
+                        backgroundColor: '#1c1917',
+                        color: 'white',
+                        borderBottom: '1px solid rgba(255,255,255,0.05)',
+                    },
+                }}
+            >
+                <div className="flex flex-col gap-4 text-sm font-sans">
+                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
+                        <span className="text-gray-400">Undo stroke</span>
+                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">Ctrl + Z / ⌘ + Z</kbd>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
+                        <span className="text-gray-400">Redo stroke</span>
+                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">Ctrl + Shift + Z / ⌘ + Shift + Z</kbd>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
+                        <span className="text-gray-400">Pen (Freehand)</span>
+                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">P</kbd>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
+                        <span className="text-gray-400">Eraser</span>
+                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">E</kbd>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
+                        <span className="text-gray-400">Line Tool</span>
+                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">L</kbd>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
+                        <span className="text-gray-400">Rectangle Tool</span>
+                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">R</kbd>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
+                        <span className="text-gray-400">Circle Tool</span>
+                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">C</kbd>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
+                        <span className="text-gray-400">Triangle Tool</span>
+                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">T</kbd>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5">
+                        <span className="text-gray-400">Open Shortcuts Help</span>
+                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">?</kbd>
+                    </div>
+                </div>
+            </Modal>
         </>
     );
 }
