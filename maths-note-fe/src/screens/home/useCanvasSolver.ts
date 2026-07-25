@@ -90,13 +90,15 @@ export const useCanvasSolver = (
                 const maxConfidence = Math.max(...resp.data.map((d: CalculateResponseItem) => d.confidence_score || 0));
                 const maxLatency = Math.max(...resp.data.map((d: CalculateResponseItem) => d.latency || 0));
                 const thoughtProcess = resp.data.find((d: CalculateResponseItem) => d.thought_process)?.thought_process;
+                const steps = resp.data.find((d: CalculateResponseItem) => d.steps)?.steps;
 
                 const newResult: GeneratedResult = {
                     id: crypto.randomUUID(),
                     solutions,
                     thought_process: thoughtProcess,
                     confidence_score: maxConfidence > 0 ? maxConfidence : undefined,
-                    latency: maxLatency > 0 ? maxLatency : undefined
+                    latency: maxLatency > 0 ? maxLatency : undefined,
+                    steps: steps && steps.length > 0 ? steps : undefined
                 };
 
                 setResults(prev => [...prev, newResult]);

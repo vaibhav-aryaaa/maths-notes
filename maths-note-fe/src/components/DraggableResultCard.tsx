@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 
-import type { GeneratedResult } from '@/types';
+import type { GeneratedResult, SolutionStep } from '@/types';
 
 declare global {
     interface Window {
@@ -49,6 +49,8 @@ export const DraggableResultCard = ({ result, defaultPosition }: DraggableResult
     const [isResizing, setIsResizing] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
     const [showThoughtProcess, setShowThoughtProcess] = useState(false);
+    const [currentStepIndex, setCurrentStepIndex] = useState(0);
+    const [showAllSteps, setShowAllSteps] = useState(false);
 
     const dragStart = useRef({ x: 0, y: 0 });
     const cardStart = useRef({ x: 0, y: 0 });
@@ -191,7 +193,36 @@ export const DraggableResultCard = ({ result, defaultPosition }: DraggableResult
                 }
             }, 50);
         }
-    }, [isMinimized, serializedSolutions]);
+    }, [isMinimized, serializedSolutions, currentStepIndex, showAllSteps]);
+
+    const renderStep = (step: SolutionStep) => {
+        const formattedDesc = formatMathText(step.description);
+        const latexExpr = step.expression ? `\\(${step.expression}\\)` : '';
+
+        return (
+            <div 
+                key={step.order} 
+                className="flex flex-col gap-2 p-3 bg-white/5 border border-white/10 rounded-xl transition-all duration-300 animate-in fade-in slide-in-from-right-4"
+            >
+                <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-xs font-bold font-sans">
+                        {step.order}
+                    </span>
+                    <span className="text-xs text-gray-400 font-bold uppercase tracking-wider font-sans">
+                        Step {step.order}
+                    </span>
+                </div>
+                <p className="text-sm text-gray-200 leading-relaxed font-medium">
+                    {formattedDesc}
+                </p>
+                {latexExpr && (
+                    <div className="mt-1 text-white text-base font-semibold font-mono">
+                        {latexExpr}
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     const renderedSolutions = result.solutions.map((sol, index) => {
         const isText = sol.type === 'text' || 
@@ -265,21 +296,77 @@ export const DraggableResultCard = ({ result, defaultPosition }: DraggableResult
                         {renderedSolutions}
                     </div>
 
-                    {result.thought_process && (
-                        <div className="flex-1 flex flex-col overflow-hidden border-t border-white/10 pt-2 min-h-0">
-                            <button
-                                onClick={() => setShowThoughtProcess(!showThoughtProcess)}
-                                className="flex justify-between items-center text-sm text-gray-300 hover:text-white py-1 shrink-0 cursor-pointer"
-                            >
-                                <span>View Thought Process</span>
-                                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showThoughtProcess ? 'rotate-180' : ''}`} />
-                            </button>
-                            {showThoughtProcess && (
-                                <div className="text-gray-400 text-sm leading-relaxed whitespace-pre-wrap flex-1 overflow-y-auto pr-1 mt-1 min-h-0">
-                                    {formatMathText(result.thought_process)}
+                    {result.steps && result.steps.length > 1 ? (
+                        <div className="flex-1 flex flex-col overflow-hidden border-t border-white/10 pt-2 min-h-0 gap-2">
+                            <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-2 min-h-0 scrollbar-thin">
+                                {showAllSteps ? (
+                                    result.steps.map(step => renderStep(step))
+                                ) : (
+                                    renderStep(result.steps[currentStepIndex])
+                                )}
+                            </div>
+
+                            {showAllSteps ? (
+                                <div className="flex justify-between items-center bg-white/5 border border-white/10 rounded-xl p-2 shrink-0">
+                                    <span className="text-xs text-gray-400 font-bold font-sans pl-2">
+                                        Showing all {result.steps.length} steps
+                                    </span>
+                                    <button
+                                        onClick={() => setShowAllSteps(false)}
+                                        className="cursor-pointer text-xs font-extrabold text-amber-400 hover:text-amber-300 font-sans pl-3 py-0.5"
+                                    >
+                                        Switch to Paced View
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="flex justify-between items-center bg-white/5 border border-white/10 rounded-xl p-2 shrink-0">
+                                    <div className="flex gap-1.5">
+                                        <button
+                                            disabled={currentStepIndex === 0}
+                                            onClick={() => setCurrentStepIndex(prev => Math.max(0, prev - 1))}
+                                            className="cursor-pointer text-xs font-bold text-white px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 disabled:cursor-not-allowed transition-all font-sans animate-in fade-in"
+                                        >
+                                            ← Back
+                                        </button>
+                                        <button
+                                            disabled={currentStepIndex === result.steps.length - 1}
+                                            onClick={() => setCurrentStepIndex(prev => Math.min(result.steps.length - 1, prev + 1))}
+                                            className="cursor-pointer text-xs font-bold text-white px-2.5 py-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20 disabled:opacity-30 disabled:hover:bg-amber-500/10 disabled:cursor-not-allowed transition-all font-sans animate-in fade-in"
+                                        >
+                                            Next step →
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-xs text-gray-400 font-bold font-sans">
+                                            Step {currentStepIndex + 1} of {result.steps.length}
+                                        </span>
+                                        <button
+                                            onClick={() => setShowAllSteps(true)}
+                                            className="cursor-pointer text-xs font-extrabold text-amber-400 hover:text-amber-300 font-sans border-l border-white/10 pl-3 py-0.5"
+                                        >
+                                            Show All
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>
+                    ) : (
+                        result.thought_process && (
+                            <div className="flex-1 flex flex-col overflow-hidden border-t border-white/10 pt-2 min-h-0">
+                                <button
+                                    onClick={() => setShowThoughtProcess(!showThoughtProcess)}
+                                    className="flex justify-between items-center text-sm text-gray-300 hover:text-white py-1 shrink-0 cursor-pointer"
+                                >
+                                    <span>View Thought Process</span>
+                                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showThoughtProcess ? 'rotate-180' : ''}`} />
+                                </button>
+                                {showThoughtProcess && (
+                                    <div className="text-gray-400 text-sm leading-relaxed whitespace-pre-wrap flex-1 overflow-y-auto pr-1 mt-1 min-h-0">
+                                        {formatMathText(result.thought_process)}
+                                    </div>
+                                )}
+                            </div>
+                        )
                     )}
                 </div>
             )}

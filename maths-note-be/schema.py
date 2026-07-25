@@ -28,6 +28,13 @@ class ImageData(BaseModel):
 
         return v
 
+
+class SolutionStep(BaseModel):
+    order: int
+    description: str
+    expression: str | None = None
+
+
 class CalculationResult(BaseModel):
     expr: str
     result: Any
@@ -36,6 +43,8 @@ class CalculationResult(BaseModel):
     thought_process: str | None = None
     confidence_score: float | None = None
     latency: float | None = None
+    steps: list[SolutionStep] | None = None
+
 
 class CalculationResponse(BaseModel):
     message: str

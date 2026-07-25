@@ -4,12 +4,19 @@ export interface GeneratedSolution {
     type?: string;
 }
 
+export interface SolutionStep {
+    order: number;
+    description: string;
+    expression?: string;
+}
+
 export interface GeneratedResult {
     id: string;
     solutions: GeneratedSolution[];
     thought_process?: string;
     confidence_score?: number;
     latency?: number;
+    steps?: SolutionStep[];
 }
 
 export type DictOfVars = Record<string, string | number>;
@@ -27,6 +34,7 @@ export interface CalculateResponseItem {
     thought_process?: string;
     confidence_score?: number;
     latency?: number;
+    steps?: SolutionStep[];
 }
 
 export interface CalculateResponse {
