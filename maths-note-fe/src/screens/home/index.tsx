@@ -8,6 +8,9 @@ import { useCanvasSolver } from './useCanvasSolver';
 import { useCopilotChat } from './useCopilotChat';
 import { Modal } from '@mantine/core';
 
+import { useSolveHistory } from '@/hooks/useSolveHistory';
+import { HistorySidebar } from '@/components/HistorySidebar';
+
 import { EXAMPLE_PROBLEMS } from '@/data/exampleProblems';
 
 export default function Home() {
@@ -34,11 +37,14 @@ export default function Home() {
         stopDrawingTouch,
         drawStrokes,
         isCanvasEmpty,
+        setIsCanvasEmpty,
         canUndo,
         canRedo,
         undo,
         redo,
     } = useMathCanvas();
+
+    const { history, saveHistoryEntry, clearHistory, deleteHistoryItem } = useSolveHistory();
 
     const {
         dictOfVars,
@@ -49,7 +55,32 @@ export default function Home() {
         latexPosition,
         setLatexPosition,
         runRoute,
-    } = useCanvasSolver(canvasRef, drawBoundsRef);
+    } = useCanvasSolver(canvasRef, drawBoundsRef, (canvas, allResults, currentDict) => {
+        saveHistoryEntry(canvas, allResults, currentDict);
+    });
+
+    const handleSelectHistoryEntry = (entry: any) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const img = new Image();
+        img.src = entry.canvasImage;
+        img.onload = () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+            setIsCanvasEmpty(false);
+            
+            drawBoundsRef.current.minX = 0;
+            drawBoundsRef.current.minY = 0;
+            drawBoundsRef.current.maxX = canvas.width;
+            drawBoundsRef.current.maxY = canvas.height;
+        };
+
+        setResults(entry.results);
+        setDictOfVars(entry.dictOfVars);
+    };
 
     const {
         isCopilotOpen,
@@ -144,36 +175,16 @@ export default function Home() {
 
     return (
         <>
-            {/* Sidebar Overlay Backdrop (mobile only) */}
-            {isSidebarOpen && (
-                <div 
-                    className="absolute inset-0 bg-black/60 z-30 lg:hidden pointer-events-auto"
-                    onClick={() => setIsSidebarOpen(false)}
-                />
-            )}
-
-            {/* Agent Memory Side Panel */}
-            <div className={`absolute top-0 left-0 w-64 h-full bg-black/90 backdrop-blur-md border-r border-white/10 p-5 z-40 text-white shadow-2xl transition-transform duration-300 ease-in-out pt-[calc(1.25rem+env(safe-area-inset-top))] pl-[calc(1.25rem+env(safe-area-inset-left))] ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                {/* SolveIQ Logo Branding */}
-                <div className="flex items-center gap-2 mb-6 pb-4 border-b border-white/10 pl-12">
-                    <span className="text-xl font-extrabold tracking-tight">
-                        solve<span className="text-[#d97706]">IQ</span>
-                    </span>
-                </div>
-                <h2 className="text-lg font-bold mb-4 tracking-wider uppercase text-gray-300 border-b border-white/10 pb-2">Agent Memory</h2>
-                {Object.keys(dictOfVars).length === 0 ? (
-                    <p className="text-gray-400 text-sm">No variables detected yet. Draw an equation like "x = 5" to store state.</p>
-                ) : (
-                    <div className="flex flex-col gap-3 overflow-y-auto max-h-[calc(100vh-160px)] pr-1">
-                        {Object.entries(dictOfVars).map(([key, value]) => (
-                            <div key={key} className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/10 shadow-inner">
-                                <span className="text-xl font-mono text-purple-400">{key}</span>
-                                <span className="text-xl font-mono text-green-400">= {value as React.ReactNode}</span>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
+            {/* Left side collapsible Sidebar panel containing Memory and Solve History */}
+            <HistorySidebar
+                isOpen={isSidebarOpen}
+                onClose={() => setIsSidebarOpen(false)}
+                dictOfVars={dictOfVars}
+                history={history}
+                onSelectEntry={handleSelectHistoryEntry}
+                onClearHistory={clearHistory}
+                onDeleteEntry={deleteHistoryItem}
+            />
 
             {/* Sidebar Toggle Button (Top-Left) */}
             <div className="absolute z-50 top-[calc(1rem+env(safe-area-inset-top))] left-[calc(1rem+env(safe-area-inset-left))] pointer-events-auto">

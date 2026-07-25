@@ -5,7 +5,8 @@ import type { GeneratedResult, DictOfVars, CalculateResponseItem } from '@/types
 
 export const useCanvasSolver = (
     canvasRef: React.RefObject<HTMLCanvasElement | null>,
-    drawBoundsRef: React.RefObject<{ minX: number; minY: number; maxX: number; maxY: number }>
+    drawBoundsRef: React.RefObject<{ minX: number; minY: number; maxX: number; maxY: number }>,
+    onSaveHistory?: (canvas: HTMLCanvasElement, allResults: GeneratedResult[], dictOfVars: DictOfVars) => void
 ) => {
     const [dictOfVars, setDictOfVars] = useState<DictOfVars>({});
     const [results, setResults] = useState<GeneratedResult[]>([]);
@@ -101,7 +102,9 @@ export const useCanvasSolver = (
                     steps: steps && steps.length > 0 ? steps : undefined
                 };
 
-                setResults(prev => [...prev, newResult]);
+                const updatedResults = [...results, newResult];
+                setResults(updatedResults);
+                onSaveHistory?.(canvas, updatedResults, dictOfVars);
             }
             const ctx = canvas.getContext('2d');
             if (ctx) {

@@ -52,6 +52,8 @@ export const DraggableResultCard = ({ result, defaultPosition }: DraggableResult
     const [currentStepIndex, setCurrentStepIndex] = useState(0);
     const [showAllSteps, setShowAllSteps] = useState(false);
 
+    const steps = result.steps;
+
     const dragStart = useRef({ x: 0, y: 0 });
     const cardStart = useRef({ x: 0, y: 0 });
     
@@ -296,20 +298,21 @@ export const DraggableResultCard = ({ result, defaultPosition }: DraggableResult
                         {renderedSolutions}
                     </div>
 
-                    {result.steps && result.steps.length > 1 ? (
+
+                    {steps && steps.length > 1 ? (
                         <div className="flex-1 flex flex-col overflow-hidden border-t border-white/10 pt-2 min-h-0 gap-2">
                             <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-2 min-h-0 scrollbar-thin">
                                 {showAllSteps ? (
-                                    result.steps.map(step => renderStep(step))
+                                    steps.map(step => renderStep(step))
                                 ) : (
-                                    renderStep(result.steps[currentStepIndex])
+                                    renderStep(steps[currentStepIndex])
                                 )}
                             </div>
 
                             {showAllSteps ? (
                                 <div className="flex justify-between items-center bg-white/5 border border-white/10 rounded-xl p-2 shrink-0">
                                     <span className="text-xs text-gray-400 font-bold font-sans pl-2">
-                                        Showing all {result.steps.length} steps
+                                        Showing all {steps.length} steps
                                     </span>
                                     <button
                                         onClick={() => setShowAllSteps(false)}
@@ -329,8 +332,8 @@ export const DraggableResultCard = ({ result, defaultPosition }: DraggableResult
                                             ← Back
                                         </button>
                                         <button
-                                            disabled={currentStepIndex === result.steps.length - 1}
-                                            onClick={() => setCurrentStepIndex(prev => Math.min(result.steps.length - 1, prev + 1))}
+                                            disabled={currentStepIndex === steps.length - 1}
+                                            onClick={() => setCurrentStepIndex(prev => Math.min(steps.length - 1, prev + 1))}
                                             className="cursor-pointer text-xs font-bold text-white px-2.5 py-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20 disabled:opacity-30 disabled:hover:bg-amber-500/10 disabled:cursor-not-allowed transition-all font-sans animate-in fade-in"
                                         >
                                             Next step →
@@ -338,7 +341,7 @@ export const DraggableResultCard = ({ result, defaultPosition }: DraggableResult
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <span className="text-xs text-gray-400 font-bold font-sans">
-                                            Step {currentStepIndex + 1} of {result.steps.length}
+                                            Step {currentStepIndex + 1} of {steps.length}
                                         </span>
                                         <button
                                             onClick={() => setShowAllSteps(true)}
