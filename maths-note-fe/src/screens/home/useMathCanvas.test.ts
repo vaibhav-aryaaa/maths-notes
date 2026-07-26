@@ -39,6 +39,9 @@ describe('useMathCanvas', () => {
                     moveTo: () => {},
                     lineTo: () => {},
                     stroke: () => {},
+                    setTransform: () => {},
+                    fillRect: () => {},
+                    drawImage: () => {},
                 } as unknown as CanvasRenderingContext2D;
             }
             return null;

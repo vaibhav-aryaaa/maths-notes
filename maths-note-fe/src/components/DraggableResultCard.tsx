@@ -39,13 +39,22 @@ interface DraggableResultCardProps {
     setPosition?: (pos: { x: number; y: number }) => void;
 }
 
-export const DraggableResultCard = ({ result, defaultPosition }: DraggableResultCardProps) => {
+export const DraggableResultCard = ({ result, defaultPosition, setPosition: setPositionProp }: DraggableResultCardProps) => {
+    const [isDragging, setIsDragging] = useState(false);
     const [position, setPosition] = useState(defaultPosition);
+    const dragPosRef = useRef(defaultPosition);
+
+    const updatePosition = (pos: { x: number; y: number }) => {
+        setPosition(pos);
+        dragPosRef.current = pos;
+    };
+
+    const finalPosition = isDragging ? position : defaultPosition;
+
     const [size, setSize] = useState(() => {
         const w = typeof window !== 'undefined' ? Math.min(450, window.innerWidth - 32) : 450;
         return { width: w, height: 280 };
     });
-    const [isDragging, setIsDragging] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
     const [showThoughtProcess, setShowThoughtProcess] = useState(false);
@@ -68,7 +77,9 @@ export const DraggableResultCard = ({ result, defaultPosition }: DraggableResult
         }
         setIsDragging(true);
         dragStart.current = { x: e.clientX, y: e.clientY };
-        cardStart.current = { x: position.x, y: position.y };
+        cardStart.current = defaultPosition;
+        setPosition(defaultPosition);
+        dragPosRef.current = defaultPosition;
         e.preventDefault(); // Prevents default text-selection / image-ghosting during drag
     };
 
@@ -80,7 +91,9 @@ export const DraggableResultCard = ({ result, defaultPosition }: DraggableResult
         const touch = e.touches[0];
         setIsDragging(true);
         dragStart.current = { x: touch.clientX, y: touch.clientY };
-        cardStart.current = { x: position.x, y: position.y };
+        cardStart.current = defaultPosition;
+        setPosition(defaultPosition);
+        dragPosRef.current = defaultPosition;
     };
 
     const handleResizeMouseDown = (e: React.MouseEvent) => {
@@ -105,7 +118,7 @@ export const DraggableResultCard = ({ result, defaultPosition }: DraggableResult
         const handleMouseMove = (e: MouseEvent) => {
             const dx = e.clientX - dragStart.current.x;
             const dy = e.clientY - dragStart.current.y;
-            setPosition({
+            updatePosition({
                 x: cardStart.current.x + dx,
                 y: cardStart.current.y + dy
             });
@@ -115,7 +128,7 @@ export const DraggableResultCard = ({ result, defaultPosition }: DraggableResult
             const touch = e.touches[0];
             const dx = touch.clientX - dragStart.current.x;
             const dy = touch.clientY - dragStart.current.y;
-            setPosition({
+            updatePosition({
                 x: cardStart.current.x + dx,
                 y: cardStart.current.y + dy
             });
@@ -123,6 +136,9 @@ export const DraggableResultCard = ({ result, defaultPosition }: DraggableResult
 
         const handleMouseUp = () => {
             setIsDragging(false);
+            if (setPositionProp) {
+                setPositionProp(dragPosRef.current);
+            }
         };
 
         window.addEventListener('mousemove', handleMouseMove);
@@ -136,7 +152,7 @@ export const DraggableResultCard = ({ result, defaultPosition }: DraggableResult
             window.removeEventListener('touchmove', handleTouchMove);
             window.removeEventListener('touchend', handleMouseUp);
         };
-    }, [isDragging]);
+    }, [isDragging, setPositionProp]);
 
     useEffect(() => {
         if (!isResizing) return;
@@ -251,7 +267,7 @@ export const DraggableResultCard = ({ result, defaultPosition }: DraggableResult
             ref={cardRef}
             className="absolute top-0 left-0 z-50 glassmorphic-card p-4 rounded-xl shadow-2xl cursor-move select-none flex flex-col overflow-hidden"
             style={{ 
-                transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
+                transform: `translate3d(${finalPosition.x}px, ${finalPosition.y}px, 0)`,
                 width: isMinimized ? 'auto' : `${size.width}px`,
                 height: isMinimized ? 'auto' : `${size.height}px`,
             }}

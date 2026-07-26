@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { SWATCHES } from '@/constants';
-import { Eraser, Pen, MessageSquare, X, Menu, RotateCcw, Sparkles, ChevronDown, Square, Circle, Triangle, Slash, Undo2, Redo2 } from 'lucide-react';
+import { Eraser, Pen, MessageSquare, X, Menu, Sparkles, ChevronDown, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { useMathCanvas } from './useMathCanvas';
 import { useCanvasSolver } from './useCanvasSolver';
@@ -14,11 +14,18 @@ import { HistorySidebar } from '@/components/HistorySidebar';
 import { EXAMPLE_PROBLEMS } from '@/data/exampleProblems';
 
 export default function Home() {
+    const selectionSolveRef = useRef<((selection: any) => void) | null>(null);
+    const handleSelectionSolve = useCallback((selection: { type: 'rect' | 'lasso'; points: { x: number; y: number }[]; bounds: { minX: number; minY: number; maxX: number; maxY: number } }) => {
+        selectionSolveRef.current?.(selection);
+    }, []);
+
     const {
         canvasRef,
+        masterCanvasRef,
         drawBoundsRef,
-        isEraser,
         setIsEraser,
+        activeTool,
+        setActiveTool,
         color,
         setColor,
         selectedShape,
@@ -42,7 +49,10 @@ export default function Home() {
         canRedo,
         undo,
         redo,
-    } = useMathCanvas();
+        camera,
+        resetView,
+        redrawViewCanvas,
+    } = useMathCanvas(handleSelectionSolve);
 
     const { history, saveHistoryEntry, clearHistory, deleteHistoryItem } = useSolveHistory();
 
@@ -55,27 +65,74 @@ export default function Home() {
         latexPosition,
         setLatexPosition,
         runRoute,
-    } = useCanvasSolver(canvasRef, drawBoundsRef, (canvas, allResults, currentDict) => {
-        saveHistoryEntry(canvas, allResults, currentDict);
-    });
+    } = useCanvasSolver(
+        canvasRef,
+        masterCanvasRef,
+        drawBoundsRef,
+        (canvas, allResults, currentDict) => {
+            saveHistoryEntry(canvas, allResults, currentDict);
+        },
+        redrawViewCanvas
+    );
+
+    useEffect(() => {
+        selectionSolveRef.current = runRoute;
+    }, [runRoute]);
+
+    const [cardOffsets, setCardOffsets] = useState<Record<string, { x: number; y: number }>>({});
+
+    const getCardPosition = useCallback((result: any, index: number) => {
+        if (result.bounds) {
+            const worldAnchorX = result.bounds.maxX + 20;
+            const worldAnchorY = result.bounds.minY;
+            const offset = cardOffsets[result.id] || { x: 0, y: 0 };
+            return {
+                x: (worldAnchorX + offset.x) * camera.scale + camera.offsetX,
+                y: (worldAnchorY + offset.y) * camera.scale + camera.offsetY
+            };
+        }
+        return { x: latexPosition.x, y: latexPosition.y + index * 120 };
+    }, [cardOffsets, camera.scale, camera.offsetX, camera.offsetY, latexPosition.x, latexPosition.y]);
+
+    const handleCardPositionChange = useCallback((result: any, newScreenPos: { x: number; y: number }) => {
+        if (result.bounds) {
+            const worldAnchorX = result.bounds.maxX + 20;
+            const worldAnchorY = result.bounds.minY;
+            const worldX = (newScreenPos.x - camera.offsetX) / camera.scale;
+            const worldY = (newScreenPos.y - camera.offsetY) / camera.scale;
+            setCardOffsets(prev => ({
+                ...prev,
+                [result.id]: {
+                    x: worldX - worldAnchorX,
+                    y: worldY - worldAnchorY
+                }
+            }));
+        } else {
+            setLatexPosition(newScreenPos);
+        }
+    }, [camera.scale, camera.offsetX, camera.offsetY, setLatexPosition]);
 
     const handleSelectHistoryEntry = (entry: any) => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
+        const masterCanvas = masterCanvasRef.current;
+        if (!masterCanvas) return;
+        const masterCtx = masterCanvas.getContext('2d');
+        if (!masterCtx) return;
 
         const img = new Image();
         img.src = entry.canvasImage;
         img.onload = () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0);
+            masterCtx.clearRect(0, 0, masterCanvas.width, masterCanvas.height);
+            // Draw centered on the master canvas (6000, 6000)
+            const xOffset = 6000 - img.width / 2;
+            const yOffset = 6000 - img.height / 2;
+            masterCtx.drawImage(img, xOffset, yOffset);
             setIsCanvasEmpty(false);
             
-            drawBoundsRef.current.minX = 0;
-            drawBoundsRef.current.minY = 0;
-            drawBoundsRef.current.maxX = canvas.width;
-            drawBoundsRef.current.maxY = canvas.height;
+            drawBoundsRef.current.minX = xOffset;
+            drawBoundsRef.current.minY = yOffset;
+            drawBoundsRef.current.maxX = xOffset + img.width;
+            drawBoundsRef.current.maxY = yOffset + img.height;
+            resetView();
         };
 
         setResults(entry.results);
@@ -200,26 +257,39 @@ export default function Home() {
 
             {/* Centered Horizontal Toolbar */}
             <div className="absolute z-50 top-[calc(1rem+env(safe-area-inset-top))] left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-[#1e1e1e] border border-[#333] p-1.5 rounded-xl shadow-lg pointer-events-auto">
-                {/* Erase / Draw Button */}
-                <Button
-                    onClick={() => setIsEraser(!isEraser)}
-                    className={`bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] text-white border border-[#444] transition-all p-2 h-8 flex items-center justify-center gap-1.5 rounded-lg min-w-[70px] ${isEraser ? 'bg-[#3c3c3c] border-white/20' : ''}`}
-                    variant="default"
-                    title={isEraser ? "Switch to Pen" : "Switch to Eraser"}
-                >
-                    {isEraser ? <Pen size={14} className="text-amber-500" /> : <Eraser size={14} className="text-gray-300" />}
-                    <span className="text-xs font-semibold select-none">{isEraser ? 'Draw' : 'Erase'}</span>
-                </Button>
+                {/* Tool Selector Segmented Control */}
+                <div className="flex items-center gap-1 bg-[#2c2c2c]/30 p-1 rounded-lg border border-[#444]/40 h-8 flex-shrink-0">
+                    {[
+                        { id: 'pen' as const, label: 'Pen', icon: <Pen size={13} /> },
+                        { id: 'eraser' as const, label: 'Eraser', icon: <Eraser size={13} /> },
+                        { id: 'select-lasso' as const, label: 'Lasso Solve', icon: <Scissors size={13} /> },
+                        { id: 'select-rect' as const, label: 'Rect Solve', icon: <Crop size={13} /> },
+                    ].map((t) => (
+                        <button
+                            key={t.id}
+                            onClick={() => setActiveTool(t.id)}
+                            className={`cursor-pointer transition-all px-2.5 h-6 flex items-center gap-1 rounded-md text-xs font-semibold select-none whitespace-nowrap flex-shrink-0 ${
+                                activeTool === t.id 
+                                    ? 'bg-[#3c3c3c] text-amber-400 font-bold shadow-sm' 
+                                    : 'hover:bg-white/5 text-gray-300'
+                            }`}
+                            title={t.label}
+                        >
+                            {t.icon}
+                            <span className="hidden sm:inline">{t.label}</span>
+                        </button>
+                    ))}
+                </div>
 
-                {/* Reset Button */}
+                {/* Clear Canvas Button */}
                 <Button
                     onClick={resetCanvas}
                     className="bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] text-white border border-[#444] transition-all p-2 h-8 flex items-center justify-center gap-1.5 rounded-lg min-w-[70px]"
                     variant="default"
-                    title="Reset Canvas"
+                    title="Clear Canvas (Destroy whiteboard content)"
                 >
-                    <RotateCcw size={14} className="text-red-400" />
-                    <span className="text-xs font-semibold select-none font-sans">Reset</span>
+                    <Trash2 size={14} className="text-red-400" />
+                    <span className="text-xs font-semibold select-none font-sans">Clear</span>
                 </Button>
 
                 {/* Undo Button */}
@@ -244,95 +314,109 @@ export default function Home() {
                     <Redo2 size={14} className="text-gray-300" />
                 </Button>
 
-                {/* Divider */}
-                <div className="h-5 w-[1px] bg-[#333] mx-1" />
+                {/* Reset View Button */}
+                <Button
+                    onClick={resetView}
+                    className="bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] text-white border border-[#444] transition-all p-2 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer"
+                    variant="default"
+                    title="Reset View (Ctrl+0)"
+                >
+                    <Maximize size={14} className="text-gray-300" />
+                </Button>
 
-                {/* Shape Tool Selector Button */}
-                <div className="relative">
-                    <button
-                        onClick={() => {
-                            setIsShapeMenuOpen(!isShapeMenuOpen);
-                            setIsColorPickerOpen(false);
-                        }}
-                        className={`bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] text-white border border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 px-2 transition-all gap-1.5 ${isShapeMenuOpen ? 'bg-[#3c3c3c] border-white/20' : ''}`}
-                        title="Select Drawing Tool"
-                    >
-                        {selectedShape === 'freehand' && <Pen size={14} className="text-gray-300" />}
-                        {selectedShape === 'line' && <Slash size={14} className="text-gray-300" />}
-                        {selectedShape === 'rectangle' && <Square size={14} className="text-gray-300" />}
-                        {selectedShape === 'circle' && <Circle size={14} className="text-gray-300" />}
-                        {selectedShape === 'triangle' && <Triangle size={14} className="text-gray-300" />}
-                        <span className="text-xs font-semibold select-none capitalize">
-                            {selectedShape === 'freehand' ? 'Pen' : selectedShape}
-                        </span>
-                        <ChevronDown size={10} className="text-gray-500" />
-                    </button>
-                    
-                    {isShapeMenuOpen && (
-                        <div className="absolute top-11 left-1/2 -translate-x-1/2 bg-[#18181c] border border-[#2d2d30] p-1 rounded-xl shadow-2xl z-50 flex flex-col gap-0.5 min-w-[120px] pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-150">
-                            {[
-                                { id: 'freehand' as const, label: 'Pen', icon: <Pen size={13} /> },
-                                { id: 'line' as const, label: 'Line', icon: <Slash size={13} /> },
-                                { id: 'rectangle' as const, label: 'Rectangle', icon: <Square size={13} /> },
-                                { id: 'circle' as const, label: 'Circle', icon: <Circle size={13} /> },
-                                { id: 'triangle' as const, label: 'Triangle', icon: <Triangle size={13} /> },
-                            ].map((tool) => (
-                                <button
-                                    key={tool.id}
-                                    onClick={() => {
-                                        setSelectedShape(tool.id);
-                                        setIsEraser(false);
-                                        setIsShapeMenuOpen(false);
-                                    }}
-                                    className={`cursor-pointer hover:bg-white/5 transition-colors p-1.5 text-left rounded-lg text-xs flex items-center gap-2 w-full text-white ${selectedShape === tool.id ? 'bg-white/10 font-bold' : ''}`}
-                                >
-                                    <span className="text-gray-400">{tool.icon}</span>
-                                    <span>{tool.label}</span>
-                                </button>
-                            ))}
+                {activeTool === 'pen' && (
+                    <>
+                        {/* Divider */}
+                        <div className="h-5 w-[1px] bg-[#333] mx-1" />
+
+                        {/* Shape Tool Selector Button */}
+                        <div className="relative">
+                            <button
+                                onClick={() => {
+                                    setIsShapeMenuOpen(!isShapeMenuOpen);
+                                    setIsColorPickerOpen(false);
+                                }}
+                                className={`bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] text-white border border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 px-2 transition-all gap-1.5 ${isShapeMenuOpen ? 'bg-[#3c3c3c] border-white/20' : ''}`}
+                                title="Select Drawing Tool"
+                            >
+                                {selectedShape === 'freehand' && <Pen size={14} className="text-gray-300" />}
+                                {selectedShape === 'line' && <Slash size={14} className="text-gray-300" />}
+                                {selectedShape === 'rectangle' && <Square size={14} className="text-gray-300" />}
+                                {selectedShape === 'circle' && <Circle size={14} className="text-gray-300" />}
+                                {selectedShape === 'triangle' && <Triangle size={14} className="text-gray-300" />}
+                                <span className="text-xs font-semibold select-none capitalize">
+                                    {selectedShape === 'freehand' ? 'Pen' : selectedShape}
+                                </span>
+                                <ChevronDown size={10} className="text-gray-500" />
+                            </button>
+                            
+                            {isShapeMenuOpen && (
+                                <div className="absolute top-11 left-1/2 -translate-x-1/2 bg-[#18181c] border border-[#2d2d30] p-1 rounded-xl shadow-2xl z-50 flex flex-col gap-0.5 min-w-[120px] pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-150">
+                                    {[
+                                        { id: 'freehand' as const, label: 'Pen', icon: <Pen size={13} /> },
+                                        { id: 'line' as const, label: 'Line', icon: <Slash size={13} /> },
+                                        { id: 'rectangle' as const, label: 'Rectangle', icon: <Square size={13} /> },
+                                        { id: 'circle' as const, label: 'Circle', icon: <Circle size={13} /> },
+                                        { id: 'triangle' as const, label: 'Triangle', icon: <Triangle size={13} /> },
+                                    ].map((tool) => (
+                                        <button
+                                            key={tool.id}
+                                            onClick={() => {
+                                                setSelectedShape(tool.id);
+                                                setIsEraser(false);
+                                                setIsShapeMenuOpen(false);
+                                            }}
+                                            className={`cursor-pointer hover:bg-white/5 transition-colors p-1.5 text-left rounded-lg text-xs flex items-center gap-2 w-full text-white ${selectedShape === tool.id ? 'bg-white/10 font-bold' : ''}`}
+                                        >
+                                            <span className="text-gray-400">{tool.icon}</span>
+                                            <span>{tool.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
-                    )}
-                </div>
 
-                {/* Divider */}
-                <div className="h-5 w-[1px] bg-[#333] mx-1" />
+                        {/* Divider */}
+                        <div className="h-5 w-[1px] bg-[#333] mx-1" />
 
-                {/* Color Picker Toggle Button */}
-                <div className="relative">
-                    <button
-                        onClick={() => {
-                            setIsColorPickerOpen(!isColorPickerOpen);
-                            setIsShapeMenuOpen(false);
-                        }}
-                        className={`bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] border border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 w-8 transition-all ${isColorPickerOpen ? 'bg-[#3c3c3c] border-white/20' : ''}`}
-                        title="Choose Color"
-                    >
-                        <div 
-                            className="w-3.5 h-3.5 rounded-full border border-white/30" 
-                            style={{ backgroundColor: color }} 
-                        />
-                    </button>
-                    
-                    {/* Color Picker Popover */}
-                    {isColorPickerOpen && (
-                        <div className="absolute top-11 left-1/2 -translate-x-1/2 bg-[#18181c] border border-[#2d2d30] p-3 rounded-xl shadow-2xl z-50 flex flex-col gap-2 min-w-[200px] pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-150">
-                            <div className="grid grid-cols-6 gap-2">
-                                {SWATCHES.map((swatch) => (
-                                    <button
-                                        key={swatch}
-                                        onClick={() => {
-                                            setColor(swatch);
-                                            setIsColorPickerOpen(false);
-                                        }}
-                                        className={`cursor-pointer hover:scale-110 transition-transform h-6 w-6 rounded-full border border-white/10 ${color === swatch ? 'ring-2 ring-white border-black scale-110' : ''}`}
-                                        style={{ backgroundColor: swatch }}
-                                        title={swatch}
-                                    />
-                                ))}
-                            </div>
+                        {/* Color Picker Toggle Button */}
+                        <div className="relative">
+                            <button
+                                onClick={() => {
+                                    setIsColorPickerOpen(!isColorPickerOpen);
+                                    setIsShapeMenuOpen(false);
+                                }}
+                                className={`bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] border border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 w-8 transition-all ${isColorPickerOpen ? 'bg-[#3c3c3c] border-white/20' : ''}`}
+                                title="Choose Color"
+                            >
+                                <div 
+                                    className="w-3.5 h-3.5 rounded-full border border-white/30" 
+                                    style={{ backgroundColor: color }} 
+                                />
+                            </button>
+                            
+                            {/* Color Picker Popover */}
+                            {isColorPickerOpen && (
+                                <div className="absolute top-11 left-1/2 -translate-x-1/2 bg-[#18181c] border border-[#2d2d30] p-3 rounded-xl shadow-2xl z-50 flex flex-col gap-2 min-w-[200px] pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-150">
+                                    <div className="grid grid-cols-6 gap-2">
+                                        {SWATCHES.map((swatch) => (
+                                            <button
+                                                key={swatch}
+                                                onClick={() => {
+                                                    setColor(swatch);
+                                                    setIsColorPickerOpen(false);
+                                                }}
+                                                className={`cursor-pointer hover:scale-110 transition-transform h-6 w-6 rounded-full border border-white/10 ${color === swatch ? 'ring-2 ring-white border-black scale-110' : ''}`}
+                                                style={{ backgroundColor: swatch }}
+                                                title={swatch}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                    )}
-                </div>
+                    </>
+                )}
 
                 {/* Divider */}
                 <div className="h-5 w-[1px] bg-[#333] mx-1" />
@@ -351,7 +435,7 @@ export default function Home() {
             {/* Top Right Run Button */}
             <div className="absolute z-50 top-[calc(1rem+env(safe-area-inset-top))] right-[calc(1rem+env(safe-area-inset-right))] pointer-events-auto">
                 <Button
-                    onClick={runRoute}
+                    onClick={() => runRoute()}
                     className="bg-[#1e1e1e] hover:bg-[#2e2e2e] text-white border border-[#333] transition-all shadow-lg p-2.5 h-10 flex items-center justify-center gap-1.5 rounded-lg"
                     variant="default"
                     title="Run Analysis"
@@ -377,12 +461,14 @@ export default function Home() {
                 onTouchEnd={stopDrawingTouch}
             />
 
+
+
             {results && results.map((result, index) => (
                 <DraggableResultCard
-                    key={index}
+                    key={result.id || index}
                     result={result}
-                    defaultPosition={{ x: latexPosition.x, y: latexPosition.y + index * 120 }}
-                    setPosition={setLatexPosition}
+                    defaultPosition={getCardPosition(result, index)}
+                    setPosition={(newPos) => handleCardPositionChange(result, newPos)}
                 />
             ))}
 
@@ -554,6 +640,18 @@ export default function Home() {
                     <div className="flex justify-between items-center py-1.5 border-b border-white/5">
                         <span className="text-gray-400">Triangle Tool</span>
                         <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">T</kbd>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
+                        <span className="text-gray-400">Zoom in/out</span>
+                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">Scroll Wheel</kbd>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
+                        <span className="text-gray-400">Pan Canvas</span>
+                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">Space + Drag / Middle Drag</kbd>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
+                        <span className="text-gray-400">Reset Canvas View</span>
+                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">Ctrl + 0 / ⌘ + 0</kbd>
                     </div>
                     <div className="flex justify-between items-center py-1.5">
                         <span className="text-gray-400">Open Shortcuts Help</span>

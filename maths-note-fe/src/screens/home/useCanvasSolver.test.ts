@@ -12,6 +12,7 @@ vi.mock('@mantine/notifications', () => ({
 
 describe('useCanvasSolver', () => {
     let canvasRef: React.RefObject<HTMLCanvasElement | null>;
+    let masterCanvasRef: React.RefObject<HTMLCanvasElement | null>;
     let drawBoundsRef: React.RefObject<{ minX: number; minY: number; maxX: number; maxY: number }>;
 
     beforeEach(() => {
@@ -33,13 +34,21 @@ describe('useCanvasSolver', () => {
             } as unknown as HTMLCanvasElement
         };
 
+        masterCanvasRef = {
+            current: {
+                width: 6000,
+                height: 6000,
+                getContext: vi.fn().mockReturnValue(mockContext),
+            } as unknown as HTMLCanvasElement
+        };
+
         drawBoundsRef = {
             current: { minX: 100, minY: 150, maxX: 300, maxY: 350 }
         };
     });
 
     it('should initialize with default states', () => {
-        const { result } = renderHook(() => useCanvasSolver(canvasRef, drawBoundsRef));
+        const { result } = renderHook(() => useCanvasSolver(canvasRef, masterCanvasRef, drawBoundsRef));
         expect(result.current.dictOfVars).toEqual({});
         expect(result.current.results).toEqual([]);
         expect(result.current.isScanning).toBe(false);
@@ -48,6 +57,7 @@ describe('useCanvasSolver', () => {
     it('should succeed on calculate API call', async () => {
         const mockResponse = {
             data: {
+                status: 'success',
                 data: [
                     { expr: 'x', result: '5', assign: true, type: 'math', thought_process: 'Solves x = 5', confidence_score: 95, latency: 120 }
                 ]
@@ -72,7 +82,7 @@ describe('useCanvasSolver', () => {
             return origCreateElement.call(document, tag);
         });
 
-        const { result } = renderHook(() => useCanvasSolver(canvasRef, drawBoundsRef));
+        const { result } = renderHook(() => useCanvasSolver(canvasRef, masterCanvasRef, drawBoundsRef));
 
         await act(async () => {
             await result.current.runRoute();
@@ -88,7 +98,9 @@ describe('useCanvasSolver', () => {
             ],
             thought_process: 'Solves x = 5',
             confidence_score: 95,
-            latency: 120
+            latency: 120,
+            bounds: { minX: 100, minY: 150, maxX: 300, maxY: 350 },
+            steps: undefined
         });
 
         // Restore createElement
@@ -115,7 +127,7 @@ describe('useCanvasSolver', () => {
             return origCreateElement.call(document, tag);
         });
 
-        const { result } = renderHook(() => useCanvasSolver(canvasRef, drawBoundsRef));
+        const { result } = renderHook(() => useCanvasSolver(canvasRef, masterCanvasRef, drawBoundsRef));
 
         await act(async () => {
             await result.current.runRoute();

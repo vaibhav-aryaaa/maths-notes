@@ -17,6 +17,7 @@ export interface GeneratedResult {
     confidence_score?: number;
     latency?: number;
     steps?: SolutionStep[];
+    bounds?: { minX: number; minY: number; maxX: number; maxY: number };
 }
 
 export type DictOfVars = Record<string, string | number>;
