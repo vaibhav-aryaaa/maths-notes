@@ -1,16 +1,11 @@
-const SWATCHES= [
-    "#000000",  // black
-    "#ffffff",  // white
-    "#ee3333",  // red
-    "#e64980",  // pink
-    "#be4bdb",  // purple
-    "#893200",  // brown
-    "#228be6",  // blue
-    "#3333ee",  // dark blue
-    "#40c057",  // green
-    "#00aa00",  // dark green
-    "#fab005",  // yellow
-    "#fd7e14",  // orange
-]
+const SWATCHES = [
+    "rgb(255, 255, 255)",  // White
+    "rgb(245, 158, 11)",   // Amber
+    "rgb(16, 185, 129)",   // Emerald
+    "rgb(14, 165, 233)",   // Sky Blue
+    "rgb(244, 63, 94)",    // Rose
+    "rgb(168, 85, 247)",   // Lavender
+    "rgb(249, 115, 22)"    // Orange
+];
 
 export { SWATCHES };

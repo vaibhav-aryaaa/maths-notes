@@ -28,12 +28,14 @@ export default function Home() {
         setActiveTool,
         color,
         setColor,
+        strokeWidth,
+        setStrokeWidth,
+        eraserWidth,
+        setEraserWidth,
         selectedShape,
         setSelectedShape,
         isShapeMenuOpen,
         setIsShapeMenuOpen,
-        isColorPickerOpen,
-        setIsColorPickerOpen,
         windowSize,
         resetCanvas,
         startDrawing,
@@ -334,7 +336,6 @@ export default function Home() {
                             <button
                                 onClick={() => {
                                     setIsShapeMenuOpen(!isShapeMenuOpen);
-                                    setIsColorPickerOpen(false);
                                 }}
                                 className={`bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] text-white border border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 px-2 transition-all gap-1.5 ${isShapeMenuOpen ? 'bg-[#3c3c3c] border-white/20' : ''}`}
                                 title="Select Drawing Tool"
@@ -379,41 +380,77 @@ export default function Home() {
                         {/* Divider */}
                         <div className="h-5 w-[1px] bg-[#333] mx-1" />
 
-                        {/* Color Picker Toggle Button */}
-                        <div className="relative">
-                            <button
-                                onClick={() => {
-                                    setIsColorPickerOpen(!isColorPickerOpen);
-                                    setIsShapeMenuOpen(false);
-                                }}
-                                className={`bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] border border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 w-8 transition-all ${isColorPickerOpen ? 'bg-[#3c3c3c] border-white/20' : ''}`}
-                                title="Choose Color"
-                            >
-                                <div 
-                                    className="w-3.5 h-3.5 rounded-full border border-white/30" 
-                                    style={{ backgroundColor: color }} 
+                        {/* Inline Color Palette Swatches */}
+                        <div className="flex items-center gap-1.5 px-1 flex-shrink-0">
+                            {SWATCHES.map((swatch) => (
+                                <button
+                                    key={swatch}
+                                    onClick={() => setColor(swatch)}
+                                    className={`cursor-pointer w-4 h-4 rounded-full border border-white/20 transition-all hover:scale-110 active:scale-90 ${
+                                        color === swatch 
+                                            ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-[#1e1e1e] scale-110' 
+                                            : ''
+                                    }`}
+                                    style={{ backgroundColor: swatch }}
+                                    title={swatch}
                                 />
-                            </button>
-                            
-                            {/* Color Picker Popover */}
-                            {isColorPickerOpen && (
-                                <div className="absolute top-11 left-1/2 -translate-x-1/2 bg-[#18181c] border border-[#2d2d30] p-3 rounded-xl shadow-2xl z-50 flex flex-col gap-2 min-w-[200px] pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-150">
-                                    <div className="grid grid-cols-6 gap-2">
-                                        {SWATCHES.map((swatch) => (
-                                            <button
-                                                key={swatch}
-                                                onClick={() => {
-                                                    setColor(swatch);
-                                                    setIsColorPickerOpen(false);
-                                                }}
-                                                className={`cursor-pointer hover:scale-110 transition-transform h-6 w-6 rounded-full border border-white/10 ${color === swatch ? 'ring-2 ring-white border-black scale-110' : ''}`}
-                                                style={{ backgroundColor: swatch }}
-                                                title={swatch}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+                            ))}
+                        </div>
+
+                        {/* Divider */}
+                        <div className="h-5 w-[1px] bg-[#333] mx-1" />
+
+                        {/* Stroke Width Presets */}
+                        <div className="flex items-center gap-1 bg-[#2c2c2c]/30 p-1 rounded-lg border border-[#444]/40 h-8 flex-shrink-0">
+                            {[
+                                { val: 3, label: 'Thin', sizeClass: 'w-1.5 h-1.5' },
+                                { val: 6, label: 'Medium', sizeClass: 'w-2.5 h-2.5' },
+                                { val: 10, label: 'Thick', sizeClass: 'w-3.5 h-3.5' }
+                            ].map((preset) => (
+                                <button
+                                    key={preset.val}
+                                    onClick={() => setStrokeWidth(preset.val)}
+                                    className={`cursor-pointer transition-all px-2 h-6 flex items-center justify-center rounded-md text-xs font-semibold select-none ${
+                                        strokeWidth === preset.val
+                                            ? 'bg-[#3c3c3c] text-amber-400 font-bold shadow-sm'
+                                            : 'hover:bg-white/5 text-gray-400'
+                                    }`}
+                                    title={`Pen size: ${preset.label}`}
+                                >
+                                    <div className={`rounded-full bg-current ${preset.sizeClass}`} />
+                                </button>
+                            ))}
+                        </div>
+                    </>
+                )}
+
+                {/* Eraser specific settings: Sizes */}
+                {activeTool === 'eraser' && (
+                    <>
+                        {/* Divider */}
+                        <div className="h-5 w-[1px] bg-[#333] mx-1" />
+
+                        {/* Eraser Width Presets */}
+                        <div className="flex items-center gap-1 bg-[#2c2c2c]/30 p-1 rounded-lg border border-[#444]/40 h-8 flex-shrink-0">
+                            <span className="text-[10px] text-gray-500 font-bold px-1.5 uppercase tracking-wider select-none hidden sm:inline">Eraser Size</span>
+                            {[
+                                { val: 15, label: 'Thin', sizeClass: 'w-1.5 h-1.5' },
+                                { val: 30, label: 'Medium', sizeClass: 'w-2.5 h-2.5' },
+                                { val: 50, label: 'Thick', sizeClass: 'w-3.5 h-3.5' }
+                            ].map((preset) => (
+                                <button
+                                    key={preset.val}
+                                    onClick={() => setEraserWidth(preset.val)}
+                                    className={`cursor-pointer transition-all px-2 h-6 flex items-center justify-center rounded-md text-xs font-semibold select-none ${
+                                        eraserWidth === preset.val
+                                            ? 'bg-[#3c3c3c] text-amber-400 font-bold shadow-sm'
+                                            : 'hover:bg-white/5 text-gray-400'
+                                    }`}
+                                    title={`Eraser size: ${preset.label}`}
+                                >
+                                    <div className={`rounded-full bg-current ${preset.sizeClass}`} />
+                                </button>
+                            ))}
                         </div>
                     </>
                 )}

@@ -7,10 +7,46 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
     const [isDrawing, setIsDrawing] = useState(false);
     const [isCanvasEmpty, setIsCanvasEmpty] = useState(true);
     const [activeTool, setActiveTool] = useState<'pen' | 'eraser' | 'select-rect' | 'select-lasso'>('pen');
-    const [color, setColor] = useState('rgb(255, 255, 255)');
+    const [color, setColor] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('solvelq_color') || 'rgb(255, 255, 255)';
+        }
+        return 'rgb(255, 255, 255)';
+    });
+    const [strokeWidth, setStrokeWidth] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('solvelq_stroke_width');
+            if (saved) return parseInt(saved, 10);
+        }
+        return 3;
+    });
+    const [eraserWidth, setEraserWidth] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('solvelq_eraser_width');
+            if (saved) return parseInt(saved, 10);
+        }
+        return 30;
+    });
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('solvelq_color', color);
+        }
+    }, [color]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('solvelq_stroke_width', String(strokeWidth));
+        }
+    }, [strokeWidth]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('solvelq_eraser_width', String(eraserWidth));
+        }
+    }, [eraserWidth]);
     const [selectedShape, setSelectedShape] = useState<'freehand' | 'line' | 'rectangle' | 'circle' | 'triangle'>('freehand');
     const [isShapeMenuOpen, setIsShapeMenuOpen] = useState(false);
-    const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
     const [windowSize, setWindowSize] = useState({ 
         width: typeof window !== 'undefined' ? window.innerWidth : 1024, 
         height: typeof window !== 'undefined' ? window.innerHeight : 768 
@@ -87,6 +123,16 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         colorRef.current = color;
     }, [color]);
 
+    const strokeWidthRef = useRef(strokeWidth);
+    useEffect(() => {
+        strokeWidthRef.current = strokeWidth;
+    }, [strokeWidth]);
+
+    const eraserWidthRef = useRef(eraserWidth);
+    useEffect(() => {
+        eraserWidthRef.current = eraserWidth;
+    }, [eraserWidth]);
+
     const isEraser = activeTool === 'eraser';
 
     const setIsEraserWrapped = useCallback((val: boolean | ((prev: boolean) => boolean)) => {
@@ -145,7 +191,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                 viewCtx.lineTo(activeStrokePointsRef.current[i].x, activeStrokePointsRef.current[i].y);
             }
             viewCtx.lineCap = 'round';
-            viewCtx.lineWidth = 3;
+            viewCtx.lineWidth = strokeWidthRef.current;
             viewCtx.strokeStyle = colorRef.current;
             viewCtx.globalCompositeOperation = 'source-over';
             viewCtx.stroke();
@@ -157,7 +203,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             viewCtx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
             viewCtx.beginPath();
             viewCtx.lineCap = 'round';
-            viewCtx.lineWidth = 3;
+            viewCtx.lineWidth = strokeWidthRef.current;
             viewCtx.strokeStyle = colorRef.current;
             viewCtx.globalCompositeOperation = 'source-over';
 
@@ -184,6 +230,36 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             }
             viewCtx.stroke();
             viewCtx.setTransform(1, 0, 0, 1, 0, 0);
+        }
+
+        // Draw active eraser stroke preview (visually erase in real-time on screen)
+        if (isDrawing && activeStrokePointsRef.current.length > 1 && activeTool === 'eraser') {
+            viewCtx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
+            viewCtx.beginPath();
+            viewCtx.moveTo(activeStrokePointsRef.current[0].x, activeStrokePointsRef.current[0].y);
+            for (let i = 1; i < activeStrokePointsRef.current.length; i++) {
+                viewCtx.lineTo(activeStrokePointsRef.current[i].x, activeStrokePointsRef.current[i].y);
+            }
+            viewCtx.lineCap = 'round';
+            viewCtx.lineWidth = eraserWidthRef.current;
+            viewCtx.globalCompositeOperation = 'destination-out';
+            viewCtx.stroke();
+            viewCtx.setTransform(1, 0, 0, 1, 0, 0);
+            viewCtx.globalCompositeOperation = 'source-over';
+        }
+
+        // Draw eraser cursor circle outline
+        if (isDrawing && activeTool === 'eraser' && lastActivePosRef.current) {
+            viewCtx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
+            viewCtx.beginPath();
+            viewCtx.arc(lastActivePosRef.current.x, lastActivePosRef.current.y, eraserWidthRef.current / 2, 0, 2 * Math.PI);
+            viewCtx.lineWidth = 1.5 / scale;
+            viewCtx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            viewCtx.setLineDash([4 / scale, 4 / scale]);
+            viewCtx.globalCompositeOperation = 'source-over';
+            viewCtx.stroke();
+            viewCtx.setTransform(1, 0, 0, 1, 0, 0);
+            viewCtx.setLineDash([]);
         }
 
         // Draw selection outline preview if drawing selection
@@ -538,7 +614,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
             masterCtx.lineCap = 'round';
             masterCtx.strokeStyle = colorRef.current;
-            masterCtx.lineWidth = isEraser ? 20 : 3;
+            masterCtx.lineWidth = isEraser ? eraserWidthRef.current : strokeWidthRef.current;
             masterCtx.globalCompositeOperation = isEraser ? 'destination-out' : 'source-over';
 
             if (selectedShape === 'freehand') {
@@ -789,7 +865,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
             masterCtx.lineCap = 'round';
             masterCtx.strokeStyle = colorRef.current;
-            masterCtx.lineWidth = isEraser ? 20 : 3;
+            masterCtx.lineWidth = isEraser ? eraserWidthRef.current : strokeWidthRef.current;
             masterCtx.globalCompositeOperation = isEraser ? 'destination-out' : 'source-over';
 
             if (selectedShape === 'freehand') {
@@ -957,12 +1033,14 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         setActiveTool,
         color,
         setColor,
+        strokeWidth,
+        setStrokeWidth,
+        eraserWidth,
+        setEraserWidth,
         selectedShape,
         setSelectedShape,
         isShapeMenuOpen,
         setIsShapeMenuOpen,
-        isColorPickerOpen,
-        setIsColorPickerOpen,
         windowSize,
         resetCanvas,
         startDrawing,
