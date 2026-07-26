@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { SWATCHES } from '@/constants';
-import { Eraser, Pen, MessageSquare, X, Menu, Sparkles, ChevronDown, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors } from 'lucide-react';
+import { Eraser, Pen, MessageSquare, X, Menu, Sparkles, ChevronDown, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { useMathCanvas } from './useMathCanvas';
 import { useCanvasSolver } from './useCanvasSolver';
 import { useCopilotChat } from './useCopilotChat';
-import { Modal } from '@mantine/core';
+import { Modal, useMantineColorScheme } from '@mantine/core';
 
 import { useSolveHistory } from '@/hooks/useSolveHistory';
 import { HistorySidebar } from '@/components/HistorySidebar';
@@ -14,8 +14,41 @@ import { HistorySidebar } from '@/components/HistorySidebar';
 import { EXAMPLE_PROBLEMS } from '@/data/exampleProblems';
 
 export default function Home() {
+    const { colorScheme, toggleColorScheme } = useMantineColorScheme();
+    const [activeSolveRegion, setActiveSolveRegion] = useState<{
+        bounds: { minX: number; minY: number; maxX: number; maxY: number };
+        status: 'scanning' | 'solved';
+    } | null>(null);
+
+    const [isFocusMode, setIsFocusMode] = useState(false);
+    const [showFocusHint, setShowFocusHint] = useState(false);
+    const [hasSeenFocusHint, setHasSeenFocusHint] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('hasSeenFocusHint') === 'true';
+        }
+        return false;
+    });
+
+    const toggleFocusMode = useCallback(() => {
+        setIsFocusMode(prev => {
+            const next = !prev;
+            if (next && !hasSeenFocusHint) {
+                setShowFocusHint(true);
+                setTimeout(() => {
+                    setShowFocusHint(false);
+                    setHasSeenFocusHint(true);
+                    localStorage.setItem('hasSeenFocusHint', 'true');
+                }, 4000);
+            } else {
+                setShowFocusHint(false);
+            }
+            return next;
+        });
+    }, [hasSeenFocusHint]);
+
     const selectionSolveRef = useRef<((selection: any) => void) | null>(null);
     const handleSelectionSolve = useCallback((selection: { type: 'rect' | 'lasso'; points: { x: number; y: number }[]; bounds: { minX: number; minY: number; maxX: number; maxY: number } }) => {
+        setActiveSolveRegion({ bounds: selection.bounds, status: 'scanning' });
         selectionSolveRef.current?.(selection);
     }, []);
 
@@ -23,6 +56,7 @@ export default function Home() {
         canvasRef,
         masterCanvasRef,
         drawBoundsRef,
+        isDrawing,
         setIsEraser,
         activeTool,
         setActiveTool,
@@ -83,6 +117,28 @@ export default function Home() {
 
     const [cardOffsets, setCardOffsets] = useState<Record<string, { x: number; y: number }>>({});
 
+    const lastResultsLengthRef = useRef(results.length);
+    useEffect(() => {
+        if (!isScanning) {
+            if (results.length > lastResultsLengthRef.current) {
+                setActiveSolveRegion(prev => {
+                    if (prev && prev.status === 'scanning') {
+                        return { ...prev, status: 'solved' };
+                    }
+                    return prev;
+                });
+            } else {
+                setActiveSolveRegion(prev => {
+                    if (prev && prev.status === 'scanning') {
+                        return null;
+                    }
+                    return prev;
+                });
+            }
+            lastResultsLengthRef.current = results.length;
+        }
+    }, [isScanning, results]);
+
     const getCardPosition = useCallback((result: any, index: number) => {
         if (result.bounds) {
             const worldAnchorX = result.bounds.maxX + 20;
@@ -113,6 +169,27 @@ export default function Home() {
             setLatexPosition(newScreenPos);
         }
     }, [camera.scale, camera.offsetX, camera.offsetY, setLatexPosition]);
+
+    const getSelectionBox = useCallback((bounds: any) => {
+        if (!bounds || bounds.minX === Infinity || bounds.minY === Infinity) {
+            return null;
+        }
+        
+        const padding = 20;
+        const cropX = Math.max(0, bounds.minX - padding);
+        const cropY = Math.max(0, bounds.minY - padding);
+        const cropWidth = Math.min(12000 - cropX, (bounds.maxX - bounds.minX) + padding * 2);
+        const cropHeight = Math.min(12000 - cropY, (bounds.maxY - bounds.minY) + padding * 2);
+
+        return {
+            x: cropX * camera.scale + camera.offsetX,
+            y: cropY * camera.scale + camera.offsetY,
+            width: cropWidth * camera.scale,
+            height: cropHeight * camera.scale
+        };
+    }, [camera.scale, camera.offsetX, camera.offsetY]);
+
+    const activeSolveBox = activeSolveRegion ? getSelectionBox(activeSolveRegion.bounds) : null;
 
     const handleSelectHistoryEntry = (entry: any) => {
         const masterCanvas = masterCanvasRef.current;
@@ -160,7 +237,7 @@ export default function Home() {
         }, 600);
     };
 
-    const showExamples = isCanvasEmpty && results.length === 0;
+    const showExamples = isCanvasEmpty && results.length === 0 && !isFocusMode;
 
     const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
@@ -213,6 +290,11 @@ export default function Home() {
                 setIsEraser(false);
                 setSelectedShape('triangle');
             }
+            // Focus Mode: F
+            else if (!cmdOrCtrl && !e.altKey && e.key.toLowerCase() === 'f') {
+                e.preventDefault();
+                toggleFocusMode();
+            }
             // Help: ? (shift + /)
             else if (e.key === '?') {
                 e.preventDefault();
@@ -222,7 +304,7 @@ export default function Home() {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [undo, redo, setIsEraser, setSelectedShape]);
+    }, [undo, redo, setIsEraser, setSelectedShape, toggleFocusMode]);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
     const chatEndRef = useRef<HTMLDivElement>(null);
@@ -236,7 +318,7 @@ export default function Home() {
         <>
             {/* Left side collapsible Sidebar panel containing Memory and Solve History */}
             <HistorySidebar
-                isOpen={isSidebarOpen}
+                isOpen={isSidebarOpen && !isFocusMode}
                 onClose={() => setIsSidebarOpen(false)}
                 dictOfVars={dictOfVars}
                 history={history}
@@ -246,10 +328,10 @@ export default function Home() {
             />
 
             {/* Sidebar Toggle Button (Top-Left) */}
-            <div className="absolute z-50 top-[calc(1rem+env(safe-area-inset-top))] left-[calc(1rem+env(safe-area-inset-left))] pointer-events-auto">
+            <div className={`absolute z-50 top-[calc(1rem+env(safe-area-inset-top))] left-[calc(1rem+env(safe-area-inset-left))] pointer-events-auto transition-opacity duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                 <Button
                     onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                    className={`bg-[#1e1e1e] hover:bg-[#2e2e2e] text-white border border-[#333] transition-all shadow-lg p-2.5 h-10 w-10 rounded-lg flex items-center justify-center ${isSidebarOpen ? 'bg-[#333] border-white/20' : ''}`}
+                    className={`bg-white dark:bg-[#1e1e1e] hover:bg-slate-50 dark:hover:bg-[#2e2e2e] text-stone-700 dark:text-white border border-stone-200 dark:border-[#333] transition-all shadow-lg p-2.5 h-10 w-10 rounded-lg flex items-center justify-center ${isSidebarOpen ? 'bg-slate-100 dark:bg-[#333] border-stone-300 dark:border-white/20' : ''}`}
                     variant="default"
                     title="Toggle Sidebar"
                 >
@@ -258,9 +340,9 @@ export default function Home() {
             </div>
 
             {/* Centered Horizontal Toolbar */}
-            <div className="absolute z-50 top-[calc(1rem+env(safe-area-inset-top))] left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-[#1e1e1e] border border-[#333] p-1.5 rounded-xl shadow-lg pointer-events-auto">
+            <div className={`absolute z-50 top-[calc(1rem+env(safe-area-inset-top))] left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-white dark:bg-[#1e1e1e] border border-stone-200 dark:border-[#333] p-1.5 rounded-xl shadow-lg pointer-events-auto transition-all duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                 {/* Tool Selector Segmented Control */}
-                <div className="flex items-center gap-1 bg-[#2c2c2c]/30 p-1 rounded-lg border border-[#444]/40 h-8 flex-shrink-0">
+                <div className="flex items-center gap-1 bg-stone-100/80 dark:bg-[#2c2c2c]/30 p-1 rounded-lg border border-stone-200/50 dark:border-[#444]/40 h-8 flex-shrink-0">
                     {[
                         { id: 'pen' as const, label: 'Pen', icon: <Pen size={13} /> },
                         { id: 'eraser' as const, label: 'Eraser', icon: <Eraser size={13} /> },
@@ -272,8 +354,8 @@ export default function Home() {
                             onClick={() => setActiveTool(t.id)}
                             className={`cursor-pointer transition-all px-2.5 h-6 flex items-center gap-1 rounded-md text-xs font-semibold select-none whitespace-nowrap flex-shrink-0 ${
                                 activeTool === t.id 
-                                    ? 'bg-[#3c3c3c] text-amber-400 font-bold shadow-sm' 
-                                    : 'hover:bg-white/5 text-gray-300'
+                                    ? 'bg-white dark:bg-[#3c3c3c] text-amber-600 dark:text-amber-400 font-bold shadow-sm border border-stone-200/40 dark:border-transparent' 
+                                    : 'hover:bg-black/5 dark:hover:bg-white/5 text-stone-600 dark:text-gray-300'
                             }`}
                             title={t.label}
                         >
@@ -285,12 +367,15 @@ export default function Home() {
 
                 {/* Clear Canvas Button */}
                 <Button
-                    onClick={resetCanvas}
-                    className="bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] text-white border border-[#444] transition-all p-2 h-8 flex items-center justify-center gap-1.5 rounded-lg min-w-[70px]"
+                    onClick={() => {
+                        setActiveSolveRegion(null);
+                        resetCanvas();
+                    }}
+                    className="bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] transition-all p-2 h-8 flex items-center justify-center gap-1.5 rounded-lg min-w-[70px]"
                     variant="default"
                     title="Clear Canvas (Destroy whiteboard content)"
                 >
-                    <Trash2 size={14} className="text-red-400" />
+                    <Trash2 size={14} className="text-red-500 dark:text-red-400" />
                     <span className="text-xs font-semibold select-none font-sans">Clear</span>
                 </Button>
 
@@ -298,38 +383,38 @@ export default function Home() {
                 <Button
                     onClick={undo}
                     disabled={!canUndo}
-                    className="bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] text-white border border-[#444] transition-all p-2 h-8 w-8 flex items-center justify-center rounded-lg disabled:opacity-35 disabled:hover:bg-[#2c2c2c]/50 disabled:cursor-not-allowed cursor-pointer"
+                    className="bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] transition-all p-2 h-8 w-8 flex items-center justify-center rounded-lg disabled:opacity-35 disabled:hover:bg-white dark:disabled:hover:bg-[#2c2c2c]/50 disabled:cursor-not-allowed cursor-pointer"
                     variant="default"
                     title="Undo (Ctrl+Z / ⌘+Z)"
                 >
-                    <Undo2 size={14} className="text-gray-300" />
+                    <Undo2 size={14} className="text-stone-500 dark:text-gray-300" />
                 </Button>
 
                 {/* Redo Button */}
                 <Button
                     onClick={redo}
                     disabled={!canRedo}
-                    className="bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] text-white border border-[#444] transition-all p-2 h-8 w-8 flex items-center justify-center rounded-lg disabled:opacity-35 disabled:hover:bg-[#2c2c2c]/50 disabled:cursor-not-allowed cursor-pointer"
+                    className="bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] transition-all p-2 h-8 w-8 flex items-center justify-center rounded-lg disabled:opacity-35 disabled:hover:bg-white dark:disabled:hover:bg-[#2c2c2c]/50 disabled:cursor-not-allowed cursor-pointer"
                     variant="default"
                     title="Redo (Ctrl+Shift+Z / ⌘+Shift+Z)"
                 >
-                    <Redo2 size={14} className="text-gray-300" />
+                    <Redo2 size={14} className="text-stone-500 dark:text-gray-300" />
                 </Button>
 
                 {/* Reset View Button */}
                 <Button
                     onClick={resetView}
-                    className="bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] text-white border border-[#444] transition-all p-2 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer"
+                    className="bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] transition-all p-2 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer"
                     variant="default"
                     title="Reset View (Ctrl+0)"
                 >
-                    <Maximize size={14} className="text-gray-300" />
+                    <Maximize size={14} className="text-stone-500 dark:text-gray-300" />
                 </Button>
 
                 {activeTool === 'pen' && (
                     <>
                         {/* Divider */}
-                        <div className="h-5 w-[1px] bg-[#333] mx-1" />
+                        <div className="h-5 w-[1px] bg-stone-200 dark:bg-[#333] mx-1" />
 
                         {/* Shape Tool Selector Button */}
                         <div className="relative">
@@ -337,22 +422,22 @@ export default function Home() {
                                 onClick={() => {
                                     setIsShapeMenuOpen(!isShapeMenuOpen);
                                 }}
-                                className={`bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] text-white border border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 px-2 transition-all gap-1.5 ${isShapeMenuOpen ? 'bg-[#3c3c3c] border-white/20' : ''}`}
+                                className={`bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 px-2 transition-all gap-1.5 ${isShapeMenuOpen ? 'bg-slate-100 dark:bg-[#3c3c3c] border-stone-300 dark:border-white/20' : ''}`}
                                 title="Select Drawing Tool"
                             >
-                                {selectedShape === 'freehand' && <Pen size={14} className="text-gray-300" />}
-                                {selectedShape === 'line' && <Slash size={14} className="text-gray-300" />}
-                                {selectedShape === 'rectangle' && <Square size={14} className="text-gray-300" />}
-                                {selectedShape === 'circle' && <Circle size={14} className="text-gray-300" />}
-                                {selectedShape === 'triangle' && <Triangle size={14} className="text-gray-300" />}
-                                <span className="text-xs font-semibold select-none capitalize">
+                                {selectedShape === 'freehand' && <Pen size={14} className="text-stone-500 dark:text-gray-300" />}
+                                {selectedShape === 'line' && <Slash size={14} className="text-stone-500 dark:text-gray-300" />}
+                                {selectedShape === 'rectangle' && <Square size={14} className="text-stone-500 dark:text-gray-300" />}
+                                {selectedShape === 'circle' && <Circle size={14} className="text-stone-500 dark:text-gray-300" />}
+                                {selectedShape === 'triangle' && <Triangle size={14} className="text-stone-500 dark:text-gray-300" />}
+                                <span className="text-xs font-semibold select-none capitalize text-stone-700 dark:text-white">
                                     {selectedShape === 'freehand' ? 'Pen' : selectedShape}
                                 </span>
-                                <ChevronDown size={10} className="text-gray-500" />
+                                <ChevronDown size={10} className="text-stone-400 dark:text-gray-500" />
                             </button>
                             
                             {isShapeMenuOpen && (
-                                <div className="absolute top-11 left-1/2 -translate-x-1/2 bg-[#18181c] border border-[#2d2d30] p-1 rounded-xl shadow-2xl z-50 flex flex-col gap-0.5 min-w-[120px] pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-150">
+                                <div className="absolute top-11 left-1/2 -translate-x-1/2 bg-white dark:bg-[#18181c] border border-stone-200 dark:border-[#2d2d30] p-1 rounded-xl shadow-2xl z-50 flex flex-col gap-0.5 min-w-[120px] pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-150">
                                     {[
                                         { id: 'freehand' as const, label: 'Pen', icon: <Pen size={13} /> },
                                         { id: 'line' as const, label: 'Line', icon: <Slash size={13} /> },
@@ -367,9 +452,9 @@ export default function Home() {
                                                 setIsEraser(false);
                                                 setIsShapeMenuOpen(false);
                                             }}
-                                            className={`cursor-pointer hover:bg-white/5 transition-colors p-1.5 text-left rounded-lg text-xs flex items-center gap-2 w-full text-white ${selectedShape === tool.id ? 'bg-white/10 font-bold' : ''}`}
+                                            className={`cursor-pointer hover:bg-stone-100 dark:hover:bg-white/5 transition-colors p-1.5 text-left rounded-lg text-xs flex items-center gap-2 w-full text-stone-700 dark:text-white ${selectedShape === tool.id ? 'bg-stone-150 dark:bg-white/10 font-bold' : ''}`}
                                         >
-                                            <span className="text-gray-400">{tool.icon}</span>
+                                            <span className="text-stone-400 dark:text-gray-400">{tool.icon}</span>
                                             <span>{tool.label}</span>
                                         </button>
                                     ))}
@@ -378,7 +463,7 @@ export default function Home() {
                         </div>
 
                         {/* Divider */}
-                        <div className="h-5 w-[1px] bg-[#333] mx-1" />
+                        <div className="h-5 w-[1px] bg-stone-200 dark:bg-[#333] mx-1" />
 
                         {/* Inline Color Palette Swatches */}
                         <div className="flex items-center gap-1.5 px-1 flex-shrink-0">
@@ -386,10 +471,10 @@ export default function Home() {
                                 <button
                                     key={swatch}
                                     onClick={() => setColor(swatch)}
-                                    className={`cursor-pointer w-4 h-4 rounded-full border border-white/20 transition-all hover:scale-110 active:scale-90 ${
+                                    className={`cursor-pointer w-4 h-4 rounded-full border border-stone-200 dark:border-white/20 transition-all hover:scale-110 active:scale-90 ${
                                         color === swatch 
-                                            ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-[#1e1e1e] scale-110' 
-                                            : ''
+                                            ? 'ring-2 ring-amber-500 dark:ring-amber-400 ring-offset-2 ring-offset-white dark:ring-offset-[#1e1e1e] scale-110' 
+                                             : ''
                                     }`}
                                     style={{ backgroundColor: swatch }}
                                     title={swatch}
@@ -398,10 +483,10 @@ export default function Home() {
                         </div>
 
                         {/* Divider */}
-                        <div className="h-5 w-[1px] bg-[#333] mx-1" />
+                        <div className="h-5 w-[1px] bg-stone-200 dark:bg-[#333] mx-1" />
 
                         {/* Stroke Width Presets */}
-                        <div className="flex items-center gap-1 bg-[#2c2c2c]/30 p-1 rounded-lg border border-[#444]/40 h-8 flex-shrink-0">
+                        <div className="flex items-center gap-1 bg-stone-100/80 dark:bg-[#2c2c2c]/30 p-1 rounded-lg border border-stone-200/50 dark:border-[#444]/40 h-8 flex-shrink-0">
                             {[
                                 { val: 3, label: 'Thin', sizeClass: 'w-1.5 h-1.5' },
                                 { val: 6, label: 'Medium', sizeClass: 'w-2.5 h-2.5' },
@@ -412,8 +497,8 @@ export default function Home() {
                                     onClick={() => setStrokeWidth(preset.val)}
                                     className={`cursor-pointer transition-all px-2 h-6 flex items-center justify-center rounded-md text-xs font-semibold select-none ${
                                         strokeWidth === preset.val
-                                            ? 'bg-[#3c3c3c] text-amber-400 font-bold shadow-sm'
-                                            : 'hover:bg-white/5 text-gray-400'
+                                            ? 'bg-white dark:bg-[#3c3c3c] text-amber-600 dark:text-amber-400 font-bold shadow-sm border border-stone-200/40 dark:border-transparent'
+                                            : 'hover:bg-stone-100 dark:hover:bg-white/5 text-stone-400 dark:text-gray-400'
                                     }`}
                                     title={`Pen size: ${preset.label}`}
                                 >
@@ -428,11 +513,11 @@ export default function Home() {
                 {activeTool === 'eraser' && (
                     <>
                         {/* Divider */}
-                        <div className="h-5 w-[1px] bg-[#333] mx-1" />
+                        <div className="h-5 w-[1px] bg-stone-200 dark:bg-[#333] mx-1" />
 
                         {/* Eraser Width Presets */}
-                        <div className="flex items-center gap-1 bg-[#2c2c2c]/30 p-1 rounded-lg border border-[#444]/40 h-8 flex-shrink-0">
-                            <span className="text-[10px] text-gray-500 font-bold px-1.5 uppercase tracking-wider select-none hidden sm:inline">Eraser Size</span>
+                        <div className="flex items-center gap-1 bg-stone-100/80 dark:bg-[#2c2c2c]/30 p-1 rounded-lg border border-stone-200/50 dark:border-[#444]/40 h-8 flex-shrink-0">
+                            <span className="text-[10px] text-stone-500 dark:text-gray-500 font-bold px-1.5 uppercase tracking-wider select-none hidden sm:inline">Eraser Size</span>
                             {[
                                 { val: 15, label: 'Thin', sizeClass: 'w-1.5 h-1.5' },
                                 { val: 30, label: 'Medium', sizeClass: 'w-2.5 h-2.5' },
@@ -443,8 +528,8 @@ export default function Home() {
                                     onClick={() => setEraserWidth(preset.val)}
                                     className={`cursor-pointer transition-all px-2 h-6 flex items-center justify-center rounded-md text-xs font-semibold select-none ${
                                         eraserWidth === preset.val
-                                            ? 'bg-[#3c3c3c] text-amber-400 font-bold shadow-sm'
-                                            : 'hover:bg-white/5 text-gray-400'
+                                            ? 'bg-white dark:bg-[#3c3c3c] text-amber-600 dark:text-amber-400 font-bold shadow-sm border border-stone-200/40 dark:border-transparent'
+                                            : 'hover:bg-stone-100 dark:hover:bg-white/5 text-stone-400 dark:text-gray-400'
                                     }`}
                                     title={`Eraser size: ${preset.label}`}
                                 >
@@ -456,24 +541,44 @@ export default function Home() {
                 )}
 
                 {/* Divider */}
-                <div className="h-5 w-[1px] bg-[#333] mx-1" />
+                <div className="h-5 w-[1px] bg-stone-200 dark:bg-[#333] mx-1" />
 
                 {/* Keyboard Shortcuts Button */}
                 <Button
                     onClick={() => setIsShortcutsOpen(true)}
-                    className="bg-[#2c2c2c]/50 hover:bg-[#3c3c3c] text-white border border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 w-8 transition-all hover:scale-105 active:scale-95 cursor-pointer text-gray-300 font-bold font-sans text-xs"
+                    className="bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 w-8 transition-all hover:scale-105 active:scale-95 cursor-pointer font-bold font-sans text-xs"
                     variant="default"
                     title="Keyboard Shortcuts (?)"
                 >
                     ?
                 </Button>
+
+                {/* Theme Toggle Button */}
+                <Button
+                    onClick={toggleColorScheme}
+                    className="bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 w-8 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                    variant="default"
+                    title={colorScheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                >
+                    {colorScheme === 'dark' ? <Sun size={14} className="text-amber-500" /> : <Moon size={14} className="text-stone-600" />}
+                </Button>
+
+                {/* Focus/Presentation Mode Button */}
+                <Button
+                    onClick={toggleFocusMode}
+                    className={`bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 w-8 transition-all hover:scale-105 active:scale-95 cursor-pointer ${isFocusMode ? 'bg-amber-100 dark:bg-amber-950/45 border-amber-300' : ''}`}
+                    variant="default"
+                    title="Focus Mode (F)"
+                >
+                    <Eye size={14} className={isFocusMode ? 'text-amber-600 dark:text-amber-400' : 'text-stone-500 dark:text-gray-300'} />
+                </Button>
             </div>
 
             {/* Top Right Run Button */}
-            <div className="absolute z-50 top-[calc(1rem+env(safe-area-inset-top))] right-[calc(1rem+env(safe-area-inset-right))] pointer-events-auto">
+            <div className={`absolute z-50 top-[calc(1rem+env(safe-area-inset-top))] right-[calc(1rem+env(safe-area-inset-right))] pointer-events-auto transition-opacity duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                 <Button
                     onClick={() => runRoute()}
-                    className="bg-[#1e1e1e] hover:bg-[#2e2e2e] text-white border border-[#333] transition-all shadow-lg p-2.5 h-10 flex items-center justify-center gap-1.5 rounded-lg"
+                    className="bg-white dark:bg-[#1e1e1e] hover:bg-slate-50 dark:hover:bg-[#2e2e2e] text-stone-705 dark:text-white border border-stone-200 dark:border-[#333] transition-all shadow-lg p-2.5 h-10 flex items-center justify-center gap-1.5 rounded-lg"
                     variant="default"
                     title="Run Analysis"
                 >
@@ -486,7 +591,7 @@ export default function Home() {
             <canvas
                 ref={canvasRef}
                 id="canvas"
-                className="absolute top-0 left-0 w-full h-full touch-none"
+                className={`absolute top-0 left-0 w-full h-full touch-none transition-all duration-300 ${colorScheme === 'light' ? 'invert-[0.93] hue-rotate-180' : ''}`}
                 width={windowSize.width}
                 height={windowSize.height}
                 onMouseDown={startDrawing}
@@ -497,9 +602,36 @@ export default function Home() {
                 onTouchMove={drawTouch}
                 onTouchEnd={stopDrawingTouch}
             />
-
-
-
+            {activeSolveBox && activeSolveRegion && (
+                <div 
+                    className={`absolute inset-0 z-10 pointer-events-none transition-opacity duration-200 ${
+                        isDrawing ? 'opacity-0' : 'opacity-100'
+                    }`}
+                >
+                    <svg className="w-full h-full">
+                        <rect
+                            x={activeSolveBox.x}
+                            y={activeSolveBox.y}
+                            width={activeSolveBox.width}
+                            height={activeSolveBox.height}
+                            fill="none"
+                            stroke={activeSolveRegion.status === 'scanning' ? 'rgba(245, 158, 11, 0.6)' : 'rgba(245, 158, 11, 0.35)'}
+                            strokeWidth={activeSolveRegion.status === 'scanning' ? '2' : '1.5'}
+                            strokeDasharray={activeSolveRegion.status === 'scanning' ? '6 4' : '4 4'}
+                            rx="4"
+                            className={activeSolveRegion.status === 'scanning' ? 'animate-pulse' : ''}
+                        />
+                        <text
+                            x={activeSolveBox.x + 8}
+                            y={activeSolveBox.y - 6 < 15 ? activeSolveBox.y + 14 : activeSolveBox.y - 6}
+                            fill="rgba(245, 158, 11, 0.8)"
+                            className="text-[9px] font-sans font-bold select-none uppercase tracking-wider"
+                        >
+                            {activeSolveRegion.status === 'scanning' ? 'Solving Region...' : 'Solved Region'}
+                        </text>
+                    </svg>
+                </div>
+            )}
             {results && results.map((result, index) => (
                 <DraggableResultCard
                     key={result.id || index}
@@ -514,10 +646,10 @@ export default function Home() {
             {showExamples && (
                 <div className="absolute top-[40%] sm:top-[35%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-6 max-w-lg w-full px-6 text-center select-none pointer-events-none">
                     <div className="flex flex-col items-center gap-2 pointer-events-auto">
-                        <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                        <h2 className="text-2xl sm:text-3xl font-extrabold text-stone-900 dark:text-white tracking-tight">
                             Unlock the Power of <span className="text-amber-500">SolveIQ</span>
                         </h2>
-                        <p className="text-gray-400 text-sm max-w-sm">
+                        <p className="text-stone-500 dark:text-gray-400 text-sm max-w-sm">
                             Draw your equations or click one of our pre-baked math examples below to see SolveIQ scan and solve in real-time.
                         </p>
                     </div>
@@ -527,13 +659,13 @@ export default function Home() {
                             <button
                                 key={problem.id}
                                 onClick={() => handleTryExample(problem.strokes)}
-                                className="cursor-pointer flex flex-col text-left p-3.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 active:scale-[0.98] transition-all text-white backdrop-blur-md shadow-lg group"
+                                className="cursor-pointer flex flex-col text-left p-3.5 rounded-xl border border-stone-200 dark:border-white/10 bg-white/80 dark:bg-white/5 hover:bg-stone-50 dark:hover:bg-white/10 hover:border-stone-300 dark:hover:border-white/20 active:scale-[0.98] transition-all text-stone-900 dark:text-white backdrop-blur-md shadow-lg group"
                             >
-                                <span className="text-sm font-bold text-amber-400 group-hover:text-amber-300 flex items-center gap-1.5">
+                                <span className="text-sm font-bold text-amber-600 dark:text-amber-400 group-hover:text-amber-500 dark:group-hover:text-amber-300 flex items-center gap-1.5">
                                     <Sparkles size={13} className="text-amber-500 animate-pulse" />
                                     {problem.name}
                                 </span>
-                                <span className="text-xs text-gray-400 mt-1 leading-normal line-clamp-2">
+                                <span className="text-xs text-stone-500 dark:text-gray-400 mt-1 leading-normal line-clamp-2">
                                     {problem.description}
                                 </span>
                             </button>
@@ -545,15 +677,15 @@ export default function Home() {
             {/* Floating Copilot Toggle Button */}
             <button
                 onClick={() => setIsCopilotOpen(!isCopilotOpen)}
-                className="absolute bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-tr from-rose-500 via-orange-500 to-amber-400 flex items-center justify-center shadow-lg shadow-orange-500/40 hover:scale-110 active:scale-95 transition-all duration-200 border border-white/20 cursor-pointer"
+                className={`absolute bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-tr from-rose-500 via-orange-500 to-amber-400 flex items-center justify-center shadow-lg shadow-orange-500/40 hover:scale-110 active:scale-95 transition-all duration-300 border border-white/20 cursor-pointer ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
                 title="Vector"
             >
                 {isCopilotOpen ? <X size={22} className="text-white" /> : <MessageSquare size={22} className="text-white" />}
             </button>
 
             {/* Copilot Sidebar Panel */}
-            {isCopilotOpen && (
-                <div className="absolute bottom-24 right-4 left-4 sm:left-auto sm:right-6 z-50 w-auto sm:w-[360px] h-[480px] sm:h-[520px] flex flex-col rounded-3xl overflow-hidden shadow-2xl border border-stone-200/80 bg-white/95 backdrop-blur-md">
+            {isCopilotOpen && !isFocusMode && (
+                <div className="absolute bottom-24 right-4 left-4 sm:left-auto sm:right-6 z-50 w-auto sm:w-[360px] h-[480px] sm:h-[520px] flex flex-col rounded-3xl overflow-hidden shadow-2xl border border-stone-200/80 dark:border-stone-800/80 bg-white/95 dark:bg-[#18181c]/95 backdrop-blur-md">
                     <div className="flex-1 overflow-y-auto px-5 pb-5 pt-8 flex flex-col gap-4 scrollbar-thin">
                         {copilotMessages.map((msg, i) => {
                             if (i === 0) {
@@ -565,8 +697,8 @@ export default function Home() {
                                                 <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent opacity-45" />
                                             </div>
                                         </div>
-                                        <p className="text-stone-900 font-extrabold text-lg sm:text-xl tracking-tight mb-2">Vector</p>
-                                        <p className="text-center text-stone-600 text-sm leading-relaxed font-medium px-4">
+                                        <p className="text-stone-900 dark:text-stone-100 font-extrabold text-lg sm:text-xl tracking-tight mb-2">Vector</p>
+                                        <p className="text-center text-stone-600 dark:text-stone-400 text-sm leading-relaxed font-medium px-4">
                                             {msg.text}
                                         </p>
                                     </div>
@@ -577,8 +709,8 @@ export default function Home() {
                                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                     <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
                                         msg.role === 'user'
-                                            ? 'bg-stone-900 text-white rounded-br-sm'
-                                            : 'bg-stone-100 border border-stone-200/50 text-stone-850 rounded-bl-sm'
+                                            ? 'bg-stone-900 dark:bg-stone-200 text-white dark:text-stone-950 rounded-br-sm'
+                                            : 'bg-stone-100 dark:bg-stone-850/80 border border-stone-200/50 dark:border-stone-800/50 text-stone-850 dark:text-stone-200 rounded-bl-sm'
                                     }`}>
                                         {msg.text}
                                     </div>
@@ -587,7 +719,7 @@ export default function Home() {
                         })}
                         {isCopilotLoading && (
                             <div className="flex justify-start animate-fade-in">
-                                <div className="bg-stone-100 border border-stone-200/50 px-4 py-2.5 rounded-2xl rounded-bl-sm flex gap-1.5 items-center shadow-sm">
+                                <div className="bg-stone-100 dark:bg-stone-850/80 border border-stone-200/50 dark:border-stone-800/50 px-4 py-2.5 rounded-2xl rounded-bl-sm flex gap-1.5 items-center shadow-sm">
                                     <div className="w-1.5 h-1.5 rounded-full bg-stone-400 animate-bounce" style={{ animationDelay: '0ms' }} />
                                     <div className="w-1.5 h-1.5 rounded-full bg-stone-400 animate-bounce" style={{ animationDelay: '150ms' }} />
                                     <div className="w-1.5 h-1.5 rounded-full bg-stone-400 animate-bounce" style={{ animationDelay: '300ms' }} />
@@ -597,8 +729,8 @@ export default function Home() {
                         <div ref={chatEndRef} />
                     </div>
 
-                    <div className="px-4 pb-4 pt-2 bg-white">
-                        <div className="flex items-center gap-2 bg-stone-50 border border-stone-200/60 rounded-2xl px-4 py-2.5 focus-within:border-stone-400 focus-within:ring-2 focus-within:ring-stone-100 transition-all shadow-sm">
+                    <div className="px-4 pb-4 pt-2 bg-white dark:bg-[#18181c]">
+                        <div className="flex items-center gap-2 bg-stone-50 dark:bg-stone-900/50 border border-stone-200/60 dark:border-stone-800/60 rounded-2xl px-4 py-2.5 focus-within:border-stone-400 dark:focus-within:border-stone-600 focus-within:ring-2 focus-within:ring-stone-105 dark:focus-within:ring-stone-950 transition-all shadow-sm">
                             <input
                                 type="text"
                                 value={copilotInput}
@@ -610,12 +742,12 @@ export default function Home() {
                                     }
                                 }}
                                 placeholder="Ask about your canvas..."
-                                className="flex-1 bg-transparent text-sm text-stone-800 placeholder-stone-400 outline-none font-sans"
+                                className="flex-1 bg-transparent text-sm text-stone-800 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-500 outline-none font-sans"
                             />
                             <button
                                 onClick={sendCopilotMessage}
                                 disabled={isCopilotLoading || !copilotInput.trim()}
-                                className="w-8 h-8 rounded-full bg-stone-950 hover:bg-stone-800 text-white flex items-center justify-center disabled:opacity-30 hover:scale-105 active:scale-95 transition-all flex-shrink-0 cursor-pointer"
+                                className="w-8 h-8 rounded-full bg-stone-950 dark:bg-stone-200 hover:bg-stone-800 dark:hover:bg-stone-300 text-white dark:text-stone-950 flex items-center justify-center disabled:opacity-30 hover:scale-105 active:scale-95 transition-all flex-shrink-0 cursor-pointer"
                             >
                                 <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" className="text-white">
                                     <line x1="12" y1="19" x2="12" y2="5"></line>
@@ -629,73 +761,83 @@ export default function Home() {
             <Modal
                 opened={isShortcutsOpen}
                 onClose={() => setIsShortcutsOpen(false)}
-                title={<span className="font-bold text-white">Keyboard Shortcuts Reference</span>}
+                title={<span className={`font-bold ${colorScheme === 'dark' ? 'text-white' : 'text-stone-900'}`}>Keyboard Shortcuts Reference</span>}
                 centered
                 styles={{
                     content: {
-                        backgroundColor: '#1c1917',
-                        border: '1px solid rgba(255,255,255,0.1)',
+                        backgroundColor: colorScheme === 'dark' ? '#1c1917' : '#ffffff',
+                        border: colorScheme === 'dark' ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.1)',
                         borderRadius: '16px',
-                        color: 'white',
+                        color: colorScheme === 'dark' ? 'white' : '#1c1917',
                     },
                     header: {
-                        backgroundColor: '#1c1917',
-                        color: 'white',
-                        borderBottom: '1px solid rgba(255,255,255,0.05)',
+                        backgroundColor: colorScheme === 'dark' ? '#1c1917' : '#ffffff',
+                        color: colorScheme === 'dark' ? 'white' : '#1c1917',
+                        borderBottom: colorScheme === 'dark' ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(0,0,0,0.05)',
                     },
                 }}
             >
                 <div className="flex flex-col gap-4 text-sm font-sans">
-                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
-                        <span className="text-gray-400">Undo stroke</span>
-                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">Ctrl + Z / ⌘ + Z</kbd>
+                    <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
+                        <span className="text-stone-500 dark:text-gray-400">Undo stroke</span>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">Ctrl + Z / ⌘ + Z</kbd>
                     </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
-                        <span className="text-gray-400">Redo stroke</span>
-                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">Ctrl + Shift + Z / ⌘ + Shift + Z</kbd>
+                    <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
+                        <span className="text-stone-500 dark:text-gray-400">Redo stroke</span>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">Ctrl + Shift + Z / ⌘ + Shift + Z</kbd>
                     </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
-                        <span className="text-gray-400">Pen (Freehand)</span>
-                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">P</kbd>
+                    <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
+                        <span className="text-stone-500 dark:text-gray-400">Pen (Freehand)</span>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">P</kbd>
                     </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
-                        <span className="text-gray-400">Eraser</span>
-                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">E</kbd>
+                    <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
+                        <span className="text-stone-500 dark:text-gray-400">Eraser</span>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">E</kbd>
                     </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
-                        <span className="text-gray-400">Line Tool</span>
-                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">L</kbd>
+                    <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
+                        <span className="text-stone-500 dark:text-gray-400">Line Tool</span>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">L</kbd>
                     </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
-                        <span className="text-gray-400">Rectangle Tool</span>
-                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">R</kbd>
+                    <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
+                        <span className="text-stone-500 dark:text-gray-400">Rectangle Tool</span>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">R</kbd>
                     </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
-                        <span className="text-gray-400">Circle Tool</span>
-                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">C</kbd>
+                    <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
+                        <span className="text-stone-500 dark:text-gray-400">Circle Tool</span>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">C</kbd>
                     </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
-                        <span className="text-gray-400">Triangle Tool</span>
-                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">T</kbd>
+                    <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
+                        <span className="text-stone-500 dark:text-gray-400">Triangle Tool</span>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">T</kbd>
                     </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
-                        <span className="text-gray-400">Zoom in/out</span>
-                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">Scroll Wheel</kbd>
+                    <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
+                        <span className="text-stone-500 dark:text-gray-400">Zoom in/out</span>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">Scroll Wheel</kbd>
                     </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
-                        <span className="text-gray-400">Pan Canvas</span>
-                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">Space + Drag / Middle Drag</kbd>
+                    <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
+                        <span className="text-stone-500 dark:text-gray-400">Pan Canvas</span>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">Space + Drag / Middle Drag</kbd>
                     </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-white/5">
-                        <span className="text-gray-400">Reset Canvas View</span>
-                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">Ctrl + 0 / ⌘ + 0</kbd>
+                    <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
+                        <span className="text-stone-500 dark:text-gray-400">Reset Canvas View</span>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">Ctrl + 0 / ⌘ + 0</kbd>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
+                        <span className="text-stone-500 dark:text-gray-400">Focus / Presentation Mode</span>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">F</kbd>
                     </div>
                     <div className="flex justify-between items-center py-1.5">
-                        <span className="text-gray-400">Open Shortcuts Help</span>
-                        <kbd className="px-2 py-1 bg-white/10 rounded text-xs font-mono text-amber-400 font-bold border border-white/15">?</kbd>
+                        <span className="text-stone-500 dark:text-gray-400">Open Shortcuts Help</span>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">?</kbd>
                     </div>
                 </div>
             </Modal>
+
+            {showFocusHint && (
+                <div className="absolute z-[100] bottom-10 left-1/2 -translate-x-1/2 bg-[#1c1917]/90 dark:bg-white/95 text-white dark:text-stone-900 border border-white/10 dark:border-stone-200 px-4 py-2.5 rounded-xl text-xs font-semibold shadow-2xl flex items-center gap-2 pointer-events-none animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <span>Press <kbd className="px-1.5 py-0.5 bg-white/20 dark:bg-stone-200 rounded font-mono font-bold">F</kbd> to exit focus mode</span>
+                </div>
+            )}
         </>
     );
 }

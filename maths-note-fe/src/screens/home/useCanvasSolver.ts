@@ -112,7 +112,8 @@ export const useCanvasSolver = (
                     confidence_score: maxConfidence > 0 ? maxConfidence : undefined,
                     latency: maxLatency > 0 ? maxLatency : undefined,
                     steps: steps && steps.length > 0 ? steps : undefined,
-                    bounds: bounds ? { ...bounds } : undefined
+                    bounds: bounds ? { ...bounds } : undefined,
+                    isSelection: !!selection
                 };
 
                 const updatedResults = [...results, newResult];

@@ -18,6 +18,7 @@ export interface GeneratedResult {
     latency?: number;
     steps?: SolutionStep[];
     bounds?: { minX: number; minY: number; maxX: number; maxY: number };
+    isSelection?: boolean;
 }
 
 export type DictOfVars = Record<string, string | number>;

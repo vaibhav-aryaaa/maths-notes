@@ -100,6 +100,7 @@ describe('useCanvasSolver', () => {
             confidence_score: 95,
             latency: 120,
             bounds: { minX: 100, minY: 150, maxX: 300, maxY: 350 },
+            isSelection: false,
             steps: undefined
         });
 

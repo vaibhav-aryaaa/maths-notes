@@ -220,21 +220,21 @@ export const DraggableResultCard = ({ result, defaultPosition, setPosition: setP
         return (
             <div 
                 key={step.order} 
-                className="flex flex-col gap-2 p-3 bg-white/5 border border-white/10 rounded-xl transition-all duration-300 animate-in fade-in slide-in-from-right-4"
+                className="flex flex-col gap-2 p-3 bg-stone-100/50 dark:bg-white/5 border border-stone-200 dark:border-white/10 rounded-xl transition-all duration-300 animate-in fade-in slide-in-from-right-4"
             >
                 <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-xs font-bold font-sans">
+                    <span className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center justify-center text-xs font-bold font-sans">
                         {step.order}
                     </span>
-                    <span className="text-xs text-gray-400 font-bold uppercase tracking-wider font-sans">
+                    <span className="text-xs text-stone-550 dark:text-gray-400 font-bold uppercase tracking-wider font-sans">
                         Step {step.order}
                     </span>
                 </div>
-                <p className="text-sm text-gray-200 leading-relaxed font-medium">
+                <p className="text-sm text-stone-705 dark:text-gray-200 leading-relaxed font-medium">
                     {formattedDesc}
                 </p>
                 {latexExpr && (
-                    <div className="mt-1 text-white text-base font-semibold font-mono">
+                    <div className="mt-1 text-stone-900 dark:text-white text-base font-semibold font-mono">
                         {latexExpr}
                     </div>
                 )}
@@ -254,7 +254,7 @@ export const DraggableResultCard = ({ result, defaultPosition, setPosition: setP
             : `\\(${sol.expression} = ${sol.answer}\\)`;
 
         return (
-            <div key={index} className="text-white text-base sm:text-lg font-medium leading-relaxed">
+            <div key={index} className="text-stone-900 dark:text-white text-base sm:text-lg font-medium leading-relaxed">
                 {latexStr}
             </div>
         );
@@ -276,17 +276,17 @@ export const DraggableResultCard = ({ result, defaultPosition, setPosition: setP
         >
             <div className="flex justify-between items-center gap-4 shrink-0">
                 <div className="flex items-center gap-2 overflow-hidden flex-1">
-                    <span className="text-xs font-bold px-2 py-1 bg-green-500/20 text-green-400 rounded-full border border-green-500/30 shrink-0">
+                    <span className="text-xs font-bold px-2 py-1 bg-green-50 dark:bg-green-500/20 text-green-750 dark:text-green-400 rounded-full border border-green-200 dark:border-green-500/30 shrink-0">
                         {result.confidence_score ? `${result.confidence_score}% Confident` : 'AI Result'}
                     </span>
                     {isMinimized && (
-                        <span className="text-xs text-gray-300 font-medium truncate flex-1" title={summaryText}>
+                        <span className="text-xs text-stone-600 dark:text-gray-300 font-medium truncate flex-1" title={summaryText}>
                             {summaryText}
                         </span>
                     )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-xs text-gray-400 font-mono">
+                    <span className="text-xs text-stone-500 dark:text-gray-400 font-mono">
                         {result.latency ? `${result.latency}ms` : ''}
                     </span>
                     <button
@@ -310,13 +310,13 @@ export const DraggableResultCard = ({ result, defaultPosition, setPosition: setP
             
             {!isMinimized && (
                 <div className="mt-3 flex-1 flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 gap-2">
-                    <div className="latex-content text-white whitespace-normal break-words overflow-y-auto shrink-0 max-h-[45%] pr-1 flex flex-col gap-1.5 scrollbar-thin">
+                    <div className="latex-content text-stone-900 dark:text-white whitespace-normal break-words overflow-y-auto shrink-0 max-h-[45%] pr-1 flex flex-col gap-1.5 scrollbar-thin">
                         {renderedSolutions}
                     </div>
 
 
                     {steps && steps.length > 1 ? (
-                        <div className="flex-1 flex flex-col overflow-hidden border-t border-white/10 pt-2 min-h-0 gap-2">
+                        <div className="flex-1 flex flex-col overflow-hidden border-t border-stone-200 dark:border-white/10 pt-2 min-h-0 gap-2">
                             <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-2 min-h-0 scrollbar-thin">
                                 {showAllSteps ? (
                                     steps.map(step => renderStep(step))
@@ -326,42 +326,42 @@ export const DraggableResultCard = ({ result, defaultPosition, setPosition: setP
                             </div>
 
                             {showAllSteps ? (
-                                <div className="flex justify-between items-center bg-white/5 border border-white/10 rounded-xl p-2 shrink-0">
-                                    <span className="text-xs text-gray-400 font-bold font-sans pl-2">
+                                <div className="flex justify-between items-center bg-stone-50 dark:bg-white/5 border border-stone-200 dark:border-white/10 rounded-xl p-2 shrink-0">
+                                    <span className="text-xs text-stone-500 dark:text-gray-400 font-bold font-sans pl-2">
                                         Showing all {steps.length} steps
                                     </span>
                                     <button
                                         onClick={() => setShowAllSteps(false)}
-                                        className="cursor-pointer text-xs font-extrabold text-amber-400 hover:text-amber-300 font-sans pl-3 py-0.5"
+                                        className="cursor-pointer text-xs font-extrabold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 font-sans pl-3 py-0.5"
                                     >
                                         Switch to Paced View
                                     </button>
                                 </div>
                             ) : (
-                                <div className="flex justify-between items-center bg-white/5 border border-white/10 rounded-xl p-2 shrink-0">
+                                <div className="flex justify-between items-center bg-stone-50 dark:bg-white/5 border border-stone-200 dark:border-white/10 rounded-xl p-2 shrink-0">
                                     <div className="flex gap-1.5">
                                         <button
                                             disabled={currentStepIndex === 0}
                                             onClick={() => setCurrentStepIndex(prev => Math.max(0, prev - 1))}
-                                            className="cursor-pointer text-xs font-bold text-white px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 disabled:cursor-not-allowed transition-all font-sans animate-in fade-in"
+                                            className="cursor-pointer text-xs font-bold text-stone-700 dark:text-white px-2.5 py-1.5 rounded-lg border border-stone-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-stone-50 dark:hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white dark:disabled:hover:bg-white/5 disabled:cursor-not-allowed transition-all font-sans animate-in fade-in"
                                         >
                                             ← Back
                                         </button>
                                         <button
                                             disabled={currentStepIndex === steps.length - 1}
                                             onClick={() => setCurrentStepIndex(prev => Math.min(steps.length - 1, prev + 1))}
-                                            className="cursor-pointer text-xs font-bold text-white px-2.5 py-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20 disabled:opacity-30 disabled:hover:bg-amber-500/10 disabled:cursor-not-allowed transition-all font-sans animate-in fade-in"
+                                            className="cursor-pointer text-xs font-bold text-amber-800 dark:text-white px-2.5 py-1.5 rounded-lg border border-amber-200 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 disabled:opacity-30 disabled:hover:bg-amber-50 dark:disabled:hover:bg-amber-500/10 disabled:cursor-not-allowed transition-all font-sans animate-in fade-in"
                                         >
                                             Next step →
                                         </button>
                                     </div>
                                     <div className="flex items-center gap-3">
-                                        <span className="text-xs text-gray-400 font-bold font-sans">
+                                        <span className="text-xs text-stone-500 dark:text-gray-400 font-bold font-sans">
                                             Step {currentStepIndex + 1} of {steps.length}
                                         </span>
                                         <button
                                             onClick={() => setShowAllSteps(true)}
-                                            className="cursor-pointer text-xs font-extrabold text-amber-400 hover:text-amber-300 font-sans border-l border-white/10 pl-3 py-0.5"
+                                            className="cursor-pointer text-xs font-extrabold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 font-sans border-l border-stone-200 dark:border-white/10 pl-3 py-0.5"
                                         >
                                             Show All
                                         </button>
@@ -371,16 +371,16 @@ export const DraggableResultCard = ({ result, defaultPosition, setPosition: setP
                         </div>
                     ) : (
                         result.thought_process && (
-                            <div className="flex-1 flex flex-col overflow-hidden border-t border-white/10 pt-2 min-h-0">
+                            <div className="flex-1 flex flex-col overflow-hidden border-t border-stone-200 dark:border-white/10 pt-2 min-h-0">
                                 <button
                                     onClick={() => setShowThoughtProcess(!showThoughtProcess)}
-                                    className="flex justify-between items-center text-sm text-gray-300 hover:text-white py-1 shrink-0 cursor-pointer"
+                                    className="flex justify-between items-center text-sm text-stone-600 dark:text-gray-300 hover:text-stone-850 dark:hover:text-white py-1 shrink-0 cursor-pointer"
                                 >
                                     <span>View Thought Process</span>
                                     <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showThoughtProcess ? 'rotate-180' : ''}`} />
                                 </button>
                                 {showThoughtProcess && (
-                                    <div className="text-gray-400 text-sm leading-relaxed whitespace-pre-wrap flex-1 overflow-y-auto pr-1 mt-1 min-h-0">
+                                    <div className="text-stone-500 dark:text-gray-400 text-sm leading-relaxed whitespace-pre-wrap flex-1 overflow-y-auto pr-1 mt-1 min-h-0">
                                         {formatMathText(result.thought_process)}
                                     </div>
                                 )}
