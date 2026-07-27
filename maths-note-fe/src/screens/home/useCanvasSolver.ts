@@ -15,7 +15,10 @@ export const useCanvasSolver = (
     const [isScanning, setIsScanning] = useState(false);
     const [latexPosition, setLatexPosition] = useState({ x: 10, y: 200 });
 
-    const runRoute = async (selection?: { type: 'rect' | 'lasso'; points: { x: number; y: number }[]; bounds: { minX: number; minY: number; maxX: number; maxY: number } }) => {
+    const runRoute = async (
+        selection?: { type: 'rect' | 'lasso'; points: { x: number; y: number }[]; bounds: { minX: number; minY: number; maxX: number; maxY: number } },
+        onStartScan?: (bounds: { minX: number; minY: number; maxX: number; maxY: number }) => void
+    ) => {
         const canvas = canvasRef.current;
         const masterCanvas = masterCanvasRef.current;
         if (!canvas || !masterCanvas) return;
@@ -31,6 +34,9 @@ export const useCanvasSolver = (
             return;
         }
 
+        if (onStartScan) {
+            onStartScan(bounds);
+        }
         setIsScanning(true);
         try {
             // Calculate cropped region with a padding of 20px

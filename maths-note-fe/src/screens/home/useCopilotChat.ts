@@ -1,5 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
-import axios from 'axios';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import type { GeneratedResult, DictOfVars } from '@/types';
 
 export const useCopilotChat = (dictOfVars: DictOfVars, results: GeneratedResult[]) => {
@@ -9,6 +8,9 @@ export const useCopilotChat = (dictOfVars: DictOfVars, results: GeneratedResult[
     ]);
     const [copilotInput, setCopilotInput] = useState('');
     const [isCopilotLoading, setIsCopilotLoading] = useState(false);
+    const [isCopilotStreaming, setIsCopilotStreaming] = useState(false);
+
+    const abortControllerRef = useRef<AbortController | null>(null);
     
     const sessionId = useRef((() => {
         let id = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('solveiq_copilot_session_id') : null;
@@ -21,18 +23,41 @@ export const useCopilotChat = (dictOfVars: DictOfVars, results: GeneratedResult[
         return id;
     })());
 
+    // Clean up active streams on unmount to handle network disconnects or navigation away
+    useEffect(() => {
+        return () => {
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+            }
+        };
+    }, []);
+
     const sendCopilotMessage = useCallback(async () => {
         const text = copilotInput.trim();
-        if (!text || isCopilotLoading) return;
+        if (!text || isCopilotLoading || isCopilotStreaming) return;
 
         setCopilotMessages(prev => [...prev, { role: 'user', text }]);
         setCopilotInput('');
         setIsCopilotLoading(true);
 
+        // Cancel previous pending requests
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
+
         try {
-            const res = await axios.post(
-                `${import.meta.env.VITE_API_URL}/copilot`,
-                {
+            // Append placeholder AI message for streaming
+            setCopilotMessages(prev => [...prev, { role: 'ai', text: '' }]);
+
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/copilot`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-App-Key': import.meta.env.VITE_APP_KEY || '',
+                },
+                body: JSON.stringify({
                     session_id: sessionId.current,
                     message: text,
                     canvas_image: '',
@@ -44,26 +69,97 @@ export const useCopilotChat = (dictOfVars: DictOfVars, results: GeneratedResult[
                             thought_process: r.thought_process,
                         }))
                     ),
-                },
-                {
-                    headers: {
-                        'X-App-Key': import.meta.env.VITE_APP_KEY || '',
-                    },
-                }
-            );
-            setCopilotMessages(prev => [...prev, { role: 'ai', text: res.data.reply }]);
-        } catch (err: unknown) {
-            let errorMsg = 'Sorry, I ran into an error. Please try again.';
-            if (axios.isAxiosError(err)) {
-                errorMsg = err.response?.data?.detail || err.message || errorMsg;
-            } else if (err instanceof Error) {
-                errorMsg = err.message;
+                }),
+                signal: abortController.signal,
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const detail = errorData.detail || `HTTP error! status: ${response.status}`;
+                throw new Error(detail);
             }
-            setCopilotMessages(prev => [...prev, { role: 'ai', text: `⚠️ ${errorMsg}` }]);
+
+            setIsCopilotLoading(false);
+            setIsCopilotStreaming(true);
+
+            const reader = response.body?.getReader();
+            if (!reader) {
+                throw new Error('Response body is not readable');
+            }
+
+            const decoder = new TextDecoder('utf-8');
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    const cleanLine = line.trim();
+                    if (!cleanLine) continue;
+
+                    if (cleanLine.startsWith('data: ')) {
+                        const jsonStr = cleanLine.substring(6).trim();
+                        if (jsonStr) {
+                            try {
+                                const parsed = JSON.parse(jsonStr);
+                                if (parsed.error) {
+                                    throw new Error(parsed.error);
+                                }
+                                if (parsed.token) {
+                                    setCopilotMessages(prev => {
+                                        const updated = [...prev];
+                                        if (updated.length > 0) {
+                                            const last = updated[updated.length - 1];
+                                            if (last.role === 'ai') {
+                                                updated[updated.length - 1] = {
+                                                    ...last,
+                                                    text: last.text + parsed.token
+                                                };
+                                            }
+                                        }
+                                        return updated;
+                                    });
+                                }
+                            } catch (e) {
+                                console.error('Error parsing stream chunk:', e);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (err: any) {
+            if (err.name === 'AbortError') {
+                return;
+            }
+            console.error('Copilot streaming error:', err);
+            const errorMsg = err.message || 'Sorry, I ran into an error. Please try again.';
+            
+            setCopilotMessages(prev => {
+                const updated = [...prev];
+                if (updated.length > 0) {
+                    const last = updated[updated.length - 1];
+                    if (last.role === 'ai') {
+                        updated[updated.length - 1] = {
+                            ...last,
+                            text: last.text === '' ? `⚠️ ${errorMsg}` : last.text + `\n\n⚠️ ${errorMsg}`
+                        };
+                    }
+                } else {
+                    updated.push({ role: 'ai', text: `⚠️ ${errorMsg}` });
+                }
+                return updated;
+            });
         } finally {
             setIsCopilotLoading(false);
+            setIsCopilotStreaming(false);
+            abortControllerRef.current = null;
         }
-    }, [copilotInput, isCopilotLoading, dictOfVars, results]);
+    }, [copilotInput, isCopilotLoading, isCopilotStreaming, dictOfVars, results]);
 
     return {
         isCopilotOpen,
@@ -72,6 +168,7 @@ export const useCopilotChat = (dictOfVars: DictOfVars, results: GeneratedResult[
         copilotInput,
         setCopilotInput,
         isCopilotLoading,
+        isCopilotStreaming,
         sendCopilotMessage,
     };
 };

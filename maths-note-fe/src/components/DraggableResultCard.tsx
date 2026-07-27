@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
+import { RingProgress, Tooltip } from '@mantine/core';
 
 import type { GeneratedResult, SolutionStep } from '@/types';
 
@@ -262,10 +263,53 @@ export const DraggableResultCard = ({ result, defaultPosition, setPosition: setP
 
     const summaryText = result.solutions.map(s => `${s.expression} = ${s.answer}`).join(', ');
 
+    const rawScore = result.confidence_score;
+    let confidenceRender = null;
+    if (rawScore !== undefined && rawScore !== null) {
+        const isFraction = rawScore <= 1.0;
+        const percentage = isFraction ? Math.round(rawScore * 100) : Math.round(rawScore);
+        const scoreVal = isFraction ? rawScore : rawScore / 100;
+
+        let ringColor = 'red';
+        let textColorClass = 'text-red-600 dark:text-red-400';
+        let confidenceLevel = 'Low Confidence';
+
+        if (scoreVal >= 0.85) {
+            ringColor = 'teal';
+            textColorClass = 'text-teal-600 dark:text-teal-400';
+            confidenceLevel = 'High Confidence';
+        } else if (scoreVal >= 0.60) {
+            ringColor = 'yellow';
+            textColorClass = 'text-yellow-600 dark:text-yellow-400';
+            confidenceLevel = 'Moderate Confidence';
+        }
+
+        confidenceRender = (
+            <Tooltip
+                label={`AI Confidence: ${percentage}% (${confidenceLevel}). This represents how confident the AI model is in the correctness of this specific mathematical solution.`}
+                withArrow
+                position="top"
+                transitionProps={{ transition: 'fade', duration: 150 }}
+            >
+                <div className="flex items-center gap-1.5 bg-stone-50 dark:bg-[#2c2c2c]/40 border border-stone-200 dark:border-[#444] rounded-full pl-1.5 pr-2.5 py-0.5 shadow-sm select-none">
+                    <RingProgress
+                        size={18}
+                        thickness={2}
+                        sections={[{ value: percentage, color: ringColor }]}
+                        aria-label={`Confidence score: ${percentage}%`}
+                    />
+                    <span className={`text-[11px] font-extrabold tracking-tight font-sans ${textColorClass}`}>
+                        {percentage}% Confident
+                    </span>
+                </div>
+            </Tooltip>
+        );
+    }
+
     return (
         <div 
             ref={cardRef}
-            className="absolute top-0 left-0 z-50 glassmorphic-card p-4 rounded-xl shadow-2xl cursor-move select-none flex flex-col overflow-hidden"
+            className="absolute top-0 left-0 z-50 glassmorphic-card p-4 rounded-xl shadow-2xl cursor-move select-none flex flex-col overflow-hidden animate-[fadeIn_0.5s_ease-out_forwards]"
             style={{ 
                 transform: `translate3d(${finalPosition.x}px, ${finalPosition.y}px, 0)`,
                 width: isMinimized ? 'auto' : `${size.width}px`,
@@ -276,9 +320,11 @@ export const DraggableResultCard = ({ result, defaultPosition, setPosition: setP
         >
             <div className="flex justify-between items-center gap-4 shrink-0">
                 <div className="flex items-center gap-2 overflow-hidden flex-1">
-                    <span className="text-xs font-bold px-2 py-1 bg-green-50 dark:bg-green-500/20 text-green-750 dark:text-green-400 rounded-full border border-green-200 dark:border-green-500/30 shrink-0">
-                        {result.confidence_score ? `${result.confidence_score}% Confident` : 'AI Result'}
-                    </span>
+                    {confidenceRender ? confidenceRender : (
+                        <span className="text-xs font-bold px-2 py-1 bg-green-50 dark:bg-green-500/20 text-green-750 dark:text-green-400 rounded-full border border-green-200 dark:border-green-500/30 shrink-0">
+                            AI Result
+                        </span>
+                    )}
                     {isMinimized && (
                         <span className="text-xs text-stone-600 dark:text-gray-300 font-medium truncate flex-1" title={summaryText}>
                             {summaryText}
@@ -374,7 +420,7 @@ export const DraggableResultCard = ({ result, defaultPosition, setPosition: setP
                             <div className="flex-1 flex flex-col overflow-hidden border-t border-stone-200 dark:border-white/10 pt-2 min-h-0">
                                 <button
                                     onClick={() => setShowThoughtProcess(!showThoughtProcess)}
-                                    className="flex justify-between items-center text-sm text-stone-600 dark:text-gray-300 hover:text-stone-850 dark:hover:text-white py-1 shrink-0 cursor-pointer"
+                                    className="flex justify-between items-center text-sm text-stone-600 dark:text-gray-300 hover:text-stone-800 dark:hover:text-white py-1 shrink-0 cursor-pointer"
                                 >
                                     <span>View Thought Process</span>
                                     <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showThoughtProcess ? 'rotate-180' : ''}`} />

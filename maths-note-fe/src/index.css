@@ -233,3 +233,18 @@
     animation: fadeInUp 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     opacity: 0;
 }
+
+@keyframes shimmer {
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}

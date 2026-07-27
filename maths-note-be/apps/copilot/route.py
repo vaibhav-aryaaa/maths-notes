@@ -2,9 +2,10 @@ import logging
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from apps.copilot.utils import chat_with_copilot
+from apps.copilot.utils import chat_with_copilot_stream
 from auth import verify_app_key
 from rate_limiter import limiter
 
@@ -24,9 +25,9 @@ async def copilot_chat(request: Request, data: ChatRequest):
     if not re.fullmatch(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}', data.session_id):
         raise HTTPException(status_code=400, detail="Invalid session_id format. Must be UUIDv4.")
 
-    logger.info("Processing Copilot chat request. Session ID: %s, Message length: %d", data.session_id, len(data.message))
+    logger.info("Processing Copilot streaming chat request. Session ID: %s, Message length: %d", data.session_id, len(data.message))
     try:
-        reply = chat_with_copilot(
+        generator = chat_with_copilot_stream(
             session_id=data.session_id,
             user_message=data.message,
             canvas_b64=data.canvas_image,
@@ -34,9 +35,9 @@ async def copilot_chat(request: Request, data: ChatRequest):
             results=data.results,
         )
     except Exception:
-        logger.exception("Failed calling Copilot chat API")
+        logger.exception("Failed calling Copilot chat stream API")
         raise HTTPException(
             status_code=502,
             detail="The AI provider failed to process this request. Please try again."
         )
-    return {"reply": reply, "status": "success"}
+    return StreamingResponse(generator, media_type="text/event-stream")

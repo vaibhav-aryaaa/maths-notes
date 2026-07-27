@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { SWATCHES } from '@/constants';
 import { Eraser, Pen, MessageSquare, X, Menu, Sparkles, ChevronDown, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
+import { ResultSkeleton } from '@/components/ResultSkeleton';
 import { useMathCanvas } from './useMathCanvas';
 import { useCanvasSolver } from './useCanvasSolver';
 import { useCopilotChat } from './useCopilotChat';
@@ -19,6 +20,8 @@ export default function Home() {
         bounds: { minX: number; minY: number; maxX: number; maxY: number };
         status: 'scanning' | 'solved';
     } | null>(null);
+    const [skeletonRegion, setSkeletonRegion] = useState<{ bounds: { minX: number; minY: number; maxX: number; maxY: number } } | null>(null);
+    const [skeletonVisible, setSkeletonVisible] = useState(false);
 
     const [isFocusMode, setIsFocusMode] = useState(false);
     const [showFocusHint, setShowFocusHint] = useState(false);
@@ -49,6 +52,8 @@ export default function Home() {
     const selectionSolveRef = useRef<((selection: any) => void) | null>(null);
     const handleSelectionSolve = useCallback((selection: { type: 'rect' | 'lasso'; points: { x: number; y: number }[]; bounds: { minX: number; minY: number; maxX: number; maxY: number } }) => {
         setActiveSolveRegion({ bounds: selection.bounds, status: 'scanning' });
+        setSkeletonRegion({ bounds: selection.bounds });
+        setSkeletonVisible(true);
         selectionSolveRef.current?.(selection);
     }, []);
 
@@ -120,6 +125,13 @@ export default function Home() {
     const lastResultsLengthRef = useRef(results.length);
     useEffect(() => {
         if (!isScanning) {
+            setTimeout(() => {
+                setSkeletonVisible(false);
+            }, 0);
+            const timer = setTimeout(() => {
+                setSkeletonRegion(null);
+            }, 500);
+
             if (results.length > lastResultsLengthRef.current) {
                 setActiveSolveRegion(prev => {
                     if (prev && prev.status === 'scanning') {
@@ -136,6 +148,8 @@ export default function Home() {
                 });
             }
             lastResultsLengthRef.current = results.length;
+
+            return () => clearTimeout(timer);
         }
     }, [isScanning, results]);
 
@@ -225,6 +239,7 @@ export default function Home() {
         copilotInput,
         setCopilotInput,
         isCopilotLoading,
+        isCopilotStreaming,
         sendCopilotMessage,
     } = useCopilotChat(dictOfVars, results);
 
@@ -577,8 +592,12 @@ export default function Home() {
             {/* Top Right Run Button */}
             <div className={`absolute z-50 top-[calc(1rem+env(safe-area-inset-top))] right-[calc(1rem+env(safe-area-inset-right))] pointer-events-auto transition-opacity duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                 <Button
-                    onClick={() => runRoute()}
-                    className="bg-white dark:bg-[#1e1e1e] hover:bg-slate-50 dark:hover:bg-[#2e2e2e] text-stone-705 dark:text-white border border-stone-200 dark:border-[#333] transition-all shadow-lg p-2.5 h-10 flex items-center justify-center gap-1.5 rounded-lg"
+                    onClick={() => runRoute(undefined, (bounds) => {
+                        setActiveSolveRegion({ bounds, status: 'scanning' });
+                        setSkeletonRegion({ bounds });
+                        setSkeletonVisible(true);
+                    })}
+                    className="bg-white dark:bg-[#1e1e1e] hover:bg-slate-50 dark:hover:bg-[#2e2e2e] text-stone-700 dark:text-white border border-stone-200 dark:border-[#333] transition-all shadow-lg p-2.5 h-10 flex items-center justify-center gap-1.5 rounded-lg"
                     variant="default"
                     title="Run Analysis"
                 >
@@ -614,7 +633,7 @@ export default function Home() {
                             y={activeSolveBox.y}
                             width={activeSolveBox.width}
                             height={activeSolveBox.height}
-                            fill="none"
+                            fill={activeSolveRegion.status === 'scanning' ? 'rgba(245, 158, 11, 0.05)' : 'none'}
                             stroke={activeSolveRegion.status === 'scanning' ? 'rgba(245, 158, 11, 0.6)' : 'rgba(245, 158, 11, 0.35)'}
                             strokeWidth={activeSolveRegion.status === 'scanning' ? '2' : '1.5'}
                             strokeDasharray={activeSolveRegion.status === 'scanning' ? '6 4' : '4 4'}
@@ -630,6 +649,11 @@ export default function Home() {
                             {activeSolveRegion.status === 'scanning' ? 'Solving Region...' : 'Solved Region'}
                         </text>
                     </svg>
+                </div>
+            )}
+            {skeletonRegion && (
+                <div className={`transition-opacity duration-500 ${skeletonVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                    <ResultSkeleton position={getCardPosition({ bounds: skeletonRegion.bounds }, results.length)} />
                 </div>
             )}
             {results && results.map((result, index) => (
@@ -710,9 +734,12 @@ export default function Home() {
                                     <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
                                         msg.role === 'user'
                                             ? 'bg-stone-900 dark:bg-stone-200 text-white dark:text-stone-950 rounded-br-sm'
-                                            : 'bg-stone-100 dark:bg-stone-850/80 border border-stone-200/50 dark:border-stone-800/50 text-stone-850 dark:text-stone-200 rounded-bl-sm'
+                                            : 'bg-stone-100 dark:bg-stone-800/80 border border-stone-200/50 dark:border-stone-800/50 text-stone-800 dark:text-stone-200 rounded-bl-sm'
                                     }`}>
                                         {msg.text}
+                                        {msg.role === 'ai' && i === copilotMessages.length - 1 && isCopilotStreaming && (
+                                            <span className="inline-block w-1.5 h-4 bg-amber-500 ml-0.5 animate-pulse align-middle" />
+                                        )}
                                     </div>
                                 </div>
                             );

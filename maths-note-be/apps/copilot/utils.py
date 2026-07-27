@@ -54,8 +54,27 @@ def _chat_completions_create_with_retry(messages):
         logger.warning("[Groq API Retry] Call failed. Latency: %dms. Error class: %s. Error detail: %s", latency, e.__class__.__name__, e)
         raise
 
-
-
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=8),
+    retry=retry_if_exception(is_transient_groq_error),
+    reraise=True
+)
+def _chat_completions_create_stream_with_retry(messages):
+    start_time = time.time()
+    try:
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            max_tokens=1024,
+            temperature=0.7,
+            stream=True,
+        )
+        return response
+    except Exception as e:
+        latency = round((time.time() - start_time) * 1000)
+        logger.warning("[Groq API Retry] Stream call failed. Latency: %dms. Error class: %s. Error detail: %s", latency, e.__class__.__name__, e)
+        raise
 # In-memory session store with LRU eviction and TTL sweep
 _sessions: OrderedDict[str, dict] = OrderedDict()
 
@@ -156,3 +175,48 @@ def chat_with_copilot(session_id: str, user_message: str, canvas_b64: str, dict_
     _save_session(session_id, session_messages)
 
     return reply
+
+
+def chat_with_copilot_stream(session_id: str, user_message: str, canvas_b64: str, dict_of_vars: dict, results: list):
+    """
+    Send a user message and stream a Groq/Llama response.
+    Sessions are maintained per session_id. Context (vars + results) is refreshed each turn via system prompt.
+    Accumulated result is written back to history when generation completes or cancels.
+    """
+    system_prompt = _build_system_prompt(dict_of_vars, results)
+
+    # Get or init conversation messages history
+    session_messages = _get_or_create_session(session_id)
+
+    # Append the new user message
+    session_messages.append({"role": "user", "content": user_message})
+
+    # Enforce cap of 20 messages before sending to Groq
+    if len(session_messages) > 20:
+        session_messages = session_messages[-20:]
+
+    messages = [{"role": "system", "content": system_prompt}] + session_messages
+
+    response = _chat_completions_create_stream_with_retry(messages)
+
+    def generator():
+        accumulated = []
+        try:
+            for chunk in response:
+                if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    accumulated.append(content)
+                    yield f"data: {json.dumps({'token': content})}\n\n"
+        except Exception as e:
+            logger.error("Error during streaming: %s", e)
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        finally:
+            full_reply = "".join(accumulated)
+            if full_reply:
+                session_messages.append({"role": "assistant", "content": full_reply})
+                final_messages = session_messages
+                if len(final_messages) > 20:
+                    final_messages = final_messages[-20:]
+                _save_session(session_id, final_messages)
+
+    return generator()
