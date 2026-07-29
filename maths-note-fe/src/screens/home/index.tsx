@@ -273,13 +273,22 @@ export default function Home() {
             }
         } catch (error) {
             console.error("Failed to generate share link:", error);
+            let errorMessage = 'Failed to save solution to server. Please try again.';
+            if (axios.isAxiosError(error) && error.response?.data) {
+                const data = error.response.data;
+                if (data.error) {
+                    errorMessage = data.error;
+                } else if (data.detail) {
+                    errorMessage = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+                }
+            }
             notifications.update({
                 id: shareNotificationId,
                 loading: false,
                 title: 'Sharing Failed',
-                message: 'Failed to save solution to server. Please try again.',
+                message: errorMessage,
                 color: 'red',
-                autoClose: 4000
+                autoClose: 8000
             });
         }
     }, [masterCanvasRef]);
