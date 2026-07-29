@@ -8,6 +8,8 @@ import { useMathCanvas } from './useMathCanvas';
 import { useCanvasSolver } from './useCanvasSolver';
 import { useCopilotChat } from './useCopilotChat';
 import { Modal, useMantineColorScheme } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import axios from 'axios';
 
 import { useSolveHistory } from '@/hooks/useSolveHistory';
 import { HistorySidebar } from '@/components/HistorySidebar';
@@ -183,6 +185,104 @@ export default function Home() {
             setLatexPosition(newScreenPos);
         }
     }, [camera.scale, camera.offsetX, camera.offsetY, setLatexPosition]);
+
+    const handleShareResult = useCallback(async (result: any) => {
+        const masterCanvas = masterCanvasRef.current;
+        if (!masterCanvas) return;
+
+        const bounds = result.bounds;
+        let croppedImageBase64: string;
+
+        if (bounds && bounds.minX !== Infinity && bounds.minY !== Infinity) {
+            // Calculate cropped region with a padding of 20px
+            const padding = 20;
+            const cropX = Math.max(0, bounds.minX - padding);
+            const cropY = Math.max(0, bounds.minY - padding);
+            const cropWidth = Math.min(masterCanvas.width - cropX, (bounds.maxX - bounds.minX) + padding * 2);
+            const cropHeight = Math.min(masterCanvas.height - cropY, (bounds.maxY - bounds.minY) + padding * 2);
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = cropWidth;
+            tempCanvas.height = cropHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            if (tempCtx) {
+                tempCtx.fillStyle = 'black';
+                tempCtx.fillRect(0, 0, cropWidth, cropHeight);
+                tempCtx.drawImage(masterCanvas, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+            }
+            croppedImageBase64 = tempCanvas.toDataURL('image/png');
+        } else {
+            // Fallback to full size if bounds aren't available
+            croppedImageBase64 = masterCanvas.toDataURL('image/png');
+        }
+
+        // Show generating toast
+        const shareNotificationId = 'generating-share';
+        notifications.show({
+            id: shareNotificationId,
+            loading: true,
+            title: 'Generating Shareable Link',
+            message: 'Saving solution to persistent storage...',
+            autoClose: false,
+            withCloseButton: false,
+            color: 'amber'
+        });
+
+        try {
+            const apiHost = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+            
+            // Map solutions to CalculationResult format expected by backend
+            const payloadData = result.solutions.map((sol: any) => ({
+                expr: sol.expression,
+                result: sol.answer,
+                type: sol.type || 'math',
+                thought_process: result.thought_process,
+                confidence_score: result.confidence_score,
+                latency: result.latency,
+                steps: result.steps
+            }));
+
+            const response = await axios({
+                method: 'post',
+                url: `${apiHost}/share`,
+                data: {
+                    image: croppedImageBase64,
+                    data: payloadData
+                },
+                headers: {
+                    'X-App-Key': import.meta.env.VITE_APP_KEY || ''
+                }
+            });
+
+            if (response.data && response.data.share_id) {
+                const shareUrl = `${window.location.origin}/share/${response.data.share_id}`;
+                
+                // Copy to clipboard
+                await navigator.clipboard.writeText(shareUrl);
+                
+                notifications.update({
+                    id: shareNotificationId,
+                    loading: false,
+                    title: 'Link Copied!',
+                    message: 'Shareable link has been copied to your clipboard.',
+                    color: 'teal',
+                    autoClose: 4000
+                });
+            } else {
+                throw new Error("Invalid response from sharing server");
+            }
+        } catch (error) {
+            console.error("Failed to generate share link:", error);
+            notifications.update({
+                id: shareNotificationId,
+                loading: false,
+                title: 'Sharing Failed',
+                message: 'Failed to save solution to server. Please try again.',
+                color: 'red',
+                autoClose: 4000
+            });
+        }
+    }, [masterCanvasRef]);
 
     const getSelectionBox = useCallback((bounds: any) => {
         if (!bounds || bounds.minX === Infinity || bounds.minY === Infinity) {
@@ -662,6 +762,7 @@ export default function Home() {
                     result={result}
                     defaultPosition={getCardPosition(result, index)}
                     setPosition={(newPos) => handleCardPositionChange(result, newPos)}
+                    onShare={handleShareResult}
                 />
             ))}
 

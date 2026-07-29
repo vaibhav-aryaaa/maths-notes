@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Share2 } from 'lucide-react';
 import { RingProgress, Tooltip } from '@mantine/core';
 
 import type { GeneratedResult, SolutionStep } from '@/types';
@@ -38,9 +38,17 @@ interface DraggableResultCardProps {
     result: GeneratedResult;
     defaultPosition: { x: number; y: number };
     setPosition?: (pos: { x: number; y: number }) => void;
+    readOnly?: boolean;
+    onShare?: (result: GeneratedResult) => void;
 }
 
-export const DraggableResultCard = ({ result, defaultPosition, setPosition: setPositionProp }: DraggableResultCardProps) => {
+export const DraggableResultCard = ({ 
+    result, 
+    defaultPosition, 
+    setPosition: setPositionProp,
+    readOnly = false,
+    onShare
+}: DraggableResultCardProps) => {
     const [isDragging, setIsDragging] = useState(false);
     const [position, setPosition] = useState(defaultPosition);
     const dragPosRef = useRef(defaultPosition);
@@ -72,6 +80,7 @@ export const DraggableResultCard = ({ result, defaultPosition, setPosition: setP
     const cardRef = useRef<HTMLDivElement>(null);
 
     const handleMouseDown = (e: React.MouseEvent) => {
+        if (readOnly) return;
         const target = e.target as HTMLElement;
         if (target.closest('button') || target.closest('[data-slot^="accordion"]')) {
             return;
@@ -85,6 +94,7 @@ export const DraggableResultCard = ({ result, defaultPosition, setPosition: setP
     };
 
     const handleTouchStart = (e: React.TouchEvent) => {
+        if (readOnly) return;
         const target = e.target as HTMLElement;
         if (target.closest('button') || target.closest('[data-slot^="accordion"]')) {
             return;
@@ -98,6 +108,7 @@ export const DraggableResultCard = ({ result, defaultPosition, setPosition: setP
     };
 
     const handleResizeMouseDown = (e: React.MouseEvent) => {
+        if (readOnly) return;
         setIsResizing(true);
         resizeStart.current = { x: e.clientX, y: e.clientY };
         cardSizeStart.current = { width: size.width, height: size.height };
@@ -106,6 +117,7 @@ export const DraggableResultCard = ({ result, defaultPosition, setPosition: setP
     };
 
     const handleResizeTouchStart = (e: React.TouchEvent) => {
+        if (readOnly) return;
         const touch = e.touches[0];
         setIsResizing(true);
         resizeStart.current = { x: touch.clientX, y: touch.clientY };
@@ -335,6 +347,18 @@ export const DraggableResultCard = ({ result, defaultPosition, setPosition: setP
                     <span className="text-xs text-stone-500 dark:text-gray-400 font-mono">
                         {result.latency ? `${result.latency}ms` : ''}
                     </span>
+                    {onShare && !readOnly && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onShare(result);
+                            }}
+                            className="cursor-pointer p-1 rounded-md text-stone-500 hover:text-stone-700 dark:text-gray-400 dark:hover:text-white hover:bg-stone-100 dark:hover:bg-white/5 transition-colors flex items-center justify-center shrink-0"
+                            title="Share Solution"
+                        >
+                            <Share2 size={13} />
+                        </button>
+                    )}
                     <button
                         onClick={() => setIsMinimized(!isMinimized)}
                         className="w-3.5 h-3.5 rounded-full bg-purple-500 hover:bg-purple-400 border border-purple-600/50 transition-all cursor-pointer flex items-center justify-center group relative shadow-sm"
@@ -436,7 +460,7 @@ export const DraggableResultCard = ({ result, defaultPosition, setPosition: setP
                 </div>
             )}
 
-            {!isMinimized && (
+            {!isMinimized && !readOnly && (
                 <div 
                     className="absolute bottom-1 right-1 w-4 h-4 cursor-se-resize flex items-end justify-end pointer-events-auto z-[60]"
                     onMouseDown={handleResizeMouseDown}

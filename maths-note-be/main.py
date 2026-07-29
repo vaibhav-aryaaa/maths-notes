@@ -22,6 +22,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from apps.calculator.route import router as calculator_router
 from apps.copilot.route import router as copilot_router
+from apps.share.route import router as share_router
 from constants import ALLOWED_ORIGINS, ENV, PORT, SERVER_URL
 from rate_limiter import limiter
 
@@ -46,6 +47,13 @@ class LimitUploadSizeMiddleware(BaseHTTPMiddleware):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from db import init_db, cleanup_expired_shares
+    try:
+        init_db()
+        deleted = cleanup_expired_shares()
+        logging.getLogger("main").info(f"Initialized SQLite shares table and purged {deleted} expired shares.")
+    except Exception as e:
+        logging.getLogger("main").error(f"Lifespan startup database task failed: {e}")
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -90,6 +98,7 @@ async def root():
 
 app.include_router(calculator_router, prefix="/calculate", tags=["calculate"])
 app.include_router(copilot_router, prefix="/copilot", tags=["copilot"])
+app.include_router(share_router, prefix="/share", tags=["share"])
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import '@mantine/core/styles.css';
 import { MantineProvider, useMantineColorScheme } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
@@ -6,11 +7,11 @@ import '@mantine/notifications/styles.css';
 
 import Home from '@/screens/home';
 import Landing from '@/screens/landing';
+import ShareView from '@/screens/share';
 
 import '@/index.css';
 
-const AppContent = () => {
-    const [started, setStarted] = useState(false);
+const ThemeSync = ({ children }: { children: React.ReactNode }) => {
     const { colorScheme } = useMantineColorScheme();
 
     useEffect(() => {
@@ -23,6 +24,12 @@ const AppContent = () => {
             root.classList.remove('dark');
         }
     }, [colorScheme]);
+
+    return <>{children}</>;
+};
+
+const AppContent = () => {
+    const [started, setStarted] = useState(false);
 
     return (
         <div className="relative w-full h-screen overflow-hidden bg-slate-50 dark:bg-black transition-colors duration-300">
@@ -45,7 +52,14 @@ const App = () => {
     return (
         <MantineProvider defaultColorScheme="dark">
             <Notifications />
-            <AppContent />
+            <ThemeSync>
+                <BrowserRouter>
+                    <Routes>
+                        <Route path="/" element={<AppContent />} />
+                        <Route path="/share/:shareId" element={<ShareView />} />
+                    </Routes>
+                </BrowserRouter>
+            </ThemeSync>
         </MantineProvider>
     );
 };
