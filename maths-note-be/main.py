@@ -79,6 +79,23 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         }
     )
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    logging.getLogger("main").error(f"Unhandled exception: {exc}\n{traceback.format_exc()}")
+    
+    response = JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error", "error": str(exc)}
+    )
+    # Ensure CORS is attached even on 500 crashes
+    origin = request.headers.get("origin")
+    if origin in ALLOWED_ORIGINS:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Methods"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
+
 app.add_middleware(LimitUploadSizeMiddleware, max_upload_size=8 * 1024 * 1024)
 
 
@@ -86,8 +103,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "X-App-Key"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
