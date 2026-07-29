@@ -16,6 +16,35 @@ import { HistorySidebar } from '@/components/HistorySidebar';
 
 import { EXAMPLE_PROBLEMS } from '@/data/exampleProblems';
 
+const copyToClipboard = async (text: string): Promise<boolean> => {
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+            return true;
+        }
+    } catch (e) {
+        console.warn("navigator.clipboard failed, trying fallback:", e);
+    }
+
+    try {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        return successful;
+    } catch (err) {
+        console.error("Fallback copy failed:", err);
+        return false;
+    }
+};
+
 export default function Home() {
     const { colorScheme, toggleColorScheme } = useMantineColorScheme();
     const [activeSolveRegion, setActiveSolveRegion] = useState<{
@@ -257,16 +286,17 @@ export default function Home() {
             if (response.data && response.data.share_id) {
                 const shareUrl = `${window.location.origin}/share/${response.data.share_id}`;
                 
-                // Copy to clipboard
-                await navigator.clipboard.writeText(shareUrl);
+                const copied = await copyToClipboard(shareUrl);
                 
                 notifications.update({
                     id: shareNotificationId,
                     loading: false,
-                    title: 'Link Copied!',
-                    message: 'Shareable link has been copied to your clipboard.',
+                    title: copied ? 'Link Copied!' : 'Link Generated!',
+                    message: copied 
+                        ? 'Shareable link has been copied to your clipboard.'
+                        : `Shareable link (copy manually): ${shareUrl}`,
                     color: 'teal',
-                    autoClose: 4000
+                    autoClose: copied ? 4000 : 12000
                 });
             } else {
                 throw new Error("Invalid response from sharing server");
