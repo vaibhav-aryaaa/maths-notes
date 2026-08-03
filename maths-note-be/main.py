@@ -23,6 +23,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from apps.calculator.route import router as calculator_router
 from apps.copilot.route import router as copilot_router
 from apps.share.route import router as share_router
+from apps.history.route import router as history_router
 from constants import ALLOWED_ORIGINS, ENV, PORT, SERVER_URL
 from rate_limiter import limiter
 
@@ -116,6 +117,7 @@ async def root():
 app.include_router(calculator_router, prefix="/calculate", tags=["calculate"])
 app.include_router(copilot_router, prefix="/copilot", tags=["copilot"])
 app.include_router(share_router, prefix="/share", tags=["share"])
+app.include_router(history_router, prefix="/history", tags=["history"])
 
 
 if __name__ == "__main__":

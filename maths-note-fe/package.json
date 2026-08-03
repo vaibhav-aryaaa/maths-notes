@@ -15,6 +15,7 @@
     "@mantine/core": "^9.1.0",
     "@mantine/hooks": "^9.1.0",
     "@mantine/notifications": "^9.4.2",
+    "@supabase/supabase-js": "^2.111.0",
     "axios": "^1.15.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

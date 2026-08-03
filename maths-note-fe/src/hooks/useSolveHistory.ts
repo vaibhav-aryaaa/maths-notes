@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { GeneratedResult, DictOfVars } from '@/types';
+import { supabase } from '@/lib/supabase';
+import axios from 'axios';
 
 export interface HistoryEntry {
     id: string;
@@ -55,20 +57,40 @@ function getCanvasThumbnail(canvas: HTMLCanvasElement): string {
 export function useSolveHistory() {
     const [history, setHistory] = useState<HistoryEntry[]>([]);
     const [isDbReady, setIsDbReady] = useState(false);
+    const [user, setUser] = useState<any>(null);
+    const [jwt, setJwt] = useState<string | null>(null);
 
-    // Load all history entries
-    const loadHistory = useCallback(async () => {
+    const getApiHost = () => import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
+    // 1. Fetch from backend API
+    const loadBackendHistory = useCallback(async (token: string) => {
+        try {
+            const apiHost = getApiHost();
+            const response = await axios.get(`${apiHost}/history`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            if (response.data && Array.isArray(response.data.entries)) {
+                setHistory(response.data.entries);
+            }
+        } catch (error) {
+            console.error('Failed to load history from backend:', error);
+        }
+    }, []);
+
+    // 2. Fetch from local IndexedDB
+    const loadLocalHistory = useCallback(async () => {
         const db = await openDB();
         if (!db) return;
 
         try {
             const transaction = db.transaction(STORE_NAME, 'readonly');
-            const store = transaction.objectStore(transaction.objectStoreNames[0]);
+            const store = transaction.objectStore(STORE_NAME);
             const request = store.getAll();
 
             request.onsuccess = () => {
                 const results = request.result as HistoryEntry[];
-                // Sort by timestamp descending
                 results.sort((a, b) => b.timestamp - a.timestamp);
                 setHistory(results);
             };
@@ -77,38 +99,136 @@ export function useSolveHistory() {
         }
     }, []);
 
-    useEffect(() => {
-        loadHistory().then(() => setIsDbReady(true));
-    }, [loadHistory]);
+    // 3. Main loader routing
+    const loadHistory = useCallback(async (token: string | null) => {
+        if (token) {
+            await loadBackendHistory(token);
+        } else {
+            await loadLocalHistory();
+        }
+    }, [loadBackendHistory, loadLocalHistory]);
 
-    // Save history entry with a capacity cap of 50
+    // 4. Sync IndexedDB to Backend
+    const syncLocalHistoryToBackend = useCallback(async (token: string) => {
+        const db = await openDB();
+        if (!db) return;
+
+        try {
+            const transaction = db.transaction(STORE_NAME, 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.getAll();
+
+            request.onsuccess = async () => {
+                const localEntries = request.result as HistoryEntry[];
+                if (localEntries.length === 0) {
+                    await loadBackendHistory(token);
+                    return;
+                }
+
+                const apiHost = getApiHost();
+                for (const entry of localEntries) {
+                    try {
+                        await axios.post(`${apiHost}/history`, { entry }, {
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+                    } catch (err) {
+                        console.error(`Failed to sync history entry ${entry.id} sequentially:`, err);
+                    }
+                }
+                await loadBackendHistory(token);
+            };
+        } catch (error) {
+            console.error('Failed to sync local history to backend:', error);
+            await loadBackendHistory(token);
+        }
+    }, [loadBackendHistory]);
+
+    // 5. Subscribe to Supabase Auth changes
+    useEffect(() => {
+        if (!supabase) {
+            loadLocalHistory().then(() => setIsDbReady(true));
+            return;
+        }
+
+        // Fetch initial session
+        supabase.auth.getSession().then(async ({ data: { session } }) => {
+            if (session) {
+                setUser(session.user);
+                setJwt(session.access_token);
+                await loadHistory(session.access_token);
+            } else {
+                await loadLocalHistory();
+            }
+            setIsDbReady(true);
+        });
+
+        // Set up subscription listener
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            if (session) {
+                setUser(session.user);
+                setJwt(session.access_token);
+                if (event === 'SIGNED_IN') {
+                    await syncLocalHistoryToBackend(session.access_token);
+                }
+            } else {
+                setUser(null);
+                setJwt(null);
+                await loadLocalHistory();
+            }
+        });
+
+        return () => {
+            subscription.unsubscribe();
+        };
+    }, [loadHistory, loadLocalHistory, syncLocalHistoryToBackend]);
+
+    // 6. Save history entry
     const saveHistoryEntry = useCallback(async (
         canvas: HTMLCanvasElement,
         results: GeneratedResult[],
         dictOfVars: DictOfVars
     ) => {
+        const canvasThumbnail = getCanvasThumbnail(canvas);
+        const canvasImage = canvas.toDataURL('image/png');
+        const entryId = crypto.randomUUID();
+        const timestamp = Date.now();
+
+        const entry: HistoryEntry = {
+            id: entryId,
+            timestamp,
+            canvasThumbnail,
+            canvasImage,
+            results,
+            dictOfVars
+        };
+
+        // Try backend write first if authenticated
+        if (jwt) {
+            try {
+                const apiHost = getApiHost();
+                await axios.post(`${apiHost}/history`, { entry }, {
+                    headers: {
+                        'Authorization': `Bearer ${jwt}`
+                    }
+                });
+                await loadBackendHistory(jwt);
+            } catch (error) {
+                console.error('Failed to save history entry to backend, falling back to local only:', error);
+            }
+        }
+
+        // Save to IndexedDB (guest mode or dual backup)
         const db = await openDB();
         if (!db) return;
 
         try {
-            const canvasThumbnail = getCanvasThumbnail(canvas);
-            const canvasImage = canvas.toDataURL('image/png');
-
-            const entry: HistoryEntry = {
-                id: crypto.randomUUID(),
-                timestamp: Date.now(),
-                canvasThumbnail,
-                canvasImage,
-                results,
-                dictOfVars
-            };
-
             const transaction = db.transaction(STORE_NAME, 'readwrite');
             const store = transaction.objectStore(STORE_NAME);
             store.put(entry);
 
             transaction.oncomplete = async () => {
-                // Fetch all to enforce cap
                 const readTx = db.transaction(STORE_NAME, 'readonly');
                 const readStore = readTx.objectStore(STORE_NAME);
                 const allReq = readStore.getAll();
@@ -116,31 +236,42 @@ export function useSolveHistory() {
                 allReq.onsuccess = async () => {
                     const allEntries = allReq.result as HistoryEntry[];
                     if (allEntries.length > 50) {
-                        // Sort by timestamp ascending (oldest first)
                         allEntries.sort((a, b) => a.timestamp - b.timestamp);
                         const toDeleteCount = allEntries.length - 50;
                         const deleteTx = db.transaction(STORE_NAME, 'readwrite');
                         const deleteStore = deleteTx.objectStore(STORE_NAME);
-                        
                         for (let i = 0; i < toDeleteCount; i++) {
                             deleteStore.delete(allEntries[i].id);
                         }
-                        
                         deleteTx.oncomplete = () => {
-                            loadHistory();
+                            if (!jwt) loadLocalHistory();
                         };
                     } else {
-                        loadHistory();
+                        if (!jwt) loadLocalHistory();
                     }
                 };
             };
         } catch (error) {
-            console.error('Failed to save history entry:', error);
+            console.error('Failed to save history entry locally:', error);
         }
-    }, [loadHistory]);
+    }, [jwt, loadBackendHistory, loadLocalHistory]);
 
-    // Delete a single history item
+    // 7. Delete single item
     const deleteHistoryItem = useCallback(async (id: string) => {
+        if (jwt) {
+            try {
+                const apiHost = getApiHost();
+                await axios.delete(`${apiHost}/history/${id}`, {
+                    headers: {
+                        'Authorization': `Bearer ${jwt}`
+                    }
+                });
+                await loadBackendHistory(jwt);
+            } catch (error) {
+                console.error('Failed to delete history item from backend:', error);
+            }
+        }
+
         const db = await openDB();
         if (!db) return;
 
@@ -148,17 +279,30 @@ export function useSolveHistory() {
             const transaction = db.transaction(STORE_NAME, 'readwrite');
             const store = transaction.objectStore(STORE_NAME);
             store.delete(id);
-
             transaction.oncomplete = () => {
-                loadHistory();
+                if (!jwt) loadLocalHistory();
             };
         } catch (error) {
-            console.error('Failed to delete history item:', error);
+            console.error('Failed to delete history item locally:', error);
         }
-    }, [loadHistory]);
+    }, [jwt, loadBackendHistory, loadLocalHistory]);
 
-    // Clear all history
+    // 8. Clear all entries (Wipe/Purge)
     const clearHistory = useCallback(async () => {
+        if (jwt) {
+            try {
+                const apiHost = getApiHost();
+                await axios.delete(`${apiHost}/history/purge`, {
+                    headers: {
+                        'Authorization': `Bearer ${jwt}`
+                    }
+                });
+                await loadBackendHistory(jwt);
+            } catch (error) {
+                console.error('Failed to purge backend history:', error);
+            }
+        }
+
         const db = await openDB();
         if (!db) return;
 
@@ -166,20 +310,22 @@ export function useSolveHistory() {
             const transaction = db.transaction(STORE_NAME, 'readwrite');
             const store = transaction.objectStore(STORE_NAME);
             store.clear();
-
             transaction.oncomplete = () => {
-                loadHistory();
+                if (!jwt) loadLocalHistory();
             };
         } catch (error) {
-            console.error('Failed to clear history database:', error);
+            console.error('Failed to clear history locally:', error);
         }
-    }, [loadHistory]);
+    }, [jwt, loadBackendHistory, loadLocalHistory]);
 
     return {
         history,
         isDbReady,
         saveHistoryEntry,
         deleteHistoryItem,
-        clearHistory
+        clearHistory,
+        user,
+        jwt,
+        supabase
     };
 }

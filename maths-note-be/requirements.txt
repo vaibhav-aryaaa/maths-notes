@@ -8,3 +8,4 @@ groq
 slowapi
 tenacity
 psycopg2-binary
+pyjwt

@@ -13,6 +13,7 @@ import axios from 'axios';
 
 import { useSolveHistory } from '@/hooks/useSolveHistory';
 import { HistorySidebar } from '@/components/HistorySidebar';
+import { AuthManager } from '@/components/AuthManager';
 
 import { EXAMPLE_PROBLEMS } from '@/data/exampleProblems';
 
@@ -126,7 +127,13 @@ export default function Home() {
         redrawViewCanvas,
     } = useMathCanvas(handleSelectionSolve);
 
-    const { history, saveHistoryEntry, clearHistory, deleteHistoryItem } = useSolveHistory();
+    const { 
+        history, 
+        saveHistoryEntry, 
+        clearHistory, 
+        deleteHistoryItem,
+        user
+    } = useSolveHistory();
 
     const {
         dictOfVars,
@@ -696,6 +703,9 @@ export default function Home() {
 
                 {/* Divider */}
                 <div className="h-5 w-[1px] bg-stone-200 dark:bg-[#333] mx-1" />
+
+                {/* Cloud Sync Manager */}
+                <AuthManager user={user} clearHistory={clearHistory} />
 
                 {/* Keyboard Shortcuts Button */}
                 <Button
