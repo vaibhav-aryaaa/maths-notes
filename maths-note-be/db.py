@@ -158,7 +158,8 @@ def save_history_entry(user_id: str, entry: dict) -> None:
                     canvas_thumbnail = EXCLUDED.canvas_thumbnail,
                     canvas_image = EXCLUDED.canvas_image,
                     results = EXCLUDED.results,
-                    dict_of_vars = EXCLUDED.dict_of_vars""",
+                    dict_of_vars = EXCLUDED.dict_of_vars
+                    WHERE history.user_id = EXCLUDED.user_id""",
                 (
                     entry["id"],
                     user_id,
@@ -170,10 +171,17 @@ def save_history_entry(user_id: str, entry: dict) -> None:
                 )
             )
         else:
-            # SQLite INSERT OR REPLACE
+            # SQLite ON CONFLICT DO UPDATE
             cursor.execute(
-                f"""INSERT OR REPLACE INTO history (id, user_id, timestamp, canvas_thumbnail, canvas_image, results, dict_of_vars)
-                    VALUES ({p}, {p}, {p}, {p}, {p}, {p}, {p})""",
+                f"""INSERT INTO history (id, user_id, timestamp, canvas_thumbnail, canvas_image, results, dict_of_vars)
+                    VALUES ({p}, {p}, {p}, {p}, {p}, {p}, {p})
+                    ON CONFLICT (id) DO UPDATE SET
+                    timestamp = excluded.timestamp,
+                    canvas_thumbnail = excluded.canvas_thumbnail,
+                    canvas_image = excluded.canvas_image,
+                    results = excluded.results,
+                    dict_of_vars = excluded.dict_of_vars
+                    WHERE history.user_id = excluded.user_id""",
                 (
                     entry["id"],
                     user_id,

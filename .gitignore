@@ -24,3 +24,7 @@ yarn-error.log*
 
 # Scratch folder
 scratch/
+
+# Database files
+*.db
+*.db-journal

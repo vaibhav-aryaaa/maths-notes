@@ -4,8 +4,10 @@ import { supabase } from '@/lib/supabase';
 import { notifications } from '@mantine/notifications';
 import { LogOut, Trash2, Cloud } from 'lucide-react';
 
+import type { User } from '@supabase/supabase-js';
+
 interface AuthManagerProps {
-    user: any;
+    user: User | null;
     clearHistory: () => Promise<void>;
 }
 

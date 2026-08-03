@@ -87,7 +87,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     
     response = JSONResponse(
         status_code=500,
-        content={"detail": "Internal Server Error", "error": str(exc)}
+        content={"detail": "An internal server error occurred.", "error": "Internal Server Error"}
     )
     # Ensure CORS is attached even on 500 crashes
     origin = request.headers.get("origin")

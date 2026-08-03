@@ -1,8 +1,11 @@
 import os
 import jwt
+import logging
 from fastapi import Header, HTTPException, status
 
-from constants import APP_SECRET
+from constants import APP_SECRET, ENV
+
+logger = logging.getLogger(__name__)
 
 # Load environment configs
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY") or os.getenv("VITE_SUPABASE_ANON_KEY")
@@ -51,11 +54,13 @@ def get_current_user(authorization: str | None = Header(None)) -> str:
     
     # Local development fallback
     if not jwk_client:
-        if token == "test-token-12345":
-            return "test-user-uuid-12345"
+        if ENV == "dev":
+            DEV_BYPASS_TOKEN = os.getenv("DEV_BYPASS_TOKEN")
+            if DEV_BYPASS_TOKEN and token == DEV_BYPASS_TOKEN:
+                return "dev-user-uuid-12345"
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Supabase Project ID configuration is missing. Cannot verify tokens."
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication failed: session verification client is unconfigured."
         )
         
     try:
@@ -82,7 +87,8 @@ def get_current_user(authorization: str | None = Header(None)) -> str:
             detail="Authentication token has expired"
         )
     except jwt.InvalidTokenError as e:
+        logger.exception("JWT validation failed")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid authentication token: {str(e)}"
+            detail="Invalid authentication token."
         )

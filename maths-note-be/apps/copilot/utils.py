@@ -207,9 +207,9 @@ def chat_with_copilot_stream(session_id: str, user_message: str, canvas_b64: str
                     content = chunk.choices[0].delta.content
                     accumulated.append(content)
                     yield f"data: {json.dumps({'token': content})}\n\n"
-        except Exception as e:
-            logger.error("Error during streaming: %s", e)
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        except Exception:
+            logger.exception("Error during streaming")
+            yield f"data: {json.dumps({'error': 'An error occurred during streaming.'})}\n\n"
         finally:
             full_reply = "".join(accumulated)
             if full_reply:

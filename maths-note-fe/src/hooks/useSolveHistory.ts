@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { GeneratedResult, DictOfVars } from '@/types';
 import { supabase } from '@/lib/supabase';
+import type { User } from '@supabase/supabase-js';
 import axios from 'axios';
 
 export interface HistoryEntry {
@@ -57,7 +58,7 @@ function getCanvasThumbnail(canvas: HTMLCanvasElement): string {
 export function useSolveHistory() {
     const [history, setHistory] = useState<HistoryEntry[]>([]);
     const [isDbReady, setIsDbReady] = useState(false);
-    const [user, setUser] = useState<any>(null);
+    const [user, setUser] = useState<User | null>(null);
     const [jwt, setJwt] = useState<string | null>(null);
 
     const getApiHost = () => import.meta.env.VITE_API_URL || 'http://localhost:5001';
@@ -126,18 +127,17 @@ export function useSolveHistory() {
                 }
 
                 const apiHost = getApiHost();
-                for (const entry of localEntries) {
-                    try {
-                        await axios.post(`${apiHost}/history`, { entry }, {
-                            headers: {
-                                'Authorization': `Bearer ${token}`
-                            }
-                        });
-                    } catch (err) {
-                        console.error(`Failed to sync history entry ${entry.id} sequentially:`, err);
+                const response = await axios.post(`${apiHost}/history/sync`, {
+                    entries: localEntries
+                }, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
                     }
+                });
+
+                if (response.data && Array.isArray(response.data.entries)) {
+                    setHistory(response.data.entries);
                 }
-                await loadBackendHistory(token);
             };
         } catch (error) {
             console.error('Failed to sync local history to backend:', error);
