@@ -66,27 +66,27 @@ function HistorySidebarInner({
             <div className="flex-1 flex flex-col gap-5 overflow-hidden min-h-0">
                 {/* Variable memory panel */}
                 <div className="shrink-0 flex flex-col max-h-[30%] min-h-[100px] overflow-hidden">
-                    <h3 className="text-xs font-bold text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-2 shrink-0">Variable Memory</h3>
+                    <h3 className="text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider mb-2 shrink-0">Variable Memory</h3>
                     <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
                         {Object.keys(dictOfVars).length > 0 ? (
                             <div className="flex flex-wrap gap-1.5 align-content-start py-0.5">
                                 {Object.entries(dictOfVars).map(([name, value]) => (
                                     <div key={name} className="flex items-center gap-1.5 bg-stone-100 dark:bg-stone-900 border border-stone-200 dark:border-stone-800 px-2.5 py-1 rounded-lg text-xs">
                                         <span className="font-mono font-bold text-[#d97706]">{name}</span>
-                                        <span className="text-stone-400 dark:text-stone-600">=</span>
+                                        <span className="text-stone-500 dark:text-stone-400">=</span>
                                         <span className="font-mono text-stone-800 dark:text-stone-200">{value}</span>
                                     </div>
                                 ))}
                             </div>
                         ) : (
-                            <p className="text-xs text-stone-500 dark:text-stone-500 italic py-1">No active variables. Draw &quot;x = 5&quot; to assign.</p>
+                            <p className="text-xs text-stone-600 dark:text-stone-400 italic py-1">No active variables. Draw &quot;x = 5&quot; to assign.</p>
                         )}
                     </div>
                 </div>
 
                 {/* History list panel */}
                 <div className="flex-1 flex flex-col min-h-0 overflow-hidden border-t border-stone-200 dark:border-white/10 pt-4">
-                    <h3 className="text-xs font-bold text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-2 shrink-0">Solve History</h3>
+                    <h3 className="text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider mb-2 shrink-0">Solve History</h3>
                     <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-2 scrollbar-thin">
                         {history.length > 0 ? (
                             history.map((entry) => (
@@ -115,7 +115,7 @@ function HistorySidebarInner({
                                         <p className="text-xs font-bold text-stone-800 dark:text-stone-200 truncate">
                                             {entry.results[0]?.solutions[0]?.expression || 'Equation'}
                                         </p>
-                                        <p className="text-[10px] text-stone-500 dark:text-stone-500 font-mono mt-0.5 truncate">
+                                        <p className="text-[10px] text-stone-650 dark:text-stone-400 font-mono mt-0.5 truncate">
                                             = {entry.results[0]?.solutions[0]?.answer || '?'}
                                         </p>
                                     </div>
@@ -135,7 +135,7 @@ function HistorySidebarInner({
                                 </div>
                             ))
                         ) : (
-                            <p className="text-xs text-stone-500 dark:text-stone-500 italic py-1">Solve expressions on the canvas to build history.</p>
+                            <p className="text-xs text-stone-600 dark:text-stone-400 italic py-1">Solve expressions on the canvas to build history.</p>
                         )}
                     </div>
 

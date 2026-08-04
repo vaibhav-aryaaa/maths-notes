@@ -268,11 +268,11 @@ export const DraggableResultCard = ({
                     <span className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center justify-center text-xs font-bold font-sans">
                         {step.order}
                     </span>
-                    <span className="text-xs text-stone-550 dark:text-gray-400 font-bold uppercase tracking-wider font-sans">
+                    <span className="text-xs text-stone-600 dark:text-gray-400 font-bold uppercase tracking-wider font-sans">
                         Step {step.order}
                     </span>
                 </div>
-                <p className="text-sm text-stone-705 dark:text-gray-200 leading-relaxed font-medium">
+                <p className="text-sm text-stone-800 dark:text-gray-200 leading-relaxed font-medium">
                     {formattedDesc}
                 </p>
                 {latexExpr && (
@@ -365,7 +365,7 @@ export const DraggableResultCard = ({
             <div className="flex justify-between items-center gap-4 shrink-0">
                 <div className="flex items-center gap-2 overflow-hidden flex-1">
                     {confidenceRender ? confidenceRender : (
-                        <span className="text-xs font-bold px-2 py-1 bg-green-50 dark:bg-green-500/20 text-green-750 dark:text-green-400 rounded-full border border-green-200 dark:border-green-500/30 shrink-0">
+                        <span className="text-xs font-bold px-2 py-1 bg-green-50 dark:bg-green-500/20 text-green-800 dark:text-green-400 rounded-full border border-green-200 dark:border-green-500/30 shrink-0">
                             AI Result
                         </span>
                     )}

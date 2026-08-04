@@ -54,7 +54,7 @@ function CopilotPanelInner({
                                     </div>
                                 </div>
                                 <p className="text-stone-900 dark:text-stone-100 font-extrabold text-lg sm:text-xl tracking-tight mb-2">Vector</p>
-                                <p className="text-center text-stone-600 dark:text-stone-400 text-sm leading-relaxed font-medium px-4">
+                                <p className="text-center text-stone-700 dark:text-stone-300 text-sm leading-relaxed font-medium px-4">
                                     {msg.text}
                                 </p>
                             </div>
