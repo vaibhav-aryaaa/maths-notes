@@ -58,7 +58,7 @@ describe('useCopilotChat', () => {
     });
 
     it('should show error response on copilot API failure', async () => {
-        globalThis.fetch = vi.fn().mockRejectedValue(new Error('Network Error'));
+        globalThis.fetch = vi.fn().mockRejectedValue(new Error('Internal Server Error'));
 
         const { result } = renderHook(() => useCopilotChat({}, []));
 
@@ -73,7 +73,7 @@ describe('useCopilotChat', () => {
         expect(result.current.isCopilotLoading).toBe(false);
         expect(result.current.isCopilotStreaming).toBe(false);
         expect(result.current.copilotMessages.length).toBe(3);
-        expect(result.current.copilotMessages[2].text).toContain('Network Error');
+        expect(result.current.copilotMessages[2].text).toContain('Internal Server Error');
     });
 
     it('should map grouped results correctly in copilot API payload', async () => {

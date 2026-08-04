@@ -9,6 +9,8 @@ import Home from '@/screens/home';
 import Landing from '@/screens/landing';
 import ShareView from '@/screens/share';
 
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+
 import '@/index.css';
 
 const ThemeSync = ({ children }: { children: React.ReactNode }) => {
@@ -55,8 +57,8 @@ const App = () => {
             <ThemeSync>
                 <BrowserRouter>
                     <Routes>
-                        <Route path="/" element={<AppContent />} />
-                        <Route path="/share/:shareId" element={<ShareView />} />
+                        <Route path="/" element={<ErrorBoundary name="Home Screen"><AppContent /></ErrorBoundary>} />
+                        <Route path="/share/:shareId" element={<ErrorBoundary name="Share View"><ShareView /></ErrorBoundary>} />
                     </Routes>
                 </BrowserRouter>
             </ThemeSync>
