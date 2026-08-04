@@ -51,6 +51,7 @@ function HistorySidebarInner({
             <button 
                 onClick={onClose}
                 className="absolute top-4 right-4 text-stone-500 hover:text-stone-850 dark:text-gray-400 dark:hover:text-white lg:hidden cursor-pointer p-1"
+                aria-label="Close History Sidebar"
             >
                 <X size={18} />
             </button>
@@ -91,7 +92,16 @@ function HistorySidebarInner({
                             history.map((entry) => (
                                 <div 
                                     key={entry.id}
+                                    role="button"
+                                    tabIndex={0}
                                     onClick={() => onSelectEntry(entry)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            onSelectEntry(entry);
+                                        }
+                                    }}
+                                    aria-label={`Load history entry: ${entry.results[0]?.solutions[0]?.expression || 'Equation'} = ${entry.results[0]?.solutions[0]?.answer || '?'}`}
                                     className="group relative flex items-center gap-3 bg-stone-50 dark:bg-stone-900/40 hover:bg-stone-100 dark:hover:bg-stone-900 border border-stone-200/50 dark:border-stone-800/40 hover:border-stone-300 dark:hover:border-stone-700 p-2 rounded-xl cursor-pointer transition-all shrink-0"
                                 >
                                     <div className="w-12 h-12 bg-white dark:bg-black rounded-lg overflow-hidden border border-stone-200 dark:border-stone-800 flex items-center justify-center shrink-0">
@@ -118,6 +128,7 @@ function HistorySidebarInner({
                                         }}
                                         className="absolute right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 text-stone-400 hover:text-red-500 dark:text-stone-600 dark:hover:text-red-400 cursor-pointer"
                                         title="Delete Entry"
+                                        aria-label="Delete history entry"
                                     >
                                         <Trash2 size={13} />
                                     </button>
@@ -141,12 +152,14 @@ function HistorySidebarInner({
                                                 setConfirmClear(false);
                                             }}
                                             className="cursor-pointer text-[10px] font-bold bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded"
+                                            aria-label="Confirm clear all solve history"
                                         >
                                             Yes
                                         </button>
                                         <button
                                             onClick={() => setConfirmClear(false)}
                                             className="cursor-pointer text-[10px] font-bold bg-stone-100 hover:bg-stone-200 dark:bg-white/10 dark:hover:bg-white/15 text-stone-600 dark:text-gray-300 px-2 py-1 rounded border border-stone-200 dark:border-transparent"
+                                            aria-label="Cancel clear solve history"
                                         >
                                             No
                                         </button>
@@ -156,6 +169,7 @@ function HistorySidebarInner({
                                 <button
                                     onClick={() => setConfirmClear(true)}
                                     className="cursor-pointer w-full text-[11px] font-bold text-red-600 dark:text-red-400 hover:text-red-500 dark:hover:text-red-300 border border-red-200 dark:border-red-500/20 hover:border-red-300 dark:hover:border-red-500/40 bg-red-50 dark:bg-red-500/5 hover:bg-red-100 dark:hover:bg-red-500/10 py-1.5 rounded-xl transition-all font-sans flex items-center justify-center gap-1.5"
+                                    aria-label="Clear all solve history entries"
                                 >
                                     Clear History
                                 </button>

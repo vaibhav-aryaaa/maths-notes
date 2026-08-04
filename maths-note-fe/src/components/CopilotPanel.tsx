@@ -102,11 +102,13 @@ function CopilotPanelInner({
                         }}
                         placeholder="Ask about your canvas..."
                         className="flex-1 bg-transparent text-sm text-stone-800 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-500 outline-none font-sans"
+                        aria-label="Ask a question about the canvas workspace"
                     />
                     <button
                         onClick={sendCopilotMessage}
                         disabled={isCopilotLoading || !copilotInput.trim()}
                         className="w-8 h-8 rounded-full bg-stone-950 dark:bg-stone-200 hover:bg-stone-800 dark:hover:bg-stone-300 text-white dark:text-stone-950 flex items-center justify-center disabled:opacity-30 hover:scale-105 active:scale-95 transition-all flex-shrink-0 cursor-pointer"
+                        aria-label="Send message to AI Copilot"
                     >
                         <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" className="text-white">
                             <line x1="12" y1="19" x2="12" y2="5"></line>

@@ -490,6 +490,7 @@ export default function Home() {
                     className={`bg-white dark:bg-[#1e1e1e] hover:bg-slate-50 dark:hover:bg-[#2e2e2e] text-stone-700 dark:text-white border border-stone-200 dark:border-[#333] transition-all shadow-lg p-2.5 h-10 w-10 rounded-lg flex items-center justify-center ${isSidebarOpen ? 'bg-slate-100 dark:bg-[#333] border-stone-300 dark:border-white/20' : ''}`}
                     variant="default"
                     title="Toggle Sidebar"
+                    aria-label={isSidebarOpen ? "Close history and memory sidebar" : "Open history and memory sidebar"}
                 >
                     {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
                 </Button>
@@ -514,6 +515,7 @@ export default function Home() {
                                     : 'hover:bg-black/5 dark:hover:bg-white/5 text-stone-600 dark:text-gray-300'
                             }`}
                             title={t.label}
+                            aria-label={`Select ${t.label} tool`}
                         >
                             {t.icon}
                             <span className="hidden sm:inline">{t.label}</span>
@@ -530,6 +532,7 @@ export default function Home() {
                     className="bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] transition-all p-2 h-8 flex items-center justify-center gap-1.5 rounded-lg min-w-[70px]"
                     variant="default"
                     title="Clear Canvas (Destroy whiteboard content)"
+                    aria-label="Clear all content from whiteboard canvas"
                 >
                     <Trash2 size={14} className="text-red-500 dark:text-red-400" />
                     <span className="text-xs font-semibold select-none font-sans">Clear</span>
@@ -542,6 +545,7 @@ export default function Home() {
                     className="bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] transition-all p-2 h-8 w-8 flex items-center justify-center rounded-lg disabled:opacity-35 disabled:hover:bg-white dark:disabled:hover:bg-[#2c2c2c]/50 disabled:cursor-not-allowed cursor-pointer"
                     variant="default"
                     title="Undo (Ctrl+Z / ⌘+Z)"
+                    aria-label="Undo last canvas stroke"
                 >
                     <Undo2 size={14} className="text-stone-500 dark:text-gray-300" />
                 </Button>
@@ -553,6 +557,7 @@ export default function Home() {
                     className="bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] transition-all p-2 h-8 w-8 flex items-center justify-center rounded-lg disabled:opacity-35 disabled:hover:bg-white dark:disabled:hover:bg-[#2c2c2c]/50 disabled:cursor-not-allowed cursor-pointer"
                     variant="default"
                     title="Redo (Ctrl+Shift+Z / ⌘+Shift+Z)"
+                    aria-label="Redo last undone canvas stroke"
                 >
                     <Redo2 size={14} className="text-stone-500 dark:text-gray-300" />
                 </Button>
@@ -563,6 +568,7 @@ export default function Home() {
                     className="bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] transition-all p-2 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer"
                     variant="default"
                     title="Reset View (Ctrl+0)"
+                    aria-label="Reset zoom and pan position of canvas workspace"
                 >
                     <Maximize size={14} className="text-stone-500 dark:text-gray-300" />
                 </Button>
@@ -580,6 +586,7 @@ export default function Home() {
                                 }}
                                 className={`bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 px-2 transition-all gap-1.5 ${isShapeMenuOpen ? 'bg-slate-100 dark:bg-[#3c3c3c] border-stone-300 dark:border-white/20' : ''}`}
                                 title="Select Drawing Tool"
+                                aria-label={`Select shape drawing tool (currently active: ${selectedShape === 'freehand' ? 'Pen' : selectedShape})`}
                             >
                                 {selectedShape === 'freehand' && <Pen size={14} className="text-stone-500 dark:text-gray-300" />}
                                 {selectedShape === 'line' && <Slash size={14} className="text-stone-500 dark:text-gray-300" />}
@@ -609,6 +616,7 @@ export default function Home() {
                                                 setIsShapeMenuOpen(false);
                                             }}
                                             className={`cursor-pointer hover:bg-stone-100 dark:hover:bg-white/5 transition-colors p-1.5 text-left rounded-lg text-xs flex items-center gap-2 w-full text-stone-700 dark:text-white ${selectedShape === tool.id ? 'bg-stone-150 dark:bg-white/10 font-bold' : ''}`}
+                                            aria-label={`Use ${tool.label} drawing tool`}
                                         >
                                             <span className="text-stone-400 dark:text-gray-400">{tool.icon}</span>
                                             <span>{tool.label}</span>
@@ -634,6 +642,7 @@ export default function Home() {
                                     }`}
                                     style={{ backgroundColor: swatch }}
                                     title={swatch}
+                                    aria-label={`Select brush color ${swatch}`}
                                 />
                             ))}
                         </div>
@@ -657,6 +666,7 @@ export default function Home() {
                                             : 'hover:bg-stone-100 dark:hover:bg-white/5 text-stone-400 dark:text-gray-400'
                                     }`}
                                     title={`Pen size: ${preset.label}`}
+                                    aria-label={`Set brush size to ${preset.label}`}
                                 >
                                     <div className={`rounded-full bg-current ${preset.sizeClass}`} />
                                 </button>
@@ -688,6 +698,7 @@ export default function Home() {
                                             : 'hover:bg-stone-100 dark:hover:bg-white/5 text-stone-400 dark:text-gray-400'
                                     }`}
                                     title={`Eraser size: ${preset.label}`}
+                                    aria-label={`Set eraser size to ${preset.label}`}
                                 >
                                     <div className={`rounded-full bg-current ${preset.sizeClass}`} />
                                 </button>
@@ -708,6 +719,7 @@ export default function Home() {
                     className="bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 w-8 transition-all hover:scale-105 active:scale-95 cursor-pointer font-bold font-sans text-xs"
                     variant="default"
                     title="Keyboard Shortcuts (?)"
+                    aria-label="Open Keyboard Shortcuts Reference list"
                 >
                     ?
                 </Button>
@@ -718,6 +730,7 @@ export default function Home() {
                     className="bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 w-8 transition-all hover:scale-105 active:scale-95 cursor-pointer"
                     variant="default"
                     title={colorScheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                    aria-label={colorScheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                 >
                     {colorScheme === 'dark' ? <Sun size={14} className="text-amber-500" /> : <Moon size={14} className="text-stone-600" />}
                 </Button>
@@ -728,6 +741,7 @@ export default function Home() {
                     className={`bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 w-8 transition-all hover:scale-105 active:scale-95 cursor-pointer ${isFocusMode ? 'bg-amber-100 dark:bg-amber-950/45 border-amber-300' : ''}`}
                     variant="default"
                     title="Focus Mode (F)"
+                    aria-label="Toggle Fullscreen Focus Mode"
                 >
                     <Eye size={14} className={isFocusMode ? 'text-amber-600 dark:text-amber-400' : 'text-stone-500 dark:text-gray-300'} />
                 </Button>
@@ -744,6 +758,7 @@ export default function Home() {
                     className="bg-white dark:bg-[#1e1e1e] hover:bg-slate-50 dark:hover:bg-[#2e2e2e] text-stone-700 dark:text-white border border-stone-200 dark:border-[#333] transition-all shadow-lg p-2.5 h-10 flex items-center justify-center gap-1.5 rounded-lg"
                     variant="default"
                     title="Run Analysis"
+                    aria-label="Run AI calculation solver on canvas whiteboard content"
                 >
                     <Sparkles size={16} className="text-amber-500 animate-pulse" />
                     <span className="text-xs font-semibold select-none font-sans">Run</span>
@@ -843,11 +858,11 @@ export default function Home() {
                 </div>
             )}
 
-            {/* Floating Copilot Toggle Button */}
             <button
                 onClick={() => setIsCopilotOpen(!isCopilotOpen)}
                 className={`absolute bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-tr from-rose-500 via-orange-500 to-amber-400 flex items-center justify-center shadow-lg shadow-orange-500/40 hover:scale-110 active:scale-95 transition-all duration-300 border border-white/20 cursor-pointer ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
                 title="Vector"
+                aria-label={isCopilotOpen ? "Close AI Copilot chat" : "Open AI Copilot chat"}
             >
                 {isCopilotOpen ? <X size={22} className="text-white" /> : <MessageSquare size={22} className="text-white" />}
             </button>

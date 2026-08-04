@@ -107,6 +107,35 @@ export const DraggableResultCard = ({
         dragPosRef.current = defaultPosition;
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (readOnly) return;
+        const step = 15;
+        let newX = defaultPosition.x;
+        let newY = defaultPosition.y;
+
+        switch (e.key) {
+            case 'ArrowLeft':
+                newX -= step;
+                break;
+            case 'ArrowRight':
+                newX += step;
+                break;
+            case 'ArrowUp':
+                newY -= step;
+                break;
+            case 'ArrowDown':
+                newY += step;
+                break;
+            default:
+                return;
+        }
+
+        e.preventDefault();
+        if (setPositionProp) {
+            setPositionProp({ x: newX, y: newY });
+        }
+    };
+
     const handleResizeMouseDown = (e: React.MouseEvent) => {
         if (readOnly) return;
         setIsResizing(true);
@@ -321,7 +350,10 @@ export const DraggableResultCard = ({
     return (
         <div 
             ref={cardRef}
-            className="absolute top-0 left-0 z-50 glassmorphic-card p-4 rounded-xl shadow-2xl cursor-move select-none flex flex-col overflow-hidden animate-[fadeIn_0.5s_ease-out_forwards]"
+            tabIndex={0}
+            onKeyDown={handleKeyDown}
+            aria-label={`AI Result Card. Solution: ${summaryText}. Press arrow keys to move card around viewport.`}
+            className="absolute top-0 left-0 z-50 glassmorphic-card p-4 rounded-xl shadow-2xl cursor-move select-none flex flex-col overflow-hidden animate-[fadeIn_0.5s_ease-out_forwards] focus-visible:outline-none"
             style={{ 
                 transform: `translate3d(${finalPosition.x}px, ${finalPosition.y}px, 0)`,
                 width: isMinimized ? 'auto' : `${size.width}px`,
@@ -355,6 +387,7 @@ export const DraggableResultCard = ({
                             }}
                             className="cursor-pointer p-1 rounded-md text-stone-500 hover:text-stone-700 dark:text-gray-400 dark:hover:text-white hover:bg-stone-100 dark:hover:bg-white/5 transition-colors flex items-center justify-center shrink-0"
                             title="Share Solution"
+                            aria-label="Share this solution to public page"
                         >
                             <Share2 size={13} />
                         </button>
@@ -363,6 +396,7 @@ export const DraggableResultCard = ({
                         onClick={() => setIsMinimized(!isMinimized)}
                         className="w-3.5 h-3.5 rounded-full bg-purple-500 hover:bg-purple-400 border border-purple-600/50 transition-all cursor-pointer flex items-center justify-center group relative shadow-sm"
                         title={isMinimized ? "Maximize" : "Minimize"}
+                        aria-label={isMinimized ? "Maximize solution card layout" : "Minimize solution card layout"}
                     >
                         {isMinimized ? (
                             /* macOS style plus icon on hover */
@@ -403,6 +437,7 @@ export const DraggableResultCard = ({
                                     <button
                                         onClick={() => setShowAllSteps(false)}
                                         className="cursor-pointer text-xs font-extrabold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 font-sans pl-3 py-0.5"
+                                        aria-label="Switch step presentation style to paced sequential view"
                                     >
                                         Switch to Paced View
                                     </button>
@@ -414,6 +449,7 @@ export const DraggableResultCard = ({
                                             disabled={currentStepIndex === 0}
                                             onClick={() => setCurrentStepIndex(prev => Math.max(0, prev - 1))}
                                             className="cursor-pointer text-xs font-bold text-stone-700 dark:text-white px-2.5 py-1.5 rounded-lg border border-stone-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-stone-50 dark:hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white dark:disabled:hover:bg-white/5 disabled:cursor-not-allowed transition-all font-sans animate-in fade-in"
+                                            aria-label="Go back to previous mathematical step"
                                         >
                                             ← Back
                                         </button>
@@ -421,6 +457,7 @@ export const DraggableResultCard = ({
                                             disabled={currentStepIndex === steps.length - 1}
                                             onClick={() => setCurrentStepIndex(prev => Math.min(steps.length - 1, prev + 1))}
                                             className="cursor-pointer text-xs font-bold text-amber-800 dark:text-white px-2.5 py-1.5 rounded-lg border border-amber-200 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 disabled:opacity-30 disabled:hover:bg-amber-50 dark:disabled:hover:bg-amber-500/10 disabled:cursor-not-allowed transition-all font-sans animate-in fade-in"
+                                            aria-label="Go forward to next mathematical step"
                                         >
                                             Next step →
                                         </button>
@@ -432,6 +469,7 @@ export const DraggableResultCard = ({
                                         <button
                                             onClick={() => setShowAllSteps(true)}
                                             className="cursor-pointer text-xs font-extrabold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 font-sans border-l border-stone-200 dark:border-white/10 pl-3 py-0.5"
+                                            aria-label="Show all mathematical step details sequentially in list"
                                         >
                                             Show All
                                         </button>
@@ -445,6 +483,7 @@ export const DraggableResultCard = ({
                                 <button
                                     onClick={() => setShowThoughtProcess(!showThoughtProcess)}
                                     className="flex justify-between items-center text-sm text-stone-600 dark:text-gray-300 hover:text-stone-800 dark:hover:text-white py-1 shrink-0 cursor-pointer"
+                                    aria-label={showThoughtProcess ? "Hide AI step-by-step reasoning thought process" : "Show AI step-by-step reasoning thought process"}
                                 >
                                     <span>View Thought Process</span>
                                     <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showThoughtProcess ? 'rotate-180' : ''}`} />

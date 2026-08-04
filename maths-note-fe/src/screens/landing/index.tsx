@@ -20,6 +20,7 @@ export default function Landing({ onStart }: LandingProps) {
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-850 text-stone-700 dark:text-stone-300 shadow-sm transition-all text-xs sm:text-sm font-semibold"
+                        aria-label="Open solveIQ source code repository on GitHub"
                     >
                         <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" className="text-stone-750 dark:text-stone-300">
                             <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
@@ -64,6 +65,7 @@ export default function Landing({ onStart }: LandingProps) {
                     onClick={onStart}
                     className="group relative px-7 py-3.5 bg-stone-950 dark:bg-stone-100 hover:bg-stone-800 dark:hover:bg-stone-200 text-stone-50 dark:text-stone-950 font-bold tracking-wide rounded-2xl shadow-md transition-all duration-300 transform hover:scale-[1.02] active:scale-95 border border-stone-850 dark:border-stone-200 flex items-center gap-2 text-base pointer-events-auto animate-fade-in-up"
                     style={{ animationDelay: '450ms' }}
+                    aria-label="Enter whiteboard math canvas workspace and start solving"
                 >
                     <span>Start Solving</span>
                     <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
