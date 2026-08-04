@@ -115,7 +115,7 @@ function HistorySidebarInner({
                                         <p className="text-xs font-bold text-stone-800 dark:text-stone-200 truncate">
                                             {entry.results[0]?.solutions[0]?.expression || 'Equation'}
                                         </p>
-                                        <p className="text-[10px] text-stone-650 dark:text-stone-400 font-mono mt-0.5 truncate">
+                                        <p className="text-[10px] text-stone-600 dark:text-stone-400 font-mono mt-0.5 truncate">
                                             = {entry.results[0]?.solutions[0]?.answer || '?'}
                                         </p>
                                     </div>
