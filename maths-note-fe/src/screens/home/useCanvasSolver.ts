@@ -19,6 +19,16 @@ export const useCanvasSolver = (
         selection?: { type: 'rect' | 'lasso'; points: { x: number; y: number }[]; bounds: { minX: number; minY: number; maxX: number; maxY: number } },
         onStartScan?: (bounds: { minX: number; minY: number; maxX: number; maxY: number }) => void
     ) => {
+        if (!navigator.onLine) {
+            notifications.show({
+                title: 'Offline Mode',
+                message: "You're offline — solving requires an internet connection.",
+                color: 'red',
+                autoClose: 5000
+            });
+            return;
+        }
+
         const canvas = canvasRef.current;
         const masterCanvas = masterCanvasRef.current;
         if (!canvas || !masterCanvas) return;
@@ -133,17 +143,32 @@ export const useCanvasSolver = (
         } catch (error: unknown) {
             console.error("Failed to run AI", error);
             let errorMsg = "Failed to process image";
+            let isOfflineError = !navigator.onLine;
+            
             if (axios.isAxiosError(error)) {
+                if (error.message === "Network Error" || !error.response) {
+                    isOfflineError = true;
+                }
                 errorMsg = error.response?.data?.detail || error.message || errorMsg;
             } else if (error instanceof Error) {
                 errorMsg = error.message;
             }
-            notifications.show({
-                title: 'Error',
-                message: errorMsg,
-                color: 'red',
-                autoClose: 6000
-            });
+            
+            if (isOfflineError) {
+                notifications.show({
+                    title: 'Offline Mode',
+                    message: "You're offline — solving requires an internet connection.",
+                    color: 'red',
+                    autoClose: 6000
+                });
+            } else {
+                notifications.show({
+                    title: 'Error',
+                    message: errorMsg,
+                    color: 'red',
+                    autoClose: 6000
+                });
+            }
         } finally {
             setIsScanning(false);
         }

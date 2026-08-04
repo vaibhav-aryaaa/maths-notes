@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { notifications } from '@mantine/notifications';
 import type { GeneratedResult, DictOfVars } from '@/types';
 
 export const useCopilotChat = (dictOfVars: DictOfVars, results: GeneratedResult[]) => {
@@ -35,6 +36,16 @@ export const useCopilotChat = (dictOfVars: DictOfVars, results: GeneratedResult[
     const sendCopilotMessage = useCallback(async () => {
         const text = copilotInput.trim();
         if (!text || isCopilotLoading || isCopilotStreaming) return;
+
+        if (!navigator.onLine) {
+            notifications.show({
+                title: 'Offline Mode',
+                message: "You're offline — AI Copilot chat requires an internet connection.",
+                color: 'red',
+                autoClose: 5000
+            });
+            return;
+        }
 
         setCopilotMessages(prev => [...prev, { role: 'user', text }]);
         setCopilotInput('');
@@ -137,7 +148,15 @@ export const useCopilotChat = (dictOfVars: DictOfVars, results: GeneratedResult[
                 return;
             }
             console.error('Copilot streaming error:', err);
-            const errorMsg = err.message || 'Sorry, I ran into an error. Please try again.';
+            
+            const isOfflineError = !navigator.onLine || 
+                                   err.message?.includes('Failed to fetch') || 
+                                   err.message?.includes('Network Error') || 
+                                   err.message?.includes('network error');
+            
+            const errorMsg = isOfflineError 
+                ? "You're offline — AI Copilot chat requires an internet connection." 
+                : (err.message || 'Sorry, I ran into an error. Please try again.');
             
             setCopilotMessages(prev => {
                 const updated = [...prev];
