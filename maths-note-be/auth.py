@@ -1,6 +1,7 @@
-import os
-import jwt
 import logging
+import os
+
+import jwt
 from fastapi import Header, HTTPException, status
 
 from constants import APP_SECRET, ENV
@@ -49,9 +50,9 @@ def get_current_user(authorization: str | None = Header(None)) -> str:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing or invalid Authorization header"
         )
-    
+
     token = authorization.split(" ", 1)[1]
-    
+
     # Local development fallback
     if not jwk_client:
         if ENV == "dev":
@@ -62,11 +63,11 @@ def get_current_user(authorization: str | None = Header(None)) -> str:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication failed: session verification client is unconfigured."
         )
-        
+
     try:
         # Fetch the signing key from the JWKS endpoint (automatically cached by PyJWKClient)
         signing_key = jwk_client.get_signing_key_from_jwt(token)
-        
+
         # Decode and verify the token using the public key
         payload = jwt.decode(
             token,
@@ -86,7 +87,7 @@ def get_current_user(authorization: str | None = Header(None)) -> str:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication token has expired"
         )
-    except jwt.InvalidTokenError as e:
+    except jwt.InvalidTokenError:
         logger.exception("JWT validation failed")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

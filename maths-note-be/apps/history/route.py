@@ -1,16 +1,11 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
-from typing import List, Dict, Any
 
 from auth import get_current_user
-from db import (
-    get_user_history,
-    save_history_entry,
-    sync_history_entries,
-    delete_history_entry,
-    purge_user_history
-)
+from db import delete_history_entry, get_user_history, purge_user_history, save_history_entry, sync_history_entries
 from rate_limiter import limiter
 
 router = APIRouter()
@@ -21,16 +16,16 @@ class HistoryEntryPayload(BaseModel):
     timestamp: int
     canvasThumbnail: str
     canvasImage: str
-    results: List[Dict[str, Any]]
-    dictOfVars: Dict[str, Any]
+    results: list[dict[str, Any]]
+    dictOfVars: dict[str, Any]
 
 class SingleEntrySaveRequest(BaseModel):
     entry: HistoryEntryPayload
 
 class SyncHistoryRequest(BaseModel):
-    entries: List[HistoryEntryPayload]
+    entries: list[HistoryEntryPayload]
 
-@router.get("", response_model=Dict[str, Any])
+@router.get("", response_model=dict[str, Any])
 @limiter.limit("10/minute")
 async def get_history_endpoint(request: Request, user_id: str = Depends(get_current_user)):
     try:
@@ -43,7 +38,7 @@ async def get_history_endpoint(request: Request, user_id: str = Depends(get_curr
             detail="Failed to fetch user history."
         )
 
-@router.post("", response_model=Dict[str, Any])
+@router.post("", response_model=dict[str, Any])
 @limiter.limit("10/minute")
 async def save_entry_endpoint(request: Request, payload: SingleEntrySaveRequest, user_id: str = Depends(get_current_user)):
     try:
@@ -56,7 +51,7 @@ async def save_entry_endpoint(request: Request, payload: SingleEntrySaveRequest,
             detail="Failed to save history entry."
         )
 
-@router.post("/sync", response_model=Dict[str, Any])
+@router.post("/sync", response_model=dict[str, Any])
 @limiter.limit("10/minute")
 async def sync_history_endpoint(request: Request, payload: SyncHistoryRequest, user_id: str = Depends(get_current_user)):
     try:
@@ -70,7 +65,7 @@ async def sync_history_endpoint(request: Request, payload: SyncHistoryRequest, u
             detail="Failed to sync history entries."
         )
 
-@router.delete("/purge", response_model=Dict[str, Any])
+@router.delete("/purge", response_model=dict[str, Any])
 @limiter.limit("10/minute")
 async def purge_history_endpoint(request: Request, user_id: str = Depends(get_current_user)):
     try:
@@ -83,7 +78,7 @@ async def purge_history_endpoint(request: Request, user_id: str = Depends(get_cu
             detail="Failed to purge user history."
         )
 
-@router.delete("/{entry_id}", response_model=Dict[str, Any])
+@router.delete("/{entry_id}", response_model=dict[str, Any])
 @limiter.limit("10/minute")
 async def delete_entry_endpoint(request: Request, entry_id: str, user_id: str = Depends(get_current_user)):
     try:

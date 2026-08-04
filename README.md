@@ -2,6 +2,7 @@
 
 ![SolveIQ Landing](./assets/landing.png)
 
+[![CI Pipeline](https://github.com/vaibhav-aryaaa/maths-notes/actions/workflows/ci.yml/badge.svg)](https://github.com/vaibhav-aryaaa/maths-notes/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688.svg?style=flat&logo=FastAPI&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB.svg?style=flat&logo=React&logoColor=black)](https://reactjs.org/)

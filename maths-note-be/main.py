@@ -22,8 +22,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from apps.calculator.route import router as calculator_router
 from apps.copilot.route import router as copilot_router
-from apps.share.route import router as share_router
 from apps.history.route import router as history_router
+from apps.share.route import router as share_router
 from constants import ALLOWED_ORIGINS, ENV, PORT, SERVER_URL
 from rate_limiter import limiter
 
@@ -48,7 +48,7 @@ class LimitUploadSizeMiddleware(BaseHTTPMiddleware):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from db import init_db, cleanup_expired_shares
+    from db import cleanup_expired_shares, init_db
     try:
         init_db()
         deleted = cleanup_expired_shares()
@@ -84,7 +84,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def global_exception_handler(request: Request, exc: Exception):
     import traceback
     logging.getLogger("main").error(f"Unhandled exception: {exc}\n{traceback.format_exc()}")
-    
+
     response = JSONResponse(
         status_code=500,
         content={"detail": "An internal server error occurred.", "error": "Internal Server Error"}

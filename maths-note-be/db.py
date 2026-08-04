@@ -1,7 +1,7 @@
-import sqlite3
 import json
-import time
 import os
+import sqlite3
+import time
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(__file__), "shares.db"))
@@ -92,13 +92,13 @@ def get_share(share_id: str) -> dict | None:
         row = cursor.fetchone()
         if not row:
             return None
-        
+
         image, data_str, created_at = row
         if int(time.time()) - created_at > 30 * 24 * 3600:
             cursor.execute(f"DELETE FROM shares WHERE share_id = {p}", (share_id,))
             conn.commit()
             return None
-            
+
         return {
             "image": image,
             "data": json.loads(data_str) if isinstance(data_str, str) else data_str
