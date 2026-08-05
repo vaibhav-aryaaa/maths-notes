@@ -469,6 +469,11 @@ export default function Home() {
     }, [undo, redo, setIsEraser, setSelectedShape, toggleFocusMode]);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
+    const [shouldCrash, setShouldCrash] = useState(false);
+
+    if (shouldCrash) {
+        throw new Error("Sentry Test Render Error from SolveIQ Frontend");
+    }
 
     return (
         <>
@@ -498,7 +503,7 @@ export default function Home() {
                 {/* Sentry Test Button */}
                 <Button
                     onClick={() => {
-                        throw new Error("Sentry Test Error from SolveIQ Frontend");
+                        setShouldCrash(true);
                     }}
                     className="bg-red-500 hover:bg-red-600 text-white font-semibold transition-all shadow-lg px-3 h-10 rounded-lg text-xs"
                     title="Trigger Sentry Error"
