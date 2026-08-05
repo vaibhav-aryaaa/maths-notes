@@ -9,3 +9,4 @@ slowapi
 tenacity
 psycopg2-binary
 pyjwt
+sentry-sdk[fastapi]

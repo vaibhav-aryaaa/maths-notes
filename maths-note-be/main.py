@@ -1,6 +1,14 @@
 import logging
 
-from constants import ENV
+import sentry_sdk
+
+from constants import ENV, SENTRY_DSN
+
+if SENTRY_DSN and ENV == "production":
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        traces_sample_rate=0.1,
+    )
 
 log_level = logging.DEBUG if ENV == "dev" else logging.INFO
 logging.basicConfig(
@@ -85,6 +93,9 @@ async def global_exception_handler(request: Request, exc: Exception):
     import traceback
     logging.getLogger("main").error(f"Unhandled exception: {exc}\n{traceback.format_exc()}")
 
+    # Capture exception to Sentry explicitly
+    sentry_sdk.capture_exception(exc)
+
     response = JSONResponse(
         status_code=500,
         content={"detail": "An internal server error occurred.", "error": "Internal Server Error"}
@@ -113,6 +124,12 @@ app.add_middleware(
 @app.head('/')
 async def root():
     return {"message": "Server is running"}
+
+
+@app.get('/sentry-debug')
+async def trigger_error():
+    division_by_zero = 1 / 0
+    return {"result": division_by_zero}
 
 app.include_router(calculator_router, prefix="/calculate", tags=["calculate"])
 app.include_router(copilot_router, prefix="/copilot", tags=["copilot"])

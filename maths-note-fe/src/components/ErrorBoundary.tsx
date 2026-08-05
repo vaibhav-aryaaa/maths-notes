@@ -3,6 +3,8 @@ import type { ErrorInfo, ReactNode } from 'react';
 import { Stack, Text, Button, Card, Center } from '@mantine/core';
 import { AlertCircle, RotateCcw } from 'lucide-react';
 
+import * as Sentry from '@sentry/react';
+
 interface Props {
   children?: ReactNode;
   name: string;
@@ -26,6 +28,14 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error(`ErrorBoundary caught an error in "${this.props.name}":`, error, errorInfo);
+    if (import.meta.env.VITE_SENTRY_DSN) {
+      Sentry.captureException(error, {
+        extra: {
+          componentName: this.props.name,
+          errorInfo: errorInfo as any,
+        }
+      });
+    }
   }
 
   private handleReset = () => {
