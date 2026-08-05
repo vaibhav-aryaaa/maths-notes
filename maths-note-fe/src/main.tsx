@@ -6,6 +6,10 @@ import * as Sentry from '@sentry/react'
 import App from './App.tsx'
 
 const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN
+console.log("Sentry diagnostics:", {
+  dsnLength: SENTRY_DSN ? SENTRY_DSN.length : 0,
+  isProd: import.meta.env.PROD,
+})
 if (SENTRY_DSN && import.meta.env.PROD) {
   Sentry.init({
     dsn: SENTRY_DSN,
