@@ -4,7 +4,7 @@ import sentry_sdk
 
 from constants import ENV, SENTRY_DSN
 
-if SENTRY_DSN and ENV == "production":
+if SENTRY_DSN and ENV in ("prod", "production"):
     sentry_sdk.init(
         dsn=SENTRY_DSN,
         traces_sample_rate=0.1,
