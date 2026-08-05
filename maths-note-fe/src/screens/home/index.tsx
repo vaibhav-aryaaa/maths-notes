@@ -469,11 +469,6 @@ export default function Home() {
     }, [undo, redo, setIsEraser, setSelectedShape, toggleFocusMode]);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
-    const [shouldCrash, setShouldCrash] = useState(false);
-
-    if (shouldCrash) {
-        throw new Error("Sentry Test Render Error from SolveIQ Frontend");
-    }
 
     return (
         <>
@@ -489,7 +484,7 @@ export default function Home() {
             />
 
             {/* Sidebar Toggle Button (Top-Left) */}
-            <div className={`absolute z-50 top-[calc(1rem+env(safe-area-inset-top))] left-[calc(1rem+env(safe-area-inset-left))] pointer-events-auto transition-opacity duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'} flex gap-2`}>
+            <div className={`absolute z-50 top-[calc(1rem+env(safe-area-inset-top))] left-[calc(1rem+env(safe-area-inset-left))] pointer-events-auto transition-opacity duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                 <Button
                     onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                     className={`bg-white dark:bg-[#1e1e1e] hover:bg-slate-50 dark:hover:bg-[#2e2e2e] text-stone-700 dark:text-white border border-stone-200 dark:border-[#333] transition-all shadow-lg p-2.5 h-10 w-10 rounded-lg flex items-center justify-center ${isSidebarOpen ? 'bg-slate-100 dark:bg-[#333] border-stone-300 dark:border-white/20' : ''}`}
@@ -498,17 +493,6 @@ export default function Home() {
                     aria-label={isSidebarOpen ? "Close history and memory sidebar" : "Open history and memory sidebar"}
                 >
                     {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
-                </Button>
-
-                {/* Sentry Test Button */}
-                <Button
-                    onClick={() => {
-                        setShouldCrash(true);
-                    }}
-                    className="bg-red-500 hover:bg-red-600 text-white font-semibold transition-all shadow-lg px-3 h-10 rounded-lg text-xs"
-                    title="Trigger Sentry Error"
-                >
-                    Trigger Error
                 </Button>
             </div>
 

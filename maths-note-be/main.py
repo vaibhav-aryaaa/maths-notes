@@ -126,11 +126,6 @@ async def root():
     return {"message": "Server is running"}
 
 
-@app.get('/sentry-debug')
-async def trigger_error():
-    division_by_zero = 1 / 0
-    return {"result": division_by_zero}
-
 app.include_router(calculator_router, prefix="/calculate", tags=["calculate"])
 app.include_router(copilot_router, prefix="/copilot", tags=["copilot"])
 app.include_router(share_router, prefix="/share", tags=["share"])
