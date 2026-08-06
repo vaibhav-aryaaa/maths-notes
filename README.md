@@ -129,6 +129,21 @@ graph TD
 - [ ] **Cloud Workspace**: Supabase integration for saving and sharing math notes.
 - [ ] **WolframAlpha Integration**: For hyper-precise symbolic computation verification.
 
+## 🔒 Privacy & Analytics
+
+SolveIQ is built with privacy in mind. We use **PostHog** to track basic, anonymous product usage statistics (like pageviews, buttons clicked, and error rates) to help us understand how users interact with the app.
+
+**What we track:**
+- Anonymized user actions (e.g., "clicked sample gallery", "triggered solve", "message sent to copilot").
+- General diagnostic metadata (e.g., response count, API success/failure rate, latency).
+
+**What we NEVER track:**
+- Your canvas drawing content or raw stroke coordinates.
+- The solved math equations, variable assignments, or response contents.
+- Any Personally Identifiable Information (PII).
+
+All analytics event tracking is fully transparent and can be easily disabled by removing the `VITE_POSTHOG_KEY` environment variable.
+
 ---
 
 ## 📄 License

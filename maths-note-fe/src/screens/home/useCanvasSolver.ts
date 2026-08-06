@@ -2,6 +2,7 @@ import { useState } from 'react';
 import axios from 'axios';
 import { notifications } from '@mantine/notifications';
 import type { GeneratedResult, DictOfVars, CalculateResponseItem } from '@/types';
+import { trackEvent } from '@/lib/analytics';
 
 export const useCanvasSolver = (
     canvasRef: React.RefObject<HTMLCanvasElement | null>,
@@ -47,6 +48,7 @@ export const useCanvasSolver = (
         if (onStartScan) {
             onStartScan(bounds);
         }
+        trackEvent('solve_attempted', { selection_type: selection ? selection.type : 'full' });
         setIsScanning(true);
         try {
             // Calculate cropped region with a padding of 20px
@@ -135,6 +137,12 @@ export const useCanvasSolver = (
                 const updatedResults = [...results, newResult];
                 setResults(updatedResults);
                 onSaveHistory?.(masterCanvas, updatedResults, dictOfVars);
+
+                trackEvent('solve_succeeded', {
+                    solution_count: solutions.length,
+                    confidence: maxConfidence > 0 ? maxConfidence : undefined,
+                    latency: maxLatency > 0 ? maxLatency : undefined
+                });
             }
             
             // Canvas is no longer cleared after solve in 7B
@@ -154,6 +162,8 @@ export const useCanvasSolver = (
                 errorMsg = error.message;
             }
             
+            trackEvent('solve_failed', { error_type: isOfflineError ? 'offline' : 'api_error' });
+
             if (isOfflineError) {
                 notifications.show({
                     title: 'Offline Mode',

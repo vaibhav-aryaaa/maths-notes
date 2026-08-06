@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { notifications } from '@mantine/notifications';
 import type { GeneratedResult, DictOfVars } from '@/types';
+import { trackEvent } from '@/lib/analytics';
 
 export const useCopilotChat = (dictOfVars: DictOfVars, results: GeneratedResult[]) => {
     const [isCopilotOpen, setIsCopilotOpen] = useState(false);
@@ -36,6 +37,8 @@ export const useCopilotChat = (dictOfVars: DictOfVars, results: GeneratedResult[
     const sendCopilotMessage = useCallback(async () => {
         const text = copilotInput.trim();
         if (!text || isCopilotLoading || isCopilotStreaming) return;
+
+        trackEvent('copilot_message_sent');
 
         if (!navigator.onLine) {
             notifications.show({

@@ -12,6 +12,7 @@ import { notifications } from '@mantine/notifications';
 import axios from 'axios';
 
 import { useSolveHistory } from '@/hooks/useSolveHistory';
+import { trackEvent } from '@/lib/analytics';
 import { HistorySidebar } from '@/components/HistorySidebar';
 import { AuthManager } from '@/components/AuthManager';
 import { CopilotPanel } from '@/components/CopilotPanel';
@@ -292,6 +293,7 @@ export default function Home() {
             });
 
             if (response.data && response.data.share_id) {
+                trackEvent('share_created');
                 const shareUrl = `${window.location.origin}/share/${response.data.share_id}`;
                 
                 const copied = await copyToClipboard(shareUrl);
@@ -390,10 +392,14 @@ export default function Home() {
         sendCopilotMessage,
     } = useCopilotChat(dictOfVars, results);
 
-    const handleTryExample = (strokes: { x: number; y: number }[][]) => {
+    const handleTryExample = (problem: typeof EXAMPLE_PROBLEMS[number]) => {
+        trackEvent('example_clicked', {
+            example_id: problem.id,
+            example_name: problem.name
+        });
         setResults([]);
         setDictOfVars({});
-        drawStrokes(strokes);
+        drawStrokes(problem.strokes);
         setTimeout(() => {
             runRoute();
         }, 600);
@@ -842,7 +848,7 @@ export default function Home() {
                         {EXAMPLE_PROBLEMS.map((problem) => (
                             <button
                                 key={problem.id}
-                                onClick={() => handleTryExample(problem.strokes)}
+                                onClick={() => handleTryExample(problem)}
                                 className="cursor-pointer flex flex-col text-left p-3.5 rounded-xl border border-stone-200 dark:border-white/10 bg-white/80 dark:bg-white/5 hover:bg-stone-50 dark:hover:bg-white/10 hover:border-stone-300 dark:hover:border-white/20 active:scale-[0.98] transition-all text-stone-900 dark:text-white backdrop-blur-md shadow-lg group"
                             >
                                 <span className="text-sm font-bold text-amber-600 dark:text-amber-400 group-hover:text-amber-500 dark:group-hover:text-amber-300 flex items-center gap-1.5">
