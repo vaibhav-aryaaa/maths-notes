@@ -136,6 +136,7 @@ export default function Home() {
         saveHistoryEntry, 
         clearHistory, 
         deleteHistoryItem,
+        getHistoryEntryImage,
         user
     } = useSolveHistory();
 
@@ -512,6 +513,7 @@ export default function Home() {
                 onSelectEntry={handleSelectHistoryEntry}
                 onClearHistory={clearHistory}
                 onDeleteEntry={deleteHistoryItem}
+                getHistoryEntryImage={getHistoryEntryImage}
             />
 
             {/* Sidebar Toggle Button (Top-Left) */}

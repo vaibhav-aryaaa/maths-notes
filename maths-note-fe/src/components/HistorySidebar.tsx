@@ -12,6 +12,7 @@ interface HistorySidebarProps {
     onSelectEntry: (entry: HistoryEntry) => void;
     onClearHistory: () => void;
     onDeleteEntry: (id: string) => void;
+    getHistoryEntryImage: (id: string) => Promise<string>;
 }
 
 export function HistorySidebar(props: HistorySidebarProps) {
@@ -41,7 +42,8 @@ function HistorySidebarInner({
     history,
     onSelectEntry,
     onClearHistory,
-    onDeleteEntry
+    onDeleteEntry,
+    getHistoryEntryImage
 }: Omit<HistorySidebarProps, 'isOpen'>) {
     const [confirmClear, setConfirmClear] = useState(false);
 
@@ -94,11 +96,21 @@ function HistorySidebarInner({
                                     key={entry.id}
                                     role="button"
                                     tabIndex={0}
-                                    onClick={() => onSelectEntry(entry)}
-                                    onKeyDown={(e) => {
+                                    onClick={async () => {
+                                        const fullEntry = { ...entry };
+                                        if (!entry.strokes && !entry.canvasImage) {
+                                            fullEntry.canvasImage = await getHistoryEntryImage(entry.id);
+                                        }
+                                        onSelectEntry(fullEntry);
+                                    }}
+                                    onKeyDown={async (e) => {
                                         if (e.key === 'Enter' || e.key === ' ') {
                                             e.preventDefault();
-                                            onSelectEntry(entry);
+                                            const fullEntry = { ...entry };
+                                            if (!entry.strokes && !entry.canvasImage) {
+                                                fullEntry.canvasImage = await getHistoryEntryImage(entry.id);
+                                            }
+                                            onSelectEntry(fullEntry);
                                         }
                                     }}
                                     aria-label={`Load history entry: ${entry.results[0]?.solutions[0]?.expression || 'Equation'} = ${entry.results[0]?.solutions[0]?.answer || '?'}`}

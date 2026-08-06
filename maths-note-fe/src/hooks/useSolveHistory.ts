@@ -74,7 +74,20 @@ export function useSolveHistory() {
                 }
             });
             if (response.data && Array.isArray(response.data.entries)) {
-                setHistory(response.data.entries);
+                const entries = response.data.entries as HistoryEntry[];
+                
+                // Write backend entries to local IndexedDB
+                const db = await openDB();
+                if (db) {
+                    const transaction = db.transaction(STORE_NAME, 'readwrite');
+                    const store = transaction.objectStore(STORE_NAME);
+                    entries.forEach(entry => store.put(entry));
+                }
+
+                setHistory(entries.map((entry: HistoryEntry) => {
+                    const { canvasImage, ...rest } = entry;
+                    return rest as HistoryEntry;
+                }));
             }
         } catch (error) {
             console.error('Failed to load history from backend:', error);
@@ -94,7 +107,10 @@ export function useSolveHistory() {
             request.onsuccess = () => {
                 const results = request.result as HistoryEntry[];
                 results.sort((a, b) => b.timestamp - a.timestamp);
-                setHistory(results);
+                setHistory(results.map((entry: HistoryEntry) => {
+                    const { canvasImage, ...rest } = entry;
+                    return rest as HistoryEntry;
+                }));
             };
         } catch (error) {
             console.error('Failed to load history from IndexedDB:', error);
@@ -137,7 +153,20 @@ export function useSolveHistory() {
                 });
 
                 if (response.data && Array.isArray(response.data.entries)) {
-                    setHistory(response.data.entries);
+                    const entries = response.data.entries as HistoryEntry[];
+                    
+                    // Write synced entries to local IndexedDB
+                    const db = await openDB();
+                    if (db) {
+                        const transaction = db.transaction(STORE_NAME, 'readwrite');
+                        const store = transaction.objectStore(STORE_NAME);
+                        entries.forEach(entry => store.put(entry));
+                    }
+
+                    setHistory(entries.map((entry: HistoryEntry) => {
+                        const { canvasImage, ...rest } = entry;
+                        return rest as HistoryEntry;
+                    }));
                 }
             };
         } catch (error) {
@@ -320,6 +349,25 @@ export function useSolveHistory() {
             console.error('Failed to clear history locally:', error);
         }
     }, [jwt, loadBackendHistory, loadLocalHistory]);
+    const getHistoryEntryImage = useCallback(async (id: string): Promise<string> => {
+        const db = await openDB();
+        if (!db) return '';
+        return new Promise((resolve) => {
+            try {
+                const transaction = db.transaction(STORE_NAME, 'readonly');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.get(id);
+                request.onsuccess = () => {
+                    const entry = request.result as HistoryEntry;
+                    resolve(entry?.canvasImage || '');
+                };
+                request.onerror = () => resolve('');
+            } catch (e) {
+                console.error('Failed to get history image from IndexedDB:', e);
+                resolve('');
+            }
+        });
+    }, []);
 
     return {
         history,
@@ -327,6 +375,7 @@ export function useSolveHistory() {
         saveHistoryEntry,
         deleteHistoryItem,
         clearHistory,
+        getHistoryEntryImage,
         user,
         jwt,
         supabase
