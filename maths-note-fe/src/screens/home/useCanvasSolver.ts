@@ -3,7 +3,7 @@ import axios from 'axios';
 import { notifications } from '@mantine/notifications';
 import type { GeneratedResult, DictOfVars, CalculateResponseItem, Stroke } from '@/types';
 import { trackEvent } from '@/lib/analytics';
-import { drawStroke } from './useMathCanvas';
+import { rasterizeRegion } from './canvasUtils';
 
 export const useCanvasSolver = (
     canvasRef: React.RefObject<HTMLCanvasElement | null>,
@@ -58,44 +58,12 @@ export const useCanvasSolver = (
             const cropY = Math.max(0, bounds.minY - padding);
             const cropWidth = Math.min(12000 - cropX, (bounds.maxX - bounds.minX) + padding * 2);
             const cropHeight = Math.min(12000 - cropY, (bounds.maxY - bounds.minY) + padding * 2);
+            const cropRegion = { x: cropX, y: cropY, width: cropWidth, height: cropHeight };
 
-            const exportScale = 2.0; // Render at 2x resolution for high accuracy OCR
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = cropWidth * exportScale;
-            tempCanvas.height = cropHeight * exportScale;
-            const tempCtx = tempCanvas.getContext('2d');
-            if (tempCtx) {
-                tempCtx.scale(exportScale, exportScale);
-                tempCtx.fillStyle = 'black';
-                tempCtx.fillRect(0, 0, cropWidth, cropHeight);
-                
-                // For exact-shape lasso selection, apply a clipping path mask
-                if (selection && selection.type === 'lasso') {
-                    tempCtx.save();
-                    tempCtx.beginPath();
-                    const points = selection.points;
-                    if (points.length > 0) {
-                        tempCtx.moveTo(points[0].x - cropX, points[0].y - cropY);
-                        for (let i = 1; i < points.length; i++) {
-                            tempCtx.lineTo(points[i].x - cropX, points[i].y - cropY);
-                        }
-                        tempCtx.closePath();
-                        tempCtx.clip();
-                    }
-                }
-                
-                // Draw vector strokes onto the temp canvas
-                tempCtx.save();
-                tempCtx.translate(-cropX, -cropY);
-                for (const stroke of strokes) {
-                    drawStroke(tempCtx, stroke);
-                }
-                tempCtx.restore();
-                
-                if (selection && selection.type === 'lasso') {
-                    tempCtx.restore();
-                }
-            }
+            const tempCanvas = rasterizeRegion(strokes, cropRegion, {
+                clipPath: selection?.type === 'lasso' ? selection.points : undefined,
+                scale: 2.0 // Render at 2x resolution for high accuracy OCR
+            });
             const croppedImageBase64 = tempCanvas.toDataURL('image/png');
 
             const response = await axios({
@@ -146,19 +114,12 @@ export const useCanvasSolver = (
                 const updatedResults = [...results, newResult];
                 setResults(updatedResults);
 
-                // Create a temporary master canvas for history saving (backwards compatibility)
-                const masterCanvas = document.createElement('canvas');
-                masterCanvas.width = 12000;
-                masterCanvas.height = 12000;
-                const masterCtx = masterCanvas.getContext('2d');
-                if (masterCtx) {
-                    masterCtx.fillStyle = 'black';
-                    masterCtx.fillRect(0, 0, 12000, 12000);
-                    for (const stroke of strokes) {
-                        drawStroke(masterCtx, stroke);
-                    }
-                }
-                onSaveHistory?.(masterCanvas, updatedResults, dictOfVars);
+                // Create a temporary region-sized canvas for history saving (backwards compatibility)
+                const historyCanvas = rasterizeRegion(strokes, cropRegion, {
+                    clipPath: selection?.type === 'lasso' ? selection.points : undefined,
+                    scale: 1.0
+                });
+                onSaveHistory?.(historyCanvas, updatedResults, dictOfVars);
 
                 trackEvent('solve_succeeded', {
                     solution_count: solutions.length,

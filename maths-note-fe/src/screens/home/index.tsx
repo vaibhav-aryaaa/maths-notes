@@ -4,8 +4,9 @@ import { SWATCHES } from '@/constants';
 import { Eraser, Pen, MessageSquare, X, Menu, Sparkles, ChevronDown, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { ResultSkeleton } from '@/components/ResultSkeleton';
-import { useMathCanvas, drawStroke } from './useMathCanvas';
+import { useMathCanvas } from './useMathCanvas';
 import { useCanvasSolver } from './useCanvasSolver';
+import { rasterizeRegion } from './canvasUtils';
 import { useCopilotChat } from './useCopilotChat';
 import { Modal, useMantineColorScheme } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -226,10 +227,7 @@ export default function Home() {
     }, [camera.scale, camera.offsetX, camera.offsetY, setLatexPosition]);
 
     const handleShareResult = useCallback(async (result: any) => {
-        const masterCanvas = masterCanvasRef.current;
-        if (!masterCanvas) return;
-
-        const bounds = result.bounds;
+        const bounds = result.bounds || drawBoundsRef.current;
         let croppedImageBase64: string;
 
         if (bounds && bounds.minX !== Infinity && bounds.minY !== Infinity) {
@@ -237,22 +235,22 @@ export default function Home() {
             const padding = 20;
             const cropX = Math.max(0, bounds.minX - padding);
             const cropY = Math.max(0, bounds.minY - padding);
-            const cropWidth = Math.min(masterCanvas.width - cropX, (bounds.maxX - bounds.minX) + padding * 2);
-            const cropHeight = Math.min(masterCanvas.height - cropY, (bounds.maxY - bounds.minY) + padding * 2);
+            const cropWidth = Math.min(12000 - cropX, (bounds.maxX - bounds.minX) + padding * 2);
+            const cropHeight = Math.min(12000 - cropY, (bounds.maxY - bounds.minY) + padding * 2);
 
+            const tempCanvas = rasterizeRegion(strokesRef.current, { x: cropX, y: cropY, width: cropWidth, height: cropHeight });
+            croppedImageBase64 = tempCanvas.toDataURL('image/png');
+        } else {
+            // Fallback to a default center region or empty black canvas if nothing drawn
             const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = cropWidth;
-            tempCanvas.height = cropHeight;
+            tempCanvas.width = 300;
+            tempCanvas.height = 300;
             const tempCtx = tempCanvas.getContext('2d');
             if (tempCtx) {
                 tempCtx.fillStyle = 'black';
-                tempCtx.fillRect(0, 0, cropWidth, cropHeight);
-                tempCtx.drawImage(masterCanvas, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+                tempCtx.fillRect(0, 0, 300, 300);
             }
             croppedImageBase64 = tempCanvas.toDataURL('image/png');
-        } else {
-            // Fallback to full size if bounds aren't available
-            croppedImageBase64 = masterCanvas.toDataURL('image/png');
         }
 
         // Show generating toast
@@ -356,9 +354,6 @@ export default function Home() {
     const activeSolveBox = activeSolveRegion ? getSelectionBox(activeSolveRegion.bounds) : null;
 
     const handleSelectHistoryEntry = (entry: any) => {
-        const masterCanvas = masterCanvasRef.current;
-        if (!masterCanvas) return;
-
         if (entry.strokes) {
             strokesRef.current = entry.strokes.map((s: any) => ({
                 ...s,
@@ -376,17 +371,15 @@ export default function Home() {
                 });
             });
             drawBoundsRef.current = { minX, minY, maxX, maxY };
-            
-            const masterCtx = masterCanvas.getContext('2d');
-            if (masterCtx) {
-                masterCtx.fillStyle = 'black';
-                masterCtx.fillRect(0, 0, masterCanvas.width, masterCanvas.height);
-                entry.strokes.forEach((stroke: any) => {
-                    drawStroke(masterCtx, stroke);
-                });
-            }
             resetView();
         } else {
+            // Lazy-allocate masterCanvasRef.current for legacy loading fallback
+            if (!masterCanvasRef.current) {
+                masterCanvasRef.current = document.createElement('canvas');
+                masterCanvasRef.current.width = 12000;
+                masterCanvasRef.current.height = 12000;
+            }
+            const masterCanvas = masterCanvasRef.current;
             const masterCtx = masterCanvas.getContext('2d');
             if (!masterCtx) return;
             const img = new Image();

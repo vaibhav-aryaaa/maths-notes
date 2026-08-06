@@ -1,111 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Stroke } from '@/types';
+import { getStrokeBounds, drawStroke } from './canvasUtils';
 
 const generateUUID = () => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID();
     }
     return Math.random().toString(36).substring(2, 9) + '-' + Date.now().toString(36);
-};
-
-const getStrokeBounds = (stroke: Stroke) => {
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    const pts = stroke.points;
-    if (pts.length === 0) {
-        return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
-    }
-    if (stroke.tool === 'rect' || stroke.tool === 'triangle' || stroke.tool === 'line') {
-        const p1 = pts[0];
-        const p2 = pts[pts.length - 1];
-        if (p1 && p2) {
-            minX = Math.min(p1.x, p2.x);
-            maxX = Math.max(p1.x, p2.x);
-            minY = Math.min(p1.y, p2.y);
-            maxY = Math.max(p1.y, p2.y);
-        }
-    } else if (stroke.tool === 'circle') {
-        const p1 = pts[0];
-        const p2 = pts[pts.length - 1];
-        if (p1 && p2) {
-            const dx = p2.x - p1.x;
-            const dy = p2.y - p1.y;
-            const radius = Math.sqrt(dx * dx + dy * dy);
-            minX = p1.x - radius;
-            maxX = p1.x + radius;
-            minY = p1.y - radius;
-            maxY = p1.y + radius;
-        }
-    } else {
-        // freehand pen
-        for (const pt of pts) {
-            if (pt.x < minX) minX = pt.x;
-            if (pt.x > maxX) maxX = pt.x;
-            if (pt.y < minY) minY = pt.y;
-            if (pt.y > maxY) maxY = pt.y;
-        }
-    }
-    const halfWidth = stroke.width / 2;
-    return {
-        minX: minX - halfWidth,
-        minY: minY - halfWidth,
-        maxX: maxX + halfWidth,
-        maxY: maxY + halfWidth
-    };
-};
-
-export const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
-    const pts = stroke.points;
-    if (pts.length === 0) return;
-
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = stroke.color;
-    ctx.lineWidth = stroke.width;
-    ctx.globalCompositeOperation = 'source-over';
-
-    ctx.beginPath();
-    if (stroke.tool === 'pen') {
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let i = 1; i < pts.length; i++) {
-            ctx.lineTo(pts[i].x, pts[i].y);
-        }
-        ctx.stroke();
-    } else if (stroke.tool === 'line') {
-        const p1 = pts[0];
-        const p2 = pts[pts.length - 1];
-        if (p1 && p2) {
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.stroke();
-        }
-    } else if (stroke.tool === 'rect') {
-        const p1 = pts[0];
-        const p2 = pts[pts.length - 1];
-        if (p1 && p2) {
-            ctx.rect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
-            ctx.stroke();
-        }
-    } else if (stroke.tool === 'circle') {
-        const p1 = pts[0];
-        const p2 = pts[pts.length - 1];
-        if (p1 && p2) {
-            const dx = p2.x - p1.x;
-            const dy = p2.y - p1.y;
-            const radius = Math.sqrt(dx * dx + dy * dy);
-            ctx.arc(p1.x, p1.y, radius, 0, 2 * Math.PI);
-            ctx.stroke();
-        }
-    } else if (stroke.tool === 'triangle') {
-        const p1 = pts[0];
-        const p2 = pts[pts.length - 1];
-        if (p1 && p2) {
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p1.x, p2.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.closePath();
-            ctx.stroke();
-        }
-    }
 };
 
 const distSq = (x1: number, y1: number, x2: number, y2: number) => {
@@ -313,21 +214,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         });
     }, []);
 
-    const updateMasterCanvas = useCallback(() => {
-        if (!masterCanvasRef.current) {
-            masterCanvasRef.current = document.createElement('canvas');
-            masterCanvasRef.current.width = 12000;
-            masterCanvasRef.current.height = 12000;
-        }
-        const masterCtx = masterCanvasRef.current.getContext('2d');
-        if (masterCtx) {
-            masterCtx.fillStyle = 'black';
-            masterCtx.fillRect(0, 0, 12000, 12000);
-            for (const stroke of strokesRef.current) {
-                drawStroke(masterCtx, stroke);
-            }
-        }
-    }, []);
+
 
     const redrawViewCanvas = useCallback(() => {
         const viewCanvas = canvasRef.current;
@@ -646,7 +533,6 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         cameraRef.current = target;
         setCamera(target);
 
-        updateMasterCanvas();
         redrawViewCanvas();
     };
 
@@ -718,7 +604,6 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                 strokesRef.current = strokesRef.current.filter(stroke => !hitTestStroke(worldPos.x, worldPos.y, stroke, eraserRadius));
                 if (strokesRef.current.length !== originalLength) {
                     setIsCanvasEmpty(strokesRef.current.length === 0);
-                    updateMasterCanvas();
                     redrawViewCanvas();
                 }
             } else {
@@ -829,7 +714,6 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             }
         }
         activeStrokePointsRef.current = [];
-        updateMasterCanvas();
         redrawViewCanvas();
     };
 
@@ -949,7 +833,6 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             strokesRef.current = strokesRef.current.filter(stroke => !hitTestStroke(worldPos.x, worldPos.y, stroke, eraserRadius));
             if (strokesRef.current.length !== originalLength) {
                 setIsCanvasEmpty(strokesRef.current.length === 0);
-                updateMasterCanvas();
                 redrawViewCanvas();
             }
             return;
@@ -1065,7 +948,6 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             }
         }
         activeStrokePointsRef.current = [];
-        updateMasterCanvas();
         redrawViewCanvas();
     };
 
@@ -1125,7 +1007,6 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             newPoints.forEach(pt => updateBounds(pt.x, pt.y));
         });
 
-        updateMasterCanvas();
         redrawViewCanvas();
     };
 
@@ -1171,10 +1052,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [resetView]);
 
-    // Ensure we create a master canvas on mount for backwards compatibility
-    useEffect(() => {
-        updateMasterCanvas();
-    }, [updateMasterCanvas]);
+
 
     return {
         canvasRef,
@@ -1234,7 +1112,6 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             setIsCanvasEmpty(strokesRef.current.length === 0);
             setCanUndo(undoStackRef.current.length > 0);
             
-            updateMasterCanvas();
             redrawViewCanvas();
         },
         redo: () => {
@@ -1259,7 +1136,6 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             setIsCanvasEmpty(strokesRef.current.length === 0);
             setCanRedo(redoStackRef.current.length > 0);
             
-            updateMasterCanvas();
             redrawViewCanvas();
         },
     };
