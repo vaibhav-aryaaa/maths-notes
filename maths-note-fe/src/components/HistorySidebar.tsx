@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Trash2, X } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import type { DictOfVars } from '@/types';
 import type { HistoryEntry } from '@/hooks/useSolveHistory';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -21,13 +21,13 @@ export function HistorySidebar(props: HistorySidebarProps) {
             {/* Backdrop for mobile */}
             {props.isOpen && (
                 <div 
-                    className="absolute inset-0 bg-black/60 z-30 lg:hidden pointer-events-auto"
+                    className="absolute inset-0 bg-black/60 z-sidebar-backdrop lg:hidden pointer-events-auto"
                     onClick={props.onClose}
                 />
             )}
 
             {/* Sidebar main panel */}
-            <div className={`absolute top-0 left-0 w-72 h-full bg-white/95 dark:bg-black/90 backdrop-blur-md border-r border-stone-200 dark:border-white/10 p-5 z-40 text-stone-800 dark:text-white shadow-2xl transition-transform duration-300 ease-in-out pt-[calc(1.25rem+env(safe-area-inset-top))] pl-[calc(1.25rem+env(safe-area-inset-left))] flex flex-col ${props.isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            <div className={`absolute top-0 left-0 w-72 h-full bg-white/95 dark:bg-black/90 backdrop-blur-md border-r border-stone-200 dark:border-white/10 p-5 z-sidebar text-stone-800 dark:text-white shadow-2xl transition-transform duration-300 ease-in-out pt-[calc(1.25rem+env(safe-area-inset-top))] pl-[calc(1.25rem+env(safe-area-inset-left))] flex flex-col ${props.isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <ErrorBoundary name="History Sidebar" onReset={props.onClose}>
                     <HistorySidebarInner {...props} />
                 </ErrorBoundary>
@@ -37,7 +37,6 @@ export function HistorySidebar(props: HistorySidebarProps) {
 }
 
 function HistorySidebarInner({
-    onClose,
     dictOfVars,
     history,
     onSelectEntry,
@@ -49,17 +48,8 @@ function HistorySidebarInner({
 
     return (
         <>
-            {/* Close button for mobile */}
-            <button 
-                onClick={onClose}
-                className="absolute top-4 right-4 text-stone-500 hover:text-stone-850 dark:text-gray-400 dark:hover:text-white lg:hidden cursor-pointer p-1"
-                aria-label="Close History Sidebar"
-            >
-                <X size={18} />
-            </button>
-
-            {/* Logo Branding */}
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-stone-200 dark:border-white/10 shrink-0">
+            {/* Logo Branding (shifted right to make room for toggle button) */}
+            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-stone-200 dark:border-white/10 shrink-0 pl-14 h-10">
                 <span className="text-xl font-extrabold tracking-tight font-sans">
                     solve<span className="text-[#d97706]">IQ</span>
                 </span>

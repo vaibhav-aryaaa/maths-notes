@@ -19,7 +19,7 @@ export const ResultSkeleton = ({ position }: ResultSkeletonProps) => {
 
     return (
         <div
-            className="absolute top-0 left-0 z-40 glassmorphic-card p-4 rounded-xl shadow-2xl flex flex-col overflow-hidden pointer-events-none"
+            className="absolute top-0 left-0 z-sidebar glassmorphic-card p-4 rounded-xl shadow-2xl flex flex-col overflow-hidden pointer-events-none"
             style={{
                 transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
                 width: `${width}px`,

@@ -18,7 +18,7 @@ interface CopilotPanelProps {
 
 export function CopilotPanel(props: CopilotPanelProps) {
     return (
-        <div className="absolute bottom-24 right-4 left-4 sm:left-auto sm:right-6 z-50 w-auto sm:w-[360px] h-[480px] sm:h-[520px] flex flex-col rounded-3xl overflow-hidden shadow-2xl border border-stone-200/80 dark:border-stone-800/80 bg-white/95 dark:bg-[#18181c]/95 backdrop-blur-md">
+        <div className="absolute bottom-24 right-4 left-4 sm:left-auto sm:right-6 z-controls w-auto sm:w-[360px] h-[480px] sm:h-[520px] flex flex-col rounded-3xl overflow-hidden shadow-2xl border border-stone-200/80 dark:border-stone-800/80 bg-white/95 dark:bg-[#18181c]/95 backdrop-blur-md">
             <ErrorBoundary name="AI Copilot" onReset={props.onClose}>
                 <CopilotPanelInner {...props} />
             </ErrorBoundary>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { SWATCHES } from '@/constants';
-import { Eraser, Pen, MessageSquare, X, Menu, Sparkles, ChevronDown, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye } from 'lucide-react';
+import { Eraser, Pen, MessageSquare, X, Menu, Sparkles, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { ResultSkeleton } from '@/components/ResultSkeleton';
 import { useMathCanvas } from './useMathCanvas';
@@ -516,8 +516,8 @@ export default function Home() {
                 getHistoryEntryImage={getHistoryEntryImage}
             />
 
-            {/* Sidebar Toggle Button (Top-Left) */}
-            <div className={`absolute z-50 top-[calc(1rem+env(safe-area-inset-top))] left-[calc(1rem+env(safe-area-inset-left))] pointer-events-auto transition-opacity duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            {/* Sidebar Toggle & Standalone Logo Button (Top-Left) */}
+            <div className={`absolute z-controls top-[calc(1.25rem+env(safe-area-inset-top))] left-[calc(1.25rem+env(safe-area-inset-left))] flex items-center gap-3 pointer-events-auto transition-opacity duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                 <Button
                     onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                     className={`bg-white dark:bg-[#1e1e1e] hover:bg-slate-50 dark:hover:bg-[#2e2e2e] text-stone-700 dark:text-white border border-stone-200 dark:border-[#333] transition-all shadow-lg p-2.5 h-10 w-10 rounded-lg flex items-center justify-center ${isSidebarOpen ? 'bg-slate-100 dark:bg-[#333] border-stone-300 dark:border-white/20' : ''}`}
@@ -527,34 +527,45 @@ export default function Home() {
                 >
                     {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
                 </Button>
+
+                {/* Standalone Logo when Sidebar is closed */}
+                {!isSidebarOpen && (
+                    <div className="flex items-center gap-2 bg-white/90 dark:bg-black/80 backdrop-blur-md px-3.5 h-10 border border-stone-200 dark:border-[#333] rounded-xl shadow-lg animate-in fade-in slide-in-from-left-4 duration-300">
+                        <span className="text-sm font-extrabold tracking-tight font-sans select-none">
+                            solve<span className="text-[#d97706]">IQ</span>
+                        </span>
+                    </div>
+                )}
             </div>
 
             {/* Centered Horizontal Toolbar */}
-            <div className={`absolute z-50 top-[calc(1rem+env(safe-area-inset-top))] left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-white dark:bg-[#1e1e1e] border border-stone-200 dark:border-[#333] p-1.5 rounded-xl shadow-lg pointer-events-auto transition-all duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            <div className={`absolute z-controls top-[calc(1.25rem+env(safe-area-inset-top))] left-1/2 -translate-x-1/2 flex items-center bg-white/95 dark:bg-[#1c1c1f]/95 border border-stone-200/80 dark:border-stone-800/80 px-2.5 h-12 rounded-xl shadow-xl pointer-events-auto transition-all duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'} gap-1`}>
                 {/* Tool Selector Segmented Control */}
-                <div className="flex items-center gap-1 bg-stone-100/80 dark:bg-[#2c2c2c]/30 p-1 rounded-lg border border-stone-200/50 dark:border-[#444]/40 h-8 flex-shrink-0">
+                <div className="flex items-center gap-1">
                     {[
-                        { id: 'pen' as const, label: 'Pen', icon: <Pen size={13} /> },
-                        { id: 'eraser' as const, label: 'Eraser', icon: <Eraser size={13} /> },
-                        { id: 'select-lasso' as const, label: 'Lasso Solve', icon: <Scissors size={13} /> },
-                        { id: 'select-rect' as const, label: 'Rect Solve', icon: <Crop size={13} /> },
+                        { id: 'pen' as const, label: 'Pen', icon: <Pen size={14} /> },
+                        { id: 'eraser' as const, label: 'Eraser', icon: <Eraser size={14} /> },
+                        { id: 'select-lasso' as const, label: 'Lasso Solve', icon: <Scissors size={14} /> },
+                        { id: 'select-rect' as const, label: 'Rect Solve', icon: <Crop size={14} /> },
                     ].map((t) => (
                         <button
                             key={t.id}
                             onClick={() => setActiveTool(t.id)}
-                            className={`cursor-pointer transition-all px-2.5 h-6 flex items-center gap-1 rounded-md text-xs font-semibold select-none whitespace-nowrap flex-shrink-0 ${
+                            className={`cursor-pointer transition-all w-9 h-9 flex items-center justify-center rounded-lg ${
                                 activeTool === t.id 
-                                    ? 'bg-white dark:bg-[#3c3c3c] text-amber-600 dark:text-amber-400 font-bold shadow-sm border border-stone-200/40 dark:border-transparent' 
-                                    : 'hover:bg-black/5 dark:hover:bg-white/5 text-stone-600 dark:text-gray-300'
+                                    ? 'bg-stone-100 dark:bg-white/10 text-amber-600 dark:text-amber-400 font-bold shadow-none' 
+                                    : 'hover:bg-stone-100 dark:hover:bg-white/5 text-stone-600 dark:text-gray-300'
                             }`}
                             title={t.label}
                             aria-label={`Select ${t.label} tool`}
                         >
                             {t.icon}
-                            <span className="hidden sm:inline">{t.label}</span>
                         </button>
                     ))}
                 </div>
+
+                {/* Divider */}
+                <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
 
                 {/* Clear Canvas Button */}
                 <Button
@@ -562,20 +573,19 @@ export default function Home() {
                         setActiveSolveRegion(null);
                         resetCanvas();
                     }}
-                    className="bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] transition-all p-2 h-8 flex items-center justify-center gap-1.5 rounded-lg min-w-[70px]"
+                    className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg"
                     variant="default"
                     title="Clear Canvas (Destroy whiteboard content)"
                     aria-label="Clear all content from whiteboard canvas"
                 >
                     <Trash2 size={14} className="text-red-500 dark:text-red-400" />
-                    <span className="text-xs font-semibold select-none font-sans">Clear</span>
                 </Button>
 
                 {/* Undo Button */}
                 <Button
                     onClick={undo}
                     disabled={!canUndo}
-                    className="bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] transition-all p-2 h-8 w-8 flex items-center justify-center rounded-lg disabled:opacity-35 disabled:hover:bg-white dark:disabled:hover:bg-[#2c2c2c]/50 disabled:cursor-not-allowed cursor-pointer"
+                    className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
                     variant="default"
                     title="Undo (Ctrl+Z / ⌘+Z)"
                     aria-label="Undo last canvas stroke"
@@ -587,7 +597,7 @@ export default function Home() {
                 <Button
                     onClick={redo}
                     disabled={!canRedo}
-                    className="bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] transition-all p-2 h-8 w-8 flex items-center justify-center rounded-lg disabled:opacity-35 disabled:hover:bg-white dark:disabled:hover:bg-[#2c2c2c]/50 disabled:cursor-not-allowed cursor-pointer"
+                    className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
                     variant="default"
                     title="Redo (Ctrl+Shift+Z / ⌘+Shift+Z)"
                     aria-label="Redo last undone canvas stroke"
@@ -598,7 +608,7 @@ export default function Home() {
                 {/* Reset View Button */}
                 <Button
                     onClick={resetView}
-                    className="bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] transition-all p-2 h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer"
+                    className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg cursor-pointer"
                     variant="default"
                     title="Reset View (Ctrl+0)"
                     aria-label="Reset zoom and pan position of canvas workspace"
@@ -609,7 +619,7 @@ export default function Home() {
                 {activeTool === 'pen' && (
                     <>
                         {/* Divider */}
-                        <div className="h-5 w-[1px] bg-stone-200 dark:bg-[#333] mx-1" />
+                        <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
 
                         {/* Shape Tool Selector Button */}
                         <div className="relative">
@@ -617,7 +627,7 @@ export default function Home() {
                                 onClick={() => {
                                     setIsShapeMenuOpen(!isShapeMenuOpen);
                                 }}
-                                className={`bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 px-2 transition-all gap-1.5 ${isShapeMenuOpen ? 'bg-slate-100 dark:bg-[#3c3c3c] border-stone-300 dark:border-white/20' : ''}`}
+                                className={`bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white rounded-lg flex items-center justify-center h-9 w-9 transition-all cursor-pointer ${isShapeMenuOpen ? 'bg-stone-100 dark:bg-white/10' : ''}`}
                                 title="Select Drawing Tool"
                                 aria-label={`Select shape drawing tool (currently active: ${selectedShape === 'freehand' ? 'Pen' : selectedShape})`}
                             >
@@ -626,14 +636,10 @@ export default function Home() {
                                 {selectedShape === 'rectangle' && <Square size={14} className="text-stone-500 dark:text-gray-300" />}
                                 {selectedShape === 'circle' && <Circle size={14} className="text-stone-500 dark:text-gray-300" />}
                                 {selectedShape === 'triangle' && <Triangle size={14} className="text-stone-500 dark:text-gray-300" />}
-                                <span className="text-xs font-semibold select-none capitalize text-stone-700 dark:text-white">
-                                    {selectedShape === 'freehand' ? 'Pen' : selectedShape}
-                                </span>
-                                <ChevronDown size={10} className="text-stone-400 dark:text-gray-500" />
                             </button>
                             
                             {isShapeMenuOpen && (
-                                <div className="absolute top-11 left-1/2 -translate-x-1/2 bg-white dark:bg-[#18181c] border border-stone-200 dark:border-[#2d2d30] p-1 rounded-xl shadow-2xl z-50 flex flex-col gap-0.5 min-w-[120px] pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-150">
+                                <div className="absolute top-12 left-1/2 -translate-x-1/2 bg-white dark:bg-[#18181c] border border-stone-200 dark:border-[#2d2d30] p-1.5 rounded-xl shadow-2xl z-50 flex flex-col gap-0.5 min-w-[125px] pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-150">
                                     {[
                                         { id: 'freehand' as const, label: 'Pen', icon: <Pen size={13} /> },
                                         { id: 'line' as const, label: 'Line', icon: <Slash size={13} /> },
@@ -660,17 +666,17 @@ export default function Home() {
                         </div>
 
                         {/* Divider */}
-                        <div className="h-5 w-[1px] bg-stone-200 dark:bg-[#333] mx-1" />
+                        <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
 
                         {/* Inline Color Palette Swatches */}
-                        <div className="flex items-center gap-1.5 px-1 flex-shrink-0">
+                        <div className="flex items-center gap-2 px-1.5 flex-shrink-0">
                             {SWATCHES.map((swatch) => (
                                 <button
                                     key={swatch}
                                     onClick={() => setColor(swatch)}
                                     className={`cursor-pointer w-4 h-4 rounded-full border border-stone-200 dark:border-white/20 transition-all hover:scale-110 active:scale-90 ${
                                         color === swatch 
-                                            ? 'ring-2 ring-amber-500 dark:ring-amber-400 ring-offset-2 ring-offset-white dark:ring-offset-[#1e1e1e] scale-110' 
+                                            ? 'ring-2 ring-amber-500 dark:ring-amber-400 ring-offset-2 ring-offset-white dark:ring-offset-[#1c1c1f] scale-110' 
                                              : ''
                                     }`}
                                     style={{ backgroundColor: swatch }}
@@ -681,10 +687,10 @@ export default function Home() {
                         </div>
 
                         {/* Divider */}
-                        <div className="h-5 w-[1px] bg-stone-200 dark:bg-[#333] mx-1" />
+                        <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
 
                         {/* Stroke Width Presets */}
-                        <div className="flex items-center gap-1 bg-stone-100/80 dark:bg-[#2c2c2c]/30 p-1 rounded-lg border border-stone-200/50 dark:border-[#444]/40 h-8 flex-shrink-0">
+                        <div className="flex items-center gap-0.5">
                             {[
                                 { val: 3, label: 'Thin', sizeClass: 'w-1.5 h-1.5' },
                                 { val: 6, label: 'Medium', sizeClass: 'w-2.5 h-2.5' },
@@ -693,10 +699,10 @@ export default function Home() {
                                 <button
                                     key={preset.val}
                                     onClick={() => setStrokeWidth(preset.val)}
-                                    className={`cursor-pointer transition-all px-2 h-6 flex items-center justify-center rounded-md text-xs font-semibold select-none ${
+                                    className={`cursor-pointer transition-all w-7 h-7 flex items-center justify-center rounded-md ${
                                         strokeWidth === preset.val
-                                            ? 'bg-white dark:bg-[#3c3c3c] text-amber-600 dark:text-amber-400 font-bold shadow-sm border border-stone-200/40 dark:border-transparent'
-                                            : 'hover:bg-stone-100 dark:hover:bg-white/5 text-stone-400 dark:text-gray-400'
+                                            ? 'bg-stone-100 dark:bg-white/10 text-amber-600 dark:text-amber-400 font-bold shadow-none'
+                                            : 'hover:bg-stone-100 dark:hover:bg-white/5 text-stone-450 dark:text-gray-400'
                                     }`}
                                     title={`Pen size: ${preset.label}`}
                                     aria-label={`Set brush size to ${preset.label}`}
@@ -712,11 +718,10 @@ export default function Home() {
                 {activeTool === 'eraser' && (
                     <>
                         {/* Divider */}
-                        <div className="h-5 w-[1px] bg-stone-200 dark:bg-[#333] mx-1" />
+                        <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
 
                         {/* Eraser Width Presets */}
-                        <div className="flex items-center gap-1 bg-stone-100/80 dark:bg-[#2c2c2c]/30 p-1 rounded-lg border border-stone-200/50 dark:border-[#444]/40 h-8 flex-shrink-0">
-                            <span className="text-[10px] text-stone-500 dark:text-gray-500 font-bold px-1.5 uppercase tracking-wider select-none hidden sm:inline">Eraser Size</span>
+                        <div className="flex items-center gap-0.5">
                             {[
                                 { val: 15, label: 'Thin', sizeClass: 'w-1.5 h-1.5' },
                                 { val: 30, label: 'Medium', sizeClass: 'w-2.5 h-2.5' },
@@ -725,10 +730,10 @@ export default function Home() {
                                 <button
                                     key={preset.val}
                                     onClick={() => setEraserWidth(preset.val)}
-                                    className={`cursor-pointer transition-all px-2 h-6 flex items-center justify-center rounded-md text-xs font-semibold select-none ${
+                                    className={`cursor-pointer transition-all w-7 h-7 flex items-center justify-center rounded-md ${
                                         eraserWidth === preset.val
-                                            ? 'bg-white dark:bg-[#3c3c3c] text-amber-600 dark:text-amber-400 font-bold shadow-sm border border-stone-200/40 dark:border-transparent'
-                                            : 'hover:bg-stone-100 dark:hover:bg-white/5 text-stone-400 dark:text-gray-400'
+                                            ? 'bg-stone-100 dark:bg-white/10 text-amber-600 dark:text-amber-400 font-bold shadow-none'
+                                            : 'hover:bg-stone-100 dark:hover:bg-white/5 text-stone-450 dark:text-gray-400'
                                     }`}
                                     title={`Eraser size: ${preset.label}`}
                                     aria-label={`Set eraser size to ${preset.label}`}
@@ -741,7 +746,7 @@ export default function Home() {
                 )}
 
                 {/* Divider */}
-                <div className="h-5 w-[1px] bg-stone-200 dark:bg-[#333] mx-1" />
+                <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
 
                 {/* Cloud Sync Manager */}
                 <AuthManager user={user} clearHistory={clearHistory} />
@@ -749,7 +754,7 @@ export default function Home() {
                 {/* Keyboard Shortcuts Button */}
                 <Button
                     onClick={() => setIsShortcutsOpen(true)}
-                    className="bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 w-8 transition-all hover:scale-105 active:scale-95 cursor-pointer font-bold font-sans text-xs"
+                    className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg cursor-pointer font-bold font-sans text-xs"
                     variant="default"
                     title="Keyboard Shortcuts (?)"
                     aria-label="Open Keyboard Shortcuts Reference list"
@@ -760,7 +765,7 @@ export default function Home() {
                 {/* Theme Toggle Button */}
                 <Button
                     onClick={toggleColorScheme}
-                    className="bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 w-8 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                    className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg cursor-pointer"
                     variant="default"
                     title={colorScheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                     aria-label={colorScheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
@@ -771,7 +776,7 @@ export default function Home() {
                 {/* Focus/Presentation Mode Button */}
                 <Button
                     onClick={toggleFocusMode}
-                    className={`bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 w-8 transition-all hover:scale-105 active:scale-95 cursor-pointer ${isFocusMode ? 'bg-amber-100 dark:bg-amber-950/45 border-amber-300' : ''}`}
+                    className={`bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg cursor-pointer ${isFocusMode ? 'bg-amber-100 dark:bg-amber-950/45 border-amber-300' : ''}`}
                     variant="default"
                     title="Focus Mode (F)"
                     aria-label="Toggle Fullscreen Focus Mode"
@@ -781,7 +786,7 @@ export default function Home() {
             </div>
 
             {/* Top Right Run Button */}
-            <div className={`absolute z-50 top-[calc(1rem+env(safe-area-inset-top))] right-[calc(1rem+env(safe-area-inset-right))] pointer-events-auto transition-opacity duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            <div className={`absolute z-controls top-[calc(1rem+env(safe-area-inset-top))] right-[calc(1rem+env(safe-area-inset-right))] pointer-events-auto transition-opacity duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                 <Button
                     onClick={() => runRoute(undefined, (bounds) => {
                         setActiveSolveRegion({ bounds, status: 'scanning' });
@@ -815,7 +820,7 @@ export default function Home() {
             />
             {activeSolveBox && activeSolveRegion && (
                 <div 
-                    className={`absolute inset-0 z-10 pointer-events-none transition-opacity duration-200 ${
+                    className={`absolute inset-0 z-canvas-overlay pointer-events-none transition-opacity duration-200 ${
                         isDrawing ? 'opacity-0' : 'opacity-100'
                     }`}
                 >
@@ -861,7 +866,7 @@ export default function Home() {
             {isScanning && <div className="scanning-laser" />}
 
             {showExamples && (
-                <div className="absolute top-[40%] sm:top-[35%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-6 max-w-lg w-full px-6 text-center select-none pointer-events-none">
+                <div className="absolute top-[40%] sm:top-[35%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-canvas-placeholder flex flex-col items-center gap-6 max-w-lg w-full px-6 text-center select-none pointer-events-none">
                     <div className="flex flex-col items-center gap-2 pointer-events-auto">
                         <h2 className="text-2xl sm:text-3xl font-extrabold text-stone-900 dark:text-white tracking-tight">
                             Unlock the Power of <span className="text-amber-500">SolveIQ</span>
@@ -893,7 +898,7 @@ export default function Home() {
 
             <button
                 onClick={() => setIsCopilotOpen(!isCopilotOpen)}
-                className={`absolute bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-tr from-rose-500 via-orange-500 to-amber-400 flex items-center justify-center shadow-lg shadow-orange-500/40 hover:scale-110 active:scale-95 transition-all duration-300 border border-white/20 cursor-pointer ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                className={`absolute bottom-6 right-6 z-controls w-14 h-14 rounded-full bg-gradient-to-tr from-rose-500 via-orange-500 to-amber-400 flex items-center justify-center shadow-lg shadow-orange-500/40 hover:scale-110 active:scale-95 transition-all duration-300 border border-white/20 cursor-pointer ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
                 title="Vector"
                 aria-label={isCopilotOpen ? "Close AI Copilot chat" : "Open AI Copilot chat"}
             >
@@ -988,7 +993,7 @@ export default function Home() {
             </Modal>
 
             {showFocusHint && (
-                <div className="absolute z-[100] bottom-10 left-1/2 -translate-x-1/2 bg-[#1c1917]/90 dark:bg-white/95 text-white dark:text-stone-900 border border-white/10 dark:border-stone-200 px-4 py-2.5 rounded-xl text-xs font-semibold shadow-2xl flex items-center gap-2 pointer-events-none animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="absolute z-toast bottom-10 left-1/2 -translate-x-1/2 bg-[#1c1917]/90 dark:bg-white/95 text-white dark:text-stone-900 border border-white/10 dark:border-stone-200 px-4 py-2.5 rounded-xl text-xs font-semibold shadow-2xl flex items-center gap-2 pointer-events-none animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <span>Press <kbd className="px-1.5 py-0.5 bg-white/20 dark:bg-stone-200 rounded font-mono font-bold">F</kbd> to exit focus mode</span>
                 </div>
             )}

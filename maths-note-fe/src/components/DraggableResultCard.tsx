@@ -353,7 +353,7 @@ export const DraggableResultCard = ({
             tabIndex={0}
             onKeyDown={handleKeyDown}
             aria-label={`AI Result Card. Solution: ${summaryText}. Press arrow keys to move card around viewport.`}
-            className="absolute top-0 left-0 z-50 glassmorphic-card p-4 rounded-xl shadow-2xl cursor-move select-none flex flex-col overflow-hidden animate-[fadeIn_0.5s_ease-out_forwards] focus-visible:outline-none"
+            className="absolute top-0 left-0 z-controls glassmorphic-card p-4 rounded-xl shadow-2xl cursor-move select-none flex flex-col overflow-hidden animate-[fadeIn_0.5s_ease-out_forwards] focus-visible:outline-none"
             style={{ 
                 transform: `translate3d(${finalPosition.x}px, ${finalPosition.y}px, 0)`,
                 width: isMinimized ? 'auto' : `${size.width}px`,
@@ -501,7 +501,7 @@ export const DraggableResultCard = ({
 
             {!isMinimized && !readOnly && (
                 <div 
-                    className="absolute bottom-1 right-1 w-4 h-4 cursor-se-resize flex items-end justify-end pointer-events-auto z-[60]"
+                    className="absolute bottom-1 right-1 w-4 h-4 cursor-se-resize flex items-end justify-end pointer-events-auto z-resize-handle"
                     onMouseDown={handleResizeMouseDown}
                     onTouchStart={handleResizeTouchStart}
                 >

@@ -129,7 +129,7 @@ export function AuthManager({ user, clearHistory }: AuthManagerProps) {
                     setConfirmPurge(false);
                     setOpened(true);
                 }}
-                className={`bg-white dark:bg-[#2c2c2c]/50 hover:bg-slate-50 dark:hover:bg-[#3c3c3c] text-stone-700 dark:text-white border border-stone-200 dark:border-[#444] p-1.5 rounded-lg flex items-center justify-center h-8 w-8 transition-all hover:scale-105 active:scale-95 cursor-pointer relative`}
+                className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white rounded-lg flex items-center justify-center h-9 w-9 transition-all cursor-pointer relative p-0 border-none"
                 variant="default"
                 title={user ? `Signed in as ${user.email} (Sync Active)` : 'Sign in to sync history across devices'}
                 aria-label={user ? `Signed in as ${user.email} (Sync Active)` : 'Sign in to sync history across devices'}
