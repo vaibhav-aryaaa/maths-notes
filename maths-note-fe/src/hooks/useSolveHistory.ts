@@ -11,6 +11,7 @@ export interface HistoryEntry {
     canvasImage: string;     // Full-scale image to restore canvas
     results: GeneratedResult[];
     dictOfVars: DictOfVars;
+    strokes?: any[];
 }
 
 const DB_NAME = 'SolveIQHistoryDB';
@@ -188,7 +189,8 @@ export function useSolveHistory() {
     const saveHistoryEntry = useCallback(async (
         canvas: HTMLCanvasElement,
         results: GeneratedResult[],
-        dictOfVars: DictOfVars
+        dictOfVars: DictOfVars,
+        strokes?: any[]
     ) => {
         const canvasThumbnail = getCanvasThumbnail(canvas);
         const canvasImage = canvas.toDataURL('image/png');
@@ -201,7 +203,8 @@ export function useSolveHistory() {
             canvasThumbnail,
             canvasImage,
             results,
-            dictOfVars
+            dictOfVars,
+            strokes
         };
 
         // Try backend write first if authenticated

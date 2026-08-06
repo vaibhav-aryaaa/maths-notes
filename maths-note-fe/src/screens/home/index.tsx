@@ -4,7 +4,7 @@ import { SWATCHES } from '@/constants';
 import { Eraser, Pen, MessageSquare, X, Menu, Sparkles, ChevronDown, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { ResultSkeleton } from '@/components/ResultSkeleton';
-import { useMathCanvas } from './useMathCanvas';
+import { useMathCanvas, drawStroke } from './useMathCanvas';
 import { useCanvasSolver } from './useCanvasSolver';
 import { useCopilotChat } from './useCopilotChat';
 import { Modal, useMantineColorScheme } from '@mantine/core';
@@ -127,6 +127,7 @@ export default function Home() {
         camera,
         resetView,
         redrawViewCanvas,
+        strokesRef,
     } = useMathCanvas(handleSelectionSolve);
 
     const { 
@@ -148,10 +149,10 @@ export default function Home() {
         runRoute,
     } = useCanvasSolver(
         canvasRef,
-        masterCanvasRef,
+        strokesRef,
         drawBoundsRef,
         (canvas, allResults, currentDict) => {
-            saveHistoryEntry(canvas, allResults, currentDict);
+            saveHistoryEntry(canvas, allResults, currentDict, strokesRef.current);
         },
         redrawViewCanvas
     );
@@ -357,28 +358,59 @@ export default function Home() {
     const handleSelectHistoryEntry = (entry: any) => {
         const masterCanvas = masterCanvasRef.current;
         if (!masterCanvas) return;
-        const masterCtx = masterCanvas.getContext('2d');
-        if (!masterCtx) return;
 
-        const img = new Image();
-        img.src = entry.canvasImage;
-        img.onload = () => {
-            masterCtx.clearRect(0, 0, masterCanvas.width, masterCanvas.height);
-            // Draw centered on the master canvas (6000, 6000)
-            const xOffset = 6000 - img.width / 2;
-            const yOffset = 6000 - img.height / 2;
-            masterCtx.drawImage(img, xOffset, yOffset);
-            setIsCanvasEmpty(false);
+        if (entry.strokes) {
+            strokesRef.current = entry.strokes.map((s: any) => ({
+                ...s,
+                points: s.points.map((pt: any) => ({ ...pt }))
+            }));
+            setIsCanvasEmpty(entry.strokes.length === 0);
             
-            drawBoundsRef.current.minX = xOffset;
-            drawBoundsRef.current.minY = yOffset;
-            drawBoundsRef.current.maxX = xOffset + img.width;
-            drawBoundsRef.current.maxY = yOffset + img.height;
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            entry.strokes.forEach((stroke: any) => {
+                stroke.points.forEach((pt: any) => {
+                    if (pt.x < minX) minX = pt.x;
+                    if (pt.x > maxX) maxX = pt.x;
+                    if (pt.y < minY) minY = pt.y;
+                    if (pt.y > maxY) maxY = pt.y;
+                });
+            });
+            drawBoundsRef.current = { minX, minY, maxX, maxY };
+            
+            const masterCtx = masterCanvas.getContext('2d');
+            if (masterCtx) {
+                masterCtx.fillStyle = 'black';
+                masterCtx.fillRect(0, 0, masterCanvas.width, masterCanvas.height);
+                entry.strokes.forEach((stroke: any) => {
+                    drawStroke(masterCtx, stroke);
+                });
+            }
             resetView();
-        };
+        } else {
+            const masterCtx = masterCanvas.getContext('2d');
+            if (!masterCtx) return;
+            const img = new Image();
+            img.src = entry.canvasImage;
+            img.onload = () => {
+                masterCtx.fillStyle = 'black';
+                masterCtx.fillRect(0, 0, masterCanvas.width, masterCanvas.height);
+                const xOffset = 6000 - img.width / 2;
+                const yOffset = 6000 - img.height / 2;
+                masterCtx.drawImage(img, xOffset, yOffset);
+                setIsCanvasEmpty(false);
+                strokesRef.current = [];
+                
+                drawBoundsRef.current.minX = xOffset;
+                drawBoundsRef.current.minY = yOffset;
+                drawBoundsRef.current.maxX = xOffset + img.width;
+                drawBoundsRef.current.maxY = yOffset + img.height;
+                resetView();
+            };
+        }
 
         setResults(entry.results);
         setDictOfVars(entry.dictOfVars);
+        redrawViewCanvas();
     };
 
     const {

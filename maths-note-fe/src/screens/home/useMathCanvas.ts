@@ -1,4 +1,185 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import type { Stroke } from '@/types';
+
+const generateUUID = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    return Math.random().toString(36).substring(2, 9) + '-' + Date.now().toString(36);
+};
+
+const getStrokeBounds = (stroke: Stroke) => {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const pts = stroke.points;
+    if (pts.length === 0) {
+        return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+    }
+    if (stroke.tool === 'rect' || stroke.tool === 'triangle' || stroke.tool === 'line') {
+        const p1 = pts[0];
+        const p2 = pts[pts.length - 1];
+        if (p1 && p2) {
+            minX = Math.min(p1.x, p2.x);
+            maxX = Math.max(p1.x, p2.x);
+            minY = Math.min(p1.y, p2.y);
+            maxY = Math.max(p1.y, p2.y);
+        }
+    } else if (stroke.tool === 'circle') {
+        const p1 = pts[0];
+        const p2 = pts[pts.length - 1];
+        if (p1 && p2) {
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const radius = Math.sqrt(dx * dx + dy * dy);
+            minX = p1.x - radius;
+            maxX = p1.x + radius;
+            minY = p1.y - radius;
+            maxY = p1.y + radius;
+        }
+    } else {
+        // freehand pen
+        for (const pt of pts) {
+            if (pt.x < minX) minX = pt.x;
+            if (pt.x > maxX) maxX = pt.x;
+            if (pt.y < minY) minY = pt.y;
+            if (pt.y > maxY) maxY = pt.y;
+        }
+    }
+    const halfWidth = stroke.width / 2;
+    return {
+        minX: minX - halfWidth,
+        minY: minY - halfWidth,
+        maxX: maxX + halfWidth,
+        maxY: maxY + halfWidth
+    };
+};
+
+export const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
+    const pts = stroke.points;
+    if (pts.length === 0) return;
+
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = stroke.color;
+    ctx.lineWidth = stroke.width;
+    ctx.globalCompositeOperation = 'source-over';
+
+    ctx.beginPath();
+    if (stroke.tool === 'pen') {
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) {
+            ctx.lineTo(pts[i].x, pts[i].y);
+        }
+        ctx.stroke();
+    } else if (stroke.tool === 'line') {
+        const p1 = pts[0];
+        const p2 = pts[pts.length - 1];
+        if (p1 && p2) {
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+        }
+    } else if (stroke.tool === 'rect') {
+        const p1 = pts[0];
+        const p2 = pts[pts.length - 1];
+        if (p1 && p2) {
+            ctx.rect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
+            ctx.stroke();
+        }
+    } else if (stroke.tool === 'circle') {
+        const p1 = pts[0];
+        const p2 = pts[pts.length - 1];
+        if (p1 && p2) {
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const radius = Math.sqrt(dx * dx + dy * dy);
+            ctx.arc(p1.x, p1.y, radius, 0, 2 * Math.PI);
+            ctx.stroke();
+        }
+    } else if (stroke.tool === 'triangle') {
+        const p1 = pts[0];
+        const p2 = pts[pts.length - 1];
+        if (p1 && p2) {
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p1.x, p2.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.closePath();
+            ctx.stroke();
+        }
+    }
+};
+
+const distSq = (x1: number, y1: number, x2: number, y2: number) => {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    return dx * dx + dy * dy;
+};
+
+const distToSegmentSq = (px: number, py: number, x1: number, y1: number, x2: number, y2: number) => {
+    const l2 = distSq(x1, y1, x2, y2);
+    if (l2 === 0) return distSq(px, py, x1, y1);
+    let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return distSq(px, py, x1 + t * (x2 - x1), y1 + t * (y2 - y1));
+};
+
+const hitTestStroke = (ex: number, ey: number, stroke: Stroke, radius: number) => {
+    const bounds = getStrokeBounds(stroke);
+    if (ex < bounds.minX - radius || ex > bounds.maxX + radius || ey < bounds.minY - radius || ey > bounds.maxY + radius) {
+        return false;
+    }
+
+    const threshold = radius + stroke.width / 2;
+    const thresholdSq = threshold * threshold;
+    const pts = stroke.points;
+    if (pts.length === 0) return false;
+
+    if (stroke.tool === 'pen') {
+        for (let i = 0; i < pts.length - 1; i++) {
+            if (distToSegmentSq(ex, ey, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y) <= thresholdSq) {
+                return true;
+            }
+        }
+        if (pts.length === 1) {
+            if (distSq(ex, ey, pts[0].x, pts[0].y) <= thresholdSq) return true;
+        }
+    } else if (stroke.tool === 'line') {
+        const p1 = pts[0];
+        const p2 = pts[pts.length - 1];
+        if (p1 && p2) {
+            return distToSegmentSq(ex, ey, p1.x, p1.y, p2.x, p2.y) <= thresholdSq;
+        }
+    } else if (stroke.tool === 'rect') {
+        const p1 = pts[0];
+        const p2 = pts[pts.length - 1];
+        if (p1 && p2) {
+            const top = distToSegmentSq(ex, ey, p1.x, p1.y, p2.x, p1.y);
+            const right = distToSegmentSq(ex, ey, p2.x, p1.y, p2.x, p2.y);
+            const bottom = distToSegmentSq(ex, ey, p2.x, p2.y, p1.x, p2.y);
+            const left = distToSegmentSq(ex, ey, p1.x, p2.y, p1.x, p1.y);
+            return Math.min(top, right, bottom, left) <= thresholdSq;
+        }
+    } else if (stroke.tool === 'circle') {
+        const p1 = pts[0];
+        const p2 = pts[pts.length - 1];
+        if (p1 && p2) {
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const radiusCircle = Math.sqrt(dx * dx + dy * dy);
+            const d = Math.sqrt(distSq(ex, ey, p1.x, p1.y));
+            return Math.abs(d - radiusCircle) <= threshold;
+        }
+    } else if (stroke.tool === 'triangle') {
+        const p1 = pts[0];
+        const p2 = pts[pts.length - 1];
+        if (p1 && p2) {
+            const s1 = distToSegmentSq(ex, ey, p1.x, p1.y, p1.x, p2.y);
+            const s2 = distToSegmentSq(ex, ey, p1.x, p2.y, p2.x, p2.y);
+            const s3 = distToSegmentSq(ex, ey, p2.x, p2.y, p1.x, p1.y);
+            return Math.min(s1, s2, s3) <= thresholdSq;
+        }
+    }
+    return false;
+};
 
 export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'lasso'; points: { x: number; y: number }[]; bounds: { minX: number; minY: number; maxX: number; maxY: number } }) => void) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -45,6 +226,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             localStorage.setItem('solvelq_eraser_width', String(eraserWidth));
         }
     }, [eraserWidth]);
+
     const [selectedShape, setSelectedShape] = useState<'freehand' | 'line' | 'rectangle' | 'circle' | 'triangle'>('freehand');
     const [isShapeMenuOpen, setIsShapeMenuOpen] = useState(false);
     const [windowSize, setWindowSize] = useState({ 
@@ -70,8 +252,11 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
     // Bounds tracking for canvas crop optimization (stores world coordinates on master canvas)
     const drawBoundsRef = useRef({ minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
 
+    // Vector state database
+    const strokesRef = useRef<Stroke[]>([]);
+
     interface HistoryState {
-        imageData: ImageData;
+        strokes: Stroke[];
         bounds: { minX: number; minY: number; maxX: number; maxY: number };
     }
 
@@ -80,22 +265,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
     const [canUndo, setCanUndo] = useState(false);
     const [canRedo, setCanRedo] = useState(false);
 
-    const getMasterCanvas = useCallback((): HTMLCanvasElement => {
-        if (!masterCanvasRef.current) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 12000;
-            canvas.height = 12000;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                ctx.lineCap = 'round';
-                ctx.lineWidth = 3;
-            }
-            masterCanvasRef.current = canvas;
-        }
-        return masterCanvasRef.current;
-    }, []);
-
-    // Camera space parameters: start centered on the 12000x12000px canvas
+    // Centered camera target centering logic
     const getCenteredCamera = useCallback(() => {
         const viewCanvas = canvasRef.current;
         const width = viewCanvas ? viewCanvas.width : (typeof window !== 'undefined' ? window.innerWidth : 1024);
@@ -143,10 +313,25 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         });
     }, []);
 
+    const updateMasterCanvas = useCallback(() => {
+        if (!masterCanvasRef.current) {
+            masterCanvasRef.current = document.createElement('canvas');
+            masterCanvasRef.current.width = 12000;
+            masterCanvasRef.current.height = 12000;
+        }
+        const masterCtx = masterCanvasRef.current.getContext('2d');
+        if (masterCtx) {
+            masterCtx.fillStyle = 'black';
+            masterCtx.fillRect(0, 0, 12000, 12000);
+            for (const stroke of strokesRef.current) {
+                drawStroke(masterCtx, stroke);
+            }
+        }
+    }, []);
+
     const redrawViewCanvas = useCallback(() => {
         const viewCanvas = canvasRef.current;
-        const masterCanvas = getMasterCanvas();
-        if (!viewCanvas || !masterCanvas) return;
+        if (!viewCanvas) return;
         const viewCtx = viewCanvas.getContext('2d');
         if (!viewCtx) return;
 
@@ -159,50 +344,69 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         viewCtx.fillStyle = 'black';
         viewCtx.fillRect(0, 0, viewCanvas.width, viewCanvas.height);
         
-        // Calculate visible source coordinates on master canvas
-        const srcX = Math.max(0, -offsetX / scale);
-        const srcY = Math.max(0, -offsetY / scale);
-        
-        // Calculate visible size (limited by master canvas bounds)
-        const srcWidth = Math.min(masterCanvas.width - srcX, viewCanvas.width / scale);
-        const srcHeight = Math.min(masterCanvas.height - srcY, viewCanvas.height / scale);
+        // Calculate visible region in world space
+        const visibleMinX = -offsetX / scale;
+        const visibleMinY = -offsetY / scale;
+        const visibleMaxX = (viewCanvas.width - offsetX) / scale;
+        const visibleMaxY = (viewCanvas.height - offsetY) / scale;
 
-        // Map to destination screen coordinates
-        const destX = srcX * scale + offsetX;
-        const destY = srcY * scale + offsetY;
-        const destWidth = srcWidth * scale;
-        const destHeight = srcHeight * scale;
+        // Apply camera transform
+        viewCtx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
 
-        // Draw only the cropped visible region of the master canvas onto the viewport canvas
-        if (srcWidth > 0 && srcHeight > 0) {
-            viewCtx.drawImage(
-                masterCanvas,
-                srcX, srcY, srcWidth, srcHeight,
-                destX, destY, destWidth, destHeight
+        // Render culled vector strokes
+        for (const stroke of strokesRef.current) {
+            const bounds = getStrokeBounds(stroke);
+            const isVisible = !(
+                bounds.maxX < visibleMinX ||
+                bounds.minX > visibleMaxX ||
+                bounds.maxY < visibleMinY ||
+                bounds.minY > visibleMaxY
             );
+            if (isVisible) {
+                drawStroke(viewCtx, stroke);
+            }
+        }
+
+        // Draw legacy masterCanvas background if canvas is not empty but we have no vector strokes (loaded legacy history entry)
+        if (!isCanvasEmpty && strokesRef.current.length === 0 && masterCanvasRef.current) {
+            const masterCanvas = masterCanvasRef.current;
+            const srcX = Math.max(0, -offsetX / scale);
+            const srcY = Math.max(0, -offsetY / scale);
+            const srcWidth = Math.min(masterCanvas.width - srcX, viewCanvas.width / scale);
+            const srcHeight = Math.min(masterCanvas.height - srcY, viewCanvas.height / scale);
+            const destX = srcX * scale + offsetX;
+            const destY = srcY * scale + offsetY;
+            const destWidth = srcWidth * scale;
+            const destHeight = srcHeight * scale;
+            if (srcWidth > 0 && srcHeight > 0) {
+                viewCtx.drawImage(
+                    masterCanvas,
+                    srcX, srcY, srcWidth, srcHeight,
+                    destX, destY, destWidth, destHeight
+                );
+            }
         }
 
         // Draw active freehand stroke preview if drawing in pen mode
         if (isDrawing && activeStrokePointsRef.current.length > 1 && selectedShape === 'freehand' && activeTool === 'pen') {
-            viewCtx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
             viewCtx.beginPath();
             viewCtx.moveTo(activeStrokePointsRef.current[0].x, activeStrokePointsRef.current[0].y);
             for (let i = 1; i < activeStrokePointsRef.current.length; i++) {
                 viewCtx.lineTo(activeStrokePointsRef.current[i].x, activeStrokePointsRef.current[i].y);
             }
             viewCtx.lineCap = 'round';
+            viewCtx.lineJoin = 'round';
             viewCtx.lineWidth = strokeWidthRef.current;
             viewCtx.strokeStyle = colorRef.current;
             viewCtx.globalCompositeOperation = 'source-over';
             viewCtx.stroke();
-            viewCtx.setTransform(1, 0, 0, 1, 0, 0);
         }
 
         // Draw shape preview on screen if drawing shapes in pen mode
         if (isDrawing && activeStrokePointsRef.current.length > 0 && selectedShape !== 'freehand' && activeTool === 'pen') {
-            viewCtx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
             viewCtx.beginPath();
             viewCtx.lineCap = 'round';
+            viewCtx.lineJoin = 'round';
             viewCtx.lineWidth = strokeWidthRef.current;
             viewCtx.strokeStyle = colorRef.current;
             viewCtx.globalCompositeOperation = 'source-over';
@@ -229,28 +433,10 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                 viewCtx.closePath();
             }
             viewCtx.stroke();
-            viewCtx.setTransform(1, 0, 0, 1, 0, 0);
-        }
-
-        // Draw active eraser stroke preview (visually erase in real-time on screen)
-        if (isDrawing && activeStrokePointsRef.current.length > 1 && activeTool === 'eraser') {
-            viewCtx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
-            viewCtx.beginPath();
-            viewCtx.moveTo(activeStrokePointsRef.current[0].x, activeStrokePointsRef.current[0].y);
-            for (let i = 1; i < activeStrokePointsRef.current.length; i++) {
-                viewCtx.lineTo(activeStrokePointsRef.current[i].x, activeStrokePointsRef.current[i].y);
-            }
-            viewCtx.lineCap = 'round';
-            viewCtx.lineWidth = eraserWidthRef.current;
-            viewCtx.globalCompositeOperation = 'destination-out';
-            viewCtx.stroke();
-            viewCtx.setTransform(1, 0, 0, 1, 0, 0);
-            viewCtx.globalCompositeOperation = 'source-over';
         }
 
         // Draw eraser cursor circle outline
-        if (isDrawing && activeTool === 'eraser' && lastActivePosRef.current) {
-            viewCtx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
+        if (activeTool === 'eraser' && lastActivePosRef.current) {
             viewCtx.beginPath();
             viewCtx.arc(lastActivePosRef.current.x, lastActivePosRef.current.y, eraserWidthRef.current / 2, 0, 2 * Math.PI);
             viewCtx.lineWidth = 1.5 / scale;
@@ -258,13 +444,11 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             viewCtx.setLineDash([4 / scale, 4 / scale]);
             viewCtx.globalCompositeOperation = 'source-over';
             viewCtx.stroke();
-            viewCtx.setTransform(1, 0, 0, 1, 0, 0);
             viewCtx.setLineDash([]);
         }
 
         // Draw selection outline preview if drawing selection
         if (isDrawing && (activeTool === 'select-rect' || activeTool === 'select-lasso')) {
-            viewCtx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
             viewCtx.beginPath();
             viewCtx.lineWidth = 1.5 / scale;
             viewCtx.strokeStyle = '#3b82f6';
@@ -286,10 +470,12 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                 viewCtx.closePath();
                 viewCtx.stroke();
             }
-            viewCtx.setTransform(1, 0, 0, 1, 0, 0);
             viewCtx.setLineDash([]);
         }
-    }, [getMasterCanvas, selectedShape, activeTool, isDrawing]);
+
+        // Reset transform back to identity
+        viewCtx.setTransform(1, 0, 0, 1, 0, 0);
+    }, [isDrawing, selectedShape, activeTool]);
 
     const getWordCoords = (screenX: number, screenY: number) => {
         const { offsetX, offsetY, scale } = cameraRef.current;
@@ -300,12 +486,11 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
     };
 
     const saveState = () => {
-        const masterCanvas = getMasterCanvas();
-        const masterCtx = masterCanvas.getContext('2d');
-        if (!masterCtx) return;
-
         const state: HistoryState = {
-            imageData: masterCtx.getImageData(0, 0, masterCanvas.width, masterCanvas.height),
+            strokes: strokesRef.current.map(s => ({
+                ...s,
+                points: s.points.map(pt => ({ ...pt }))
+            })),
             bounds: { ...drawBoundsRef.current }
         };
 
@@ -448,11 +633,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
     }, [redrawViewCanvas]);
 
     const resetCanvas = () => {
-        const masterCanvas = getMasterCanvas();
-        const masterCtx = masterCanvas.getContext('2d');
-        if (masterCtx) {
-            masterCtx.clearRect(0, 0, masterCanvas.width, masterCanvas.height);
-        }
+        strokesRef.current = [];
         drawBoundsRef.current = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
         setIsCanvasEmpty(true);
         undoStackRef.current = [];
@@ -465,6 +646,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         cameraRef.current = target;
         setCamera(target);
 
+        updateMasterCanvas();
         redrawViewCanvas();
     };
 
@@ -493,21 +675,17 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             return;
         }
 
-        const masterCanvas = getMasterCanvas();
-        const masterCtx = masterCanvas.getContext('2d');
-        if (masterCtx) {
-            saveState();
-            setIsDrawing(true);
-            setIsCanvasEmpty(false);
+        saveState();
+        setIsDrawing(true);
+        setIsCanvasEmpty(false);
 
-            lastActivePosRef.current = { x: worldPos.x, y: worldPos.y };
-            if (selectedShape === 'freehand') {
-                activeStrokePointsRef.current = [{ x: worldPos.x, y: worldPos.y }];
-            } else {
-                startPosRef.current = { x: worldPos.x, y: worldPos.y };
-            }
-            redrawViewCanvas();
+        lastActivePosRef.current = { x: worldPos.x, y: worldPos.y };
+        if (selectedShape === 'freehand') {
+            activeStrokePointsRef.current = [{ x: worldPos.x, y: worldPos.y }];
+        } else {
+            startPosRef.current = { x: worldPos.x, y: worldPos.y };
         }
+        redrawViewCanvas();
     };
 
     const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -524,7 +702,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             return;
         }
 
-        if (!isDrawing) return;
+        if (!isDrawing && activeTool !== 'eraser') return;
 
         const rect = canvas.getBoundingClientRect();
         const screenX = e.clientX - rect.left;
@@ -532,6 +710,25 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         const worldPos = getWordCoords(screenX, screenY);
 
         lastActivePosRef.current = { x: worldPos.x, y: worldPos.y };
+
+        if (activeTool === 'eraser') {
+            if (e.buttons === 1) { // Left button pressed
+                const eraserRadius = eraserWidthRef.current / 2;
+                const originalLength = strokesRef.current.length;
+                strokesRef.current = strokesRef.current.filter(stroke => !hitTestStroke(worldPos.x, worldPos.y, stroke, eraserRadius));
+                if (strokesRef.current.length !== originalLength) {
+                    setIsCanvasEmpty(strokesRef.current.length === 0);
+                    updateMasterCanvas();
+                    redrawViewCanvas();
+                }
+            } else {
+                redrawViewCanvas(); // Render eraser cursor preview
+            }
+            return;
+        }
+
+        if (!isDrawing) return;
+
         if (activeTool === 'select-rect' || activeTool === 'select-lasso') {
             if (activeTool === 'select-lasso') {
                 activeStrokePointsRef.current.push({ x: worldPos.x, y: worldPos.y });
@@ -556,8 +753,6 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         setIsDrawing(false);
 
         const canvas = canvasRef.current;
-        const masterCanvas = getMasterCanvas();
-        const masterCtx = masterCanvas.getContext('2d');
 
         if (activeTool === 'select-rect' || activeTool === 'select-lasso') {
             if (canvas) {
@@ -601,7 +796,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             return;
         }
 
-        if (canvas && masterCtx) {
+        if (canvas) {
             const rect = canvas.getBoundingClientRect();
             const screenX = e.clientX - rect.left;
             const screenY = e.clientY - rect.top;
@@ -612,53 +807,29 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             const sx = startPosRef.current.x;
             const sy = startPosRef.current.y;
 
-            masterCtx.lineCap = 'round';
-            masterCtx.strokeStyle = colorRef.current;
-            masterCtx.lineWidth = isEraser ? eraserWidthRef.current : strokeWidthRef.current;
-            masterCtx.globalCompositeOperation = isEraser ? 'destination-out' : 'source-over';
-
+            let newPoints: { x: number; y: number }[] = [];
             if (selectedShape === 'freehand') {
-                if (activeStrokePointsRef.current.length > 0) {
-                    masterCtx.beginPath();
-                    masterCtx.moveTo(activeStrokePointsRef.current[0].x, activeStrokePointsRef.current[0].y);
-                    if (!isEraser) updateBounds(activeStrokePointsRef.current[0].x, activeStrokePointsRef.current[0].y);
-                    for (let i = 1; i < activeStrokePointsRef.current.length; i++) {
-                        const pt = activeStrokePointsRef.current[i];
-                        masterCtx.lineTo(pt.x, pt.y);
-                        if (!isEraser) updateBounds(pt.x, pt.y);
-                    }
-                    masterCtx.stroke();
-                }
+                newPoints = [...activeStrokePointsRef.current];
             } else {
-                masterCtx.beginPath();
-                if (selectedShape === 'line') {
-                    masterCtx.moveTo(sx, sy);
-                    masterCtx.lineTo(x, y);
-                    updateBounds(sx, sy);
-                    updateBounds(x, y);
-                } else if (selectedShape === 'rectangle') {
-                    masterCtx.rect(sx, sy, x - sx, y - sy);
-                    updateBounds(sx, sy);
-                    updateBounds(x, y);
-                } else if (selectedShape === 'circle') {
-                    const dx = x - sx;
-                    const dy = y - sy;
-                    const radius = Math.sqrt(dx * dx + dy * dy);
-                    masterCtx.arc(sx, sy, radius, 0, 2 * Math.PI);
-                    updateBounds(sx - radius, sy - radius);
-                    updateBounds(sx + radius, sy + radius);
-                } else if (selectedShape === 'triangle') {
-                    masterCtx.moveTo(sx, sy);
-                    masterCtx.lineTo(sx, y);
-                    masterCtx.lineTo(x, y);
-                    masterCtx.closePath();
-                    updateBounds(sx, sy);
-                    updateBounds(x, y);
-                }
-                masterCtx.stroke();
+                newPoints = [{ x: sx, y: sy }, { x, y }];
+            }
+
+            if (newPoints.length > 0) {
+                const newStroke: Stroke = {
+                    id: generateUUID(),
+                    tool: selectedShape === 'freehand' ? 'pen' : (selectedShape as any),
+                    color: colorRef.current,
+                    width: strokeWidthRef.current,
+                    points: newPoints
+                };
+
+                strokesRef.current.push(newStroke);
+                newPoints.forEach(pt => updateBounds(pt.x, pt.y));
+                setIsCanvasEmpty(false);
             }
         }
         activeStrokePointsRef.current = [];
+        updateMasterCanvas();
         redrawViewCanvas();
     };
 
@@ -714,21 +885,17 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             return;
         }
 
-        const masterCanvas = getMasterCanvas();
-        const masterCtx = masterCanvas.getContext('2d');
-        if (masterCtx) {
-            saveState();
-            setIsDrawing(true);
-            setIsCanvasEmpty(false);
+        saveState();
+        setIsDrawing(true);
+        setIsCanvasEmpty(false);
 
-            lastActivePosRef.current = { x: worldPos.x, y: worldPos.y };
-            if (selectedShape === 'freehand') {
-                activeStrokePointsRef.current = [{ x: worldPos.x, y: worldPos.y }];
-            } else {
-                startPosRef.current = { x: worldPos.x, y: worldPos.y };
-            }
-            redrawViewCanvas();
+        lastActivePosRef.current = { x: worldPos.x, y: worldPos.y };
+        if (selectedShape === 'freehand') {
+            activeStrokePointsRef.current = [{ x: worldPos.x, y: worldPos.y }];
+        } else {
+            startPosRef.current = { x: worldPos.x, y: worldPos.y };
         }
+        redrawViewCanvas();
     };
 
     const drawTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
@@ -769,12 +936,27 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             return;
         }
 
-        if (!isDrawing) return;
+        if (!isDrawing && activeTool !== 'eraser') return;
 
         const pos = getTouchPos(e);
         const worldPos = getWordCoords(pos.x, pos.y);
 
         lastActivePosRef.current = { x: worldPos.x, y: worldPos.y };
+
+        if (activeTool === 'eraser') {
+            const eraserRadius = eraserWidthRef.current / 2;
+            const originalLength = strokesRef.current.length;
+            strokesRef.current = strokesRef.current.filter(stroke => !hitTestStroke(worldPos.x, worldPos.y, stroke, eraserRadius));
+            if (strokesRef.current.length !== originalLength) {
+                setIsCanvasEmpty(strokesRef.current.length === 0);
+                updateMasterCanvas();
+                redrawViewCanvas();
+            }
+            return;
+        }
+
+        if (!isDrawing) return;
+
         if (activeTool === 'select-rect' || activeTool === 'select-lasso') {
             if (activeTool === 'select-lasso') {
                 activeStrokePointsRef.current.push({ x: worldPos.x, y: worldPos.y });
@@ -811,8 +993,6 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         setIsDrawing(false);
 
         const canvas = canvasRef.current;
-        const masterCanvas = getMasterCanvas();
-        const masterCtx = masterCanvas.getContext('2d');
 
         if (activeTool === 'select-rect' || activeTool === 'select-lasso') {
             if (canvas) {
@@ -854,7 +1034,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             return;
         }
 
-        if (canvas && masterCtx) {
+        if (canvas) {
             const pos = getTouchPos(e);
             const worldPos = getWordCoords(pos.x, pos.y);
 
@@ -863,60 +1043,34 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             const sx = startPosRef.current.x;
             const sy = startPosRef.current.y;
 
-            masterCtx.lineCap = 'round';
-            masterCtx.strokeStyle = colorRef.current;
-            masterCtx.lineWidth = isEraser ? eraserWidthRef.current : strokeWidthRef.current;
-            masterCtx.globalCompositeOperation = isEraser ? 'destination-out' : 'source-over';
-
+            let newPoints: { x: number; y: number }[] = [];
             if (selectedShape === 'freehand') {
-                if (activeStrokePointsRef.current.length > 0) {
-                    masterCtx.beginPath();
-                    masterCtx.moveTo(activeStrokePointsRef.current[0].x, activeStrokePointsRef.current[0].y);
-                    if (!isEraser) updateBounds(activeStrokePointsRef.current[0].x, activeStrokePointsRef.current[0].y);
-                    for (let i = 1; i < activeStrokePointsRef.current.length; i++) {
-                        const pt = activeStrokePointsRef.current[i];
-                        masterCtx.lineTo(pt.x, pt.y);
-                        if (!isEraser) updateBounds(pt.x, pt.y);
-                    }
-                    masterCtx.stroke();
-                }
+                newPoints = [...activeStrokePointsRef.current];
             } else {
-                masterCtx.beginPath();
-                if (selectedShape === 'line') {
-                    masterCtx.moveTo(sx, sy);
-                    masterCtx.lineTo(x, y);
-                    updateBounds(sx, sy);
-                    updateBounds(x, y);
-                } else if (selectedShape === 'rectangle') {
-                    masterCtx.rect(sx, sy, x - sx, y - sy);
-                    updateBounds(sx, sy);
-                    updateBounds(x, y);
-                } else if (selectedShape === 'circle') {
-                    const dx = x - sx;
-                    const dy = y - sy;
-                    const radius = Math.sqrt(dx * dx + dy * dy);
-                    masterCtx.arc(sx, sy, radius, 0, 2 * Math.PI);
-                    updateBounds(sx - radius, sy - radius);
-                    updateBounds(sx + radius, sy + radius);
-                } else if (selectedShape === 'triangle') {
-                    masterCtx.moveTo(sx, sy);
-                    masterCtx.lineTo(sx, y);
-                    masterCtx.lineTo(x, y);
-                    masterCtx.closePath();
-                    updateBounds(sx, sy);
-                    updateBounds(x, y);
-                }
-                masterCtx.stroke();
+                newPoints = [{ x: sx, y: sy }, { x, y }];
+            }
+
+            if (newPoints.length > 0) {
+                const newStroke: Stroke = {
+                    id: generateUUID(),
+                    tool: selectedShape === 'freehand' ? 'pen' : (selectedShape as any),
+                    color: colorRef.current,
+                    width: strokeWidthRef.current,
+                    points: newPoints
+                };
+
+                strokesRef.current.push(newStroke);
+                newPoints.forEach(pt => updateBounds(pt.x, pt.y));
+                setIsCanvasEmpty(false);
             }
         }
         activeStrokePointsRef.current = [];
+        updateMasterCanvas();
         redrawViewCanvas();
     };
 
-    const drawStrokes = (strokes: { x: number; y: number }[][]) => {
-        const masterCanvas = getMasterCanvas();
-        const masterCtx = masterCanvas.getContext('2d');
-
+    const drawStrokes = (rawStrokes: { x: number; y: number }[][]) => {
+        strokesRef.current = [];
         drawBoundsRef.current = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
         setIsCanvasEmpty(false);
         undoStackRef.current = [];
@@ -929,54 +1083,49 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         cameraRef.current = targetCamera;
         setCamera(targetCamera);
 
-        if (masterCtx) {
-            masterCtx.clearRect(0, 0, masterCanvas.width, masterCanvas.height);
-            masterCtx.globalCompositeOperation = 'source-over';
-            masterCtx.strokeStyle = colorRef.current;
-            masterCtx.lineWidth = 3;
+        // Calculate bounding box of raw input strokes to center them dynamically at (6000, 6000)
+        let minStrokeX = Infinity;
+        let minStrokeY = Infinity;
+        let maxStrokeX = -Infinity;
+        let maxStrokeY = -Infinity;
 
-            // Calculate bounding box of raw input strokes to center them dynamically at (6000, 6000)
-            let minStrokeX = Infinity;
-            let minStrokeY = Infinity;
-            let maxStrokeX = -Infinity;
-            let maxStrokeY = -Infinity;
-
-            strokes.forEach(stroke => {
-                stroke.forEach(pt => {
-                    if (pt.x < minStrokeX) minStrokeX = pt.x;
-                    if (pt.x > maxStrokeX) maxStrokeX = pt.x;
-                    if (pt.y < minStrokeY) minStrokeY = pt.y;
-                    if (pt.y > maxStrokeY) maxStrokeY = pt.y;
-                });
+        rawStrokes.forEach(stroke => {
+            stroke.forEach(pt => {
+                if (pt.x < minStrokeX) minStrokeX = pt.x;
+                if (pt.x > maxStrokeX) maxStrokeX = pt.x;
+                if (pt.y < minStrokeY) minStrokeY = pt.y;
+                if (pt.y > maxStrokeY) maxStrokeY = pt.y;
             });
+        });
 
-            const strokeWidth = maxStrokeX - minStrokeX;
-            const strokeHeight = maxStrokeY - minStrokeY;
-            const strokeCenterX = minStrokeX + strokeWidth / 2;
-            const strokeCenterY = minStrokeY + strokeHeight / 2;
+        const strokeWidth = maxStrokeX - minStrokeX;
+        const strokeHeight = maxStrokeY - minStrokeY;
+        const strokeCenterX = minStrokeX + strokeWidth / 2;
+        const strokeCenterY = minStrokeY + strokeHeight / 2;
 
-            // Shift offsets to center drawing around (6000, 6000)
-            const offsetX = 6000 - strokeCenterX;
-            const offsetY = 6000 - strokeCenterY;
+        // Shift offsets to center drawing around (6000, 6000)
+        const offsetX = 6000 - strokeCenterX;
+        const offsetY = 6000 - strokeCenterY;
 
-            strokes.forEach(stroke => {
-                if (stroke.length === 0) return;
-                masterCtx.beginPath();
-                const startX = stroke[0].x + offsetX;
-                const startY = stroke[0].y + offsetY;
-                masterCtx.moveTo(startX, startY);
-                updateBounds(startX, startY);
+        rawStrokes.forEach(stroke => {
+            if (stroke.length === 0) return;
+            const newPoints = stroke.map(pt => ({
+                x: pt.x + offsetX,
+                y: pt.y + offsetY
+            }));
+            
+            const newStroke: Stroke = {
+                id: generateUUID(),
+                tool: 'pen',
+                color: colorRef.current,
+                width: 3,
+                points: newPoints
+            };
+            strokesRef.current.push(newStroke);
+            newPoints.forEach(pt => updateBounds(pt.x, pt.y));
+        });
 
-                for (let i = 1; i < stroke.length; i++) {
-                    const nextX = stroke[i].x + offsetX;
-                    const nextY = stroke[i].y + offsetY;
-                    masterCtx.lineTo(nextX, nextY);
-                    updateBounds(nextX, nextY);
-                }
-                masterCtx.stroke();
-            });
-        }
-
+        updateMasterCanvas();
         redrawViewCanvas();
     };
 
@@ -1022,6 +1171,11 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [resetView]);
 
+    // Ensure we create a master canvas on mount for backwards compatibility
+    useEffect(() => {
+        updateMasterCanvas();
+    }, [updateMasterCanvas]);
+
     return {
         canvasRef,
         masterCanvasRef,
@@ -1057,46 +1211,55 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         camera,
         resetView,
         redrawViewCanvas,
+        strokesRef,
         undo: () => {
-            const masterCanvas = getMasterCanvas();
-            const masterCtx = masterCanvas.getContext('2d');
-            if (!masterCtx) return;
-
             if (undoStackRef.current.length === 0) return;
 
             const currentState: HistoryState = {
-                imageData: masterCtx.getImageData(0, 0, masterCanvas.width, masterCanvas.height),
+                strokes: strokesRef.current.map(s => ({
+                    ...s,
+                    points: s.points.map(pt => ({ ...pt }))
+                })),
                 bounds: { ...drawBoundsRef.current }
             };
             redoStackRef.current.push(currentState);
             setCanRedo(true);
 
             const prevState = undoStackRef.current.pop()!;
-            masterCtx.putImageData(prevState.imageData, 0, 0);
+            strokesRef.current = prevState.strokes.map(s => ({
+                ...s,
+                points: s.points.map(pt => ({ ...pt }))
+            }));
             drawBoundsRef.current = { ...prevState.bounds };
-            setIsCanvasEmpty(prevState.bounds.minX === Infinity);
+            setIsCanvasEmpty(strokesRef.current.length === 0);
             setCanUndo(undoStackRef.current.length > 0);
+            
+            updateMasterCanvas();
             redrawViewCanvas();
         },
         redo: () => {
-            const masterCanvas = getMasterCanvas();
-            const masterCtx = masterCanvas.getContext('2d');
-            if (!masterCtx) return;
-
             if (redoStackRef.current.length === 0) return;
 
             const currentState: HistoryState = {
-                imageData: masterCtx.getImageData(0, 0, masterCanvas.width, masterCanvas.height),
+                strokes: strokesRef.current.map(s => ({
+                    ...s,
+                    points: s.points.map(pt => ({ ...pt }))
+                })),
                 bounds: { ...drawBoundsRef.current }
             };
             undoStackRef.current.push(currentState);
             setCanUndo(true);
 
             const nextState = redoStackRef.current.pop()!;
-            masterCtx.putImageData(nextState.imageData, 0, 0);
+            strokesRef.current = nextState.strokes.map(s => ({
+                ...s,
+                points: s.points.map(pt => ({ ...pt }))
+            }));
             drawBoundsRef.current = { ...nextState.bounds };
-            setIsCanvasEmpty(nextState.bounds.minX === Infinity);
+            setIsCanvasEmpty(strokesRef.current.length === 0);
             setCanRedo(redoStackRef.current.length > 0);
+            
+            updateMasterCanvas();
             redrawViewCanvas();
         },
     };

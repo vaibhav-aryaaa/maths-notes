@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import axios from 'axios';
 import { notifications } from '@mantine/notifications';
-import type { GeneratedResult, DictOfVars, CalculateResponseItem } from '@/types';
+import type { GeneratedResult, DictOfVars, CalculateResponseItem, Stroke } from '@/types';
 import { trackEvent } from '@/lib/analytics';
+import { drawStroke } from './useMathCanvas';
 
 export const useCanvasSolver = (
     canvasRef: React.RefObject<HTMLCanvasElement | null>,
-    masterCanvasRef: React.RefObject<HTMLCanvasElement | null>,
+    strokesRef: React.RefObject<Stroke[]>,
     drawBoundsRef: React.RefObject<{ minX: number; minY: number; maxX: number; maxY: number }>,
     onSaveHistory?: (canvas: HTMLCanvasElement, allResults: GeneratedResult[], dictOfVars: DictOfVars) => void,
     redrawViewCanvas?: () => void
@@ -31,8 +32,8 @@ export const useCanvasSolver = (
         }
 
         const canvas = canvasRef.current;
-        const masterCanvas = masterCanvasRef.current;
-        if (!canvas || !masterCanvas) return;
+        const strokes = strokesRef.current;
+        if (!canvas || !strokes) return;
 
         const bounds = selection ? selection.bounds : drawBoundsRef.current;
         if (!selection && (!bounds || bounds.minX === Infinity || bounds.minY === Infinity)) {
@@ -55,14 +56,16 @@ export const useCanvasSolver = (
             const padding = 20;
             const cropX = Math.max(0, bounds.minX - padding);
             const cropY = Math.max(0, bounds.minY - padding);
-            const cropWidth = Math.min(masterCanvas.width - cropX, (bounds.maxX - bounds.minX) + padding * 2);
-            const cropHeight = Math.min(masterCanvas.height - cropY, (bounds.maxY - bounds.minY) + padding * 2);
+            const cropWidth = Math.min(12000 - cropX, (bounds.maxX - bounds.minX) + padding * 2);
+            const cropHeight = Math.min(12000 - cropY, (bounds.maxY - bounds.minY) + padding * 2);
 
+            const exportScale = 2.0; // Render at 2x resolution for high accuracy OCR
             const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = cropWidth;
-            tempCanvas.height = cropHeight;
+            tempCanvas.width = cropWidth * exportScale;
+            tempCanvas.height = cropHeight * exportScale;
             const tempCtx = tempCanvas.getContext('2d');
             if (tempCtx) {
+                tempCtx.scale(exportScale, exportScale);
                 tempCtx.fillStyle = 'black';
                 tempCtx.fillRect(0, 0, cropWidth, cropHeight);
                 
@@ -81,7 +84,13 @@ export const useCanvasSolver = (
                     }
                 }
                 
-                tempCtx.drawImage(masterCanvas, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+                // Draw vector strokes onto the temp canvas
+                tempCtx.save();
+                tempCtx.translate(-cropX, -cropY);
+                for (const stroke of strokes) {
+                    drawStroke(tempCtx, stroke);
+                }
+                tempCtx.restore();
                 
                 if (selection && selection.type === 'lasso') {
                     tempCtx.restore();
@@ -136,6 +145,19 @@ export const useCanvasSolver = (
 
                 const updatedResults = [...results, newResult];
                 setResults(updatedResults);
+
+                // Create a temporary master canvas for history saving (backwards compatibility)
+                const masterCanvas = document.createElement('canvas');
+                masterCanvas.width = 12000;
+                masterCanvas.height = 12000;
+                const masterCtx = masterCanvas.getContext('2d');
+                if (masterCtx) {
+                    masterCtx.fillStyle = 'black';
+                    masterCtx.fillRect(0, 0, 12000, 12000);
+                    for (const stroke of strokes) {
+                        drawStroke(masterCtx, stroke);
+                    }
+                }
                 onSaveHistory?.(masterCanvas, updatedResults, dictOfVars);
 
                 trackEvent('solve_succeeded', {
@@ -145,7 +167,6 @@ export const useCanvasSolver = (
                 });
             }
             
-            // Canvas is no longer cleared after solve in 7B
             redrawViewCanvas?.();
 
         } catch (error: unknown) {

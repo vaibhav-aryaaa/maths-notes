@@ -2,6 +2,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useCanvasSolver } from './useCanvasSolver';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import axios from 'axios';
+import type { Stroke } from '@/types';
 
 vi.mock('axios');
 vi.mock('@mantine/notifications', () => ({
@@ -12,7 +13,7 @@ vi.mock('@mantine/notifications', () => ({
 
 describe('useCanvasSolver', () => {
     let canvasRef: React.RefObject<HTMLCanvasElement | null>;
-    let masterCanvasRef: React.RefObject<HTMLCanvasElement | null>;
+    let strokesRef: React.RefObject<Stroke[]>;
     let drawBoundsRef: React.RefObject<{ minX: number; minY: number; maxX: number; maxY: number }>;
 
     beforeEach(() => {
@@ -24,6 +25,16 @@ describe('useCanvasSolver', () => {
             fillRect: vi.fn(),
             drawImage: vi.fn(),
             clearRect: vi.fn(),
+            scale: vi.fn(),
+            translate: vi.fn(),
+            beginPath: vi.fn(),
+            moveTo: vi.fn(),
+            lineTo: vi.fn(),
+            stroke: vi.fn(),
+            rect: vi.fn(),
+            closePath: vi.fn(),
+            save: vi.fn(),
+            restore: vi.fn(),
         };
 
         canvasRef = {
@@ -34,12 +45,16 @@ describe('useCanvasSolver', () => {
             } as unknown as HTMLCanvasElement
         };
 
-        masterCanvasRef = {
-            current: {
-                width: 6000,
-                height: 6000,
-                getContext: vi.fn().mockReturnValue(mockContext),
-            } as unknown as HTMLCanvasElement
+        strokesRef = {
+            current: [
+                {
+                    id: '1',
+                    tool: 'pen',
+                    color: 'white',
+                    width: 3,
+                    points: [{ x: 100, y: 150 }, { x: 300, y: 350 }]
+                }
+            ]
         };
 
         drawBoundsRef = {
@@ -48,7 +63,7 @@ describe('useCanvasSolver', () => {
     });
 
     it('should initialize with default states', () => {
-        const { result } = renderHook(() => useCanvasSolver(canvasRef, masterCanvasRef, drawBoundsRef));
+        const { result } = renderHook(() => useCanvasSolver(canvasRef, strokesRef, drawBoundsRef));
         expect(result.current.dictOfVars).toEqual({});
         expect(result.current.results).toEqual([]);
         expect(result.current.isScanning).toBe(false);
@@ -73,6 +88,15 @@ describe('useCanvasSolver', () => {
                 fillStyle: '',
                 fillRect: vi.fn(),
                 drawImage: vi.fn(),
+                scale: vi.fn(),
+                translate: vi.fn(),
+                beginPath: vi.fn(),
+                moveTo: vi.fn(),
+                lineTo: vi.fn(),
+                stroke: vi.fn(),
+                rect: vi.fn(),
+                save: vi.fn(),
+                restore: vi.fn(),
             }),
             toDataURL: vi.fn().mockReturnValue('data:image/png;base64,mocked_image_bytes'),
         };
@@ -82,7 +106,7 @@ describe('useCanvasSolver', () => {
             return origCreateElement.call(document, tag);
         });
 
-        const { result } = renderHook(() => useCanvasSolver(canvasRef, masterCanvasRef, drawBoundsRef));
+        const { result } = renderHook(() => useCanvasSolver(canvasRef, strokesRef, drawBoundsRef));
 
         await act(async () => {
             await result.current.runRoute();
@@ -119,6 +143,15 @@ describe('useCanvasSolver', () => {
                 fillStyle: '',
                 fillRect: vi.fn(),
                 drawImage: vi.fn(),
+                scale: vi.fn(),
+                translate: vi.fn(),
+                beginPath: vi.fn(),
+                moveTo: vi.fn(),
+                lineTo: vi.fn(),
+                stroke: vi.fn(),
+                rect: vi.fn(),
+                save: vi.fn(),
+                restore: vi.fn(),
             }),
             toDataURL: vi.fn().mockReturnValue('data:image/png;base64,mocked_image_bytes'),
         };
@@ -128,7 +161,7 @@ describe('useCanvasSolver', () => {
             return origCreateElement.call(document, tag);
         });
 
-        const { result } = renderHook(() => useCanvasSolver(canvasRef, masterCanvasRef, drawBoundsRef));
+        const { result } = renderHook(() => useCanvasSolver(canvasRef, strokesRef, drawBoundsRef));
 
         await act(async () => {
             await result.current.runRoute();

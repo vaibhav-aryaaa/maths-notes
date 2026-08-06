@@ -58,3 +58,11 @@ export interface CopilotRequest {
 export interface CopilotResponse {
     reply: string;
 }
+
+export interface Stroke {
+    id: string;              // crypto.randomUUID()
+    tool: 'pen' | 'eraser' | 'rect' | 'circle' | 'triangle' | 'line';
+    color: string;
+    width: number;
+    points: { x: number; y: number; pressure?: number }[]; // world-space coordinates
+}
