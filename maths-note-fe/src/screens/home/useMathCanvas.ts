@@ -692,12 +692,9 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             const sx = startPosRef.current.x;
             const sy = startPosRef.current.y;
 
-            let newPoints: { x: number; y: number }[] = [];
-            if (selectedShape === 'freehand') {
-                newPoints = [...activeStrokePointsRef.current];
-            } else {
-                newPoints = [{ x: sx, y: sy }, { x, y }];
-            }
+            const newPoints = selectedShape === 'freehand'
+                ? [...activeStrokePointsRef.current]
+                : [{ x: sx, y: sy }, { x, y }];
 
             if (newPoints.length > 0) {
                 const newStroke: Stroke = {
@@ -926,12 +923,9 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             const sx = startPosRef.current.x;
             const sy = startPosRef.current.y;
 
-            let newPoints: { x: number; y: number }[] = [];
-            if (selectedShape === 'freehand') {
-                newPoints = [...activeStrokePointsRef.current];
-            } else {
-                newPoints = [{ x: sx, y: sy }, { x, y }];
-            }
+            const newPoints = selectedShape === 'freehand'
+                ? [...activeStrokePointsRef.current]
+                : [{ x: sx, y: sy }, { x, y }];
 
             if (newPoints.length > 0) {
                 const newStroke: Stroke = {

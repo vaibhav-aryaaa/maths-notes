@@ -85,7 +85,7 @@ export function useSolveHistory() {
                 }
 
                 setHistory(entries.map((entry: HistoryEntry) => {
-                    const { canvasImage, ...rest } = entry;
+                    const { canvasImage: _canvasImage, ...rest } = entry;
                     return rest as HistoryEntry;
                 }));
             }
@@ -108,7 +108,7 @@ export function useSolveHistory() {
                 const results = request.result as HistoryEntry[];
                 results.sort((a, b) => b.timestamp - a.timestamp);
                 setHistory(results.map((entry: HistoryEntry) => {
-                    const { canvasImage, ...rest } = entry;
+                    const { canvasImage: _canvasImage, ...rest } = entry;
                     return rest as HistoryEntry;
                 }));
             };
@@ -164,7 +164,7 @@ export function useSolveHistory() {
                     }
 
                     setHistory(entries.map((entry: HistoryEntry) => {
-                        const { canvasImage, ...rest } = entry;
+                        const { canvasImage: _canvasImage, ...rest } = entry;
                         return rest as HistoryEntry;
                     }));
                 }
