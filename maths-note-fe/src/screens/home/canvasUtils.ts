@@ -1,6 +1,10 @@
 import type { Stroke } from '@/types';
 
 export const getStrokeBounds = (stroke: Stroke) => {
+    if (stroke.bounds) {
+        return stroke.bounds;
+    }
+
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     const pts = stroke.points;
     if (pts.length === 0) {
@@ -37,12 +41,13 @@ export const getStrokeBounds = (stroke: Stroke) => {
         }
     }
     const halfWidth = stroke.width / 2;
-    return {
+    stroke.bounds = {
         minX: minX - halfWidth,
         minY: minY - halfWidth,
         maxX: maxX + halfWidth,
         maxY: maxY + halfWidth
     };
+    return stroke.bounds;
 };
 
 export const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {

@@ -65,4 +65,5 @@ export interface Stroke {
     color: string;
     width: number;
     points: { x: number; y: number; pressure?: number }[]; // world-space coordinates
+    bounds?: { minX: number; minY: number; maxX: number; maxY: number };
 }

@@ -604,11 +604,9 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                 strokesRef.current = strokesRef.current.filter(stroke => !hitTestStroke(worldPos.x, worldPos.y, stroke, eraserRadius));
                 if (strokesRef.current.length !== originalLength) {
                     setIsCanvasEmpty(strokesRef.current.length === 0);
-                    redrawViewCanvas();
                 }
-            } else {
-                redrawViewCanvas(); // Render eraser cursor preview
             }
+            redrawViewCanvas(); // Always redraw to update eraser cursor preview
             return;
         }
 
@@ -830,8 +828,8 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             strokesRef.current = strokesRef.current.filter(stroke => !hitTestStroke(worldPos.x, worldPos.y, stroke, eraserRadius));
             if (strokesRef.current.length !== originalLength) {
                 setIsCanvasEmpty(strokesRef.current.length === 0);
-                redrawViewCanvas();
             }
+            redrawViewCanvas(); // Always redraw to update eraser cursor preview
             return;
         }
 
