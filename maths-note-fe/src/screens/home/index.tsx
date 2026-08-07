@@ -263,7 +263,7 @@ export default function Home() {
             message: 'Saving solution to persistent storage...',
             autoClose: false,
             withCloseButton: false,
-            color: 'amber'
+            color: 'gray'
         });
 
         try {
@@ -532,7 +532,7 @@ export default function Home() {
                 {!isSidebarOpen && (
                     <div className="flex items-center gap-2 bg-white/90 dark:bg-black/80 backdrop-blur-md px-3.5 h-10 border border-stone-200 dark:border-[#333] rounded-xl shadow-lg animate-in fade-in slide-in-from-left-4 duration-300">
                         <span className="text-sm font-extrabold tracking-tight font-sans select-none">
-                            solve<span className="text-[#d97706]">IQ</span>
+                            solve<span className="text-stone-900 dark:text-white">IQ</span>
                         </span>
                     </div>
                 )}
@@ -553,7 +553,7 @@ export default function Home() {
                             onClick={() => setActiveTool(t.id)}
                             className={`cursor-pointer transition-all w-9 h-9 flex items-center justify-center rounded-lg ${
                                 activeTool === t.id 
-                                    ? 'bg-stone-100 dark:bg-white/10 text-amber-600 dark:text-amber-400 font-bold shadow-none' 
+                                    ? 'bg-stone-100 dark:bg-white/10 text-stone-950 dark:text-white font-bold shadow-none' 
                                     : 'hover:bg-stone-100 dark:hover:bg-white/5 text-stone-600 dark:text-gray-300'
                             }`}
                             title={t.label}
@@ -676,7 +676,7 @@ export default function Home() {
                                     onClick={() => setColor(swatch)}
                                     className={`cursor-pointer w-4 h-4 rounded-full border border-stone-200 dark:border-white/20 transition-all hover:scale-110 active:scale-90 ${
                                         color === swatch 
-                                            ? 'ring-2 ring-amber-500 dark:ring-amber-400 ring-offset-2 ring-offset-white dark:ring-offset-[#1c1c1f] scale-110' 
+                                            ? 'ring-2 ring-stone-900 dark:ring-stone-100 ring-offset-2 ring-offset-white dark:ring-offset-[#1c1c1f] scale-110' 
                                              : ''
                                     }`}
                                     style={{ backgroundColor: swatch }}
@@ -701,7 +701,7 @@ export default function Home() {
                                     onClick={() => setStrokeWidth(preset.val)}
                                     className={`cursor-pointer transition-all w-7 h-7 flex items-center justify-center rounded-md ${
                                         strokeWidth === preset.val
-                                            ? 'bg-stone-100 dark:bg-white/10 text-amber-600 dark:text-amber-400 font-bold shadow-none'
+                                            ? 'bg-stone-100 dark:bg-white/10 text-stone-955 dark:text-white font-bold shadow-none'
                                             : 'hover:bg-stone-100 dark:hover:bg-white/5 text-stone-450 dark:text-gray-400'
                                     }`}
                                     title={`Pen size: ${preset.label}`}
@@ -732,7 +732,7 @@ export default function Home() {
                                     onClick={() => setEraserWidth(preset.val)}
                                     className={`cursor-pointer transition-all w-7 h-7 flex items-center justify-center rounded-md ${
                                         eraserWidth === preset.val
-                                            ? 'bg-stone-100 dark:bg-white/10 text-amber-600 dark:text-amber-400 font-bold shadow-none'
+                                            ? 'bg-stone-100 dark:bg-white/10 text-stone-955 dark:text-white font-bold shadow-none'
                                             : 'hover:bg-stone-100 dark:hover:bg-white/5 text-stone-450 dark:text-gray-400'
                                     }`}
                                     title={`Eraser size: ${preset.label}`}
@@ -770,18 +770,18 @@ export default function Home() {
                     title={colorScheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                     aria-label={colorScheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                 >
-                    {colorScheme === 'dark' ? <Sun size={14} className="text-amber-500" /> : <Moon size={14} className="text-stone-600" />}
+                    {colorScheme === 'dark' ? <Sun size={14} className="text-stone-900 dark:text-stone-100" /> : <Moon size={14} className="text-stone-600" />}
                 </Button>
 
                 {/* Focus/Presentation Mode Button */}
                 <Button
                     onClick={toggleFocusMode}
-                    className={`bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg cursor-pointer ${isFocusMode ? 'bg-amber-100 dark:bg-amber-950/45 border-amber-300' : ''}`}
+                    className={`bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg cursor-pointer ${isFocusMode ? 'bg-stone-100 dark:bg-stone-800 border-stone-300 dark:border-stone-700' : ''}`}
                     variant="default"
                     title="Focus Mode (F)"
                     aria-label="Toggle Fullscreen Focus Mode"
                 >
-                    <Eye size={14} className={isFocusMode ? 'text-amber-600 dark:text-amber-400' : 'text-stone-500 dark:text-gray-300'} />
+                    <Eye size={14} className={isFocusMode ? 'text-stone-955 dark:text-white' : 'text-stone-500 dark:text-gray-300'} />
                 </Button>
             </div>
 
@@ -798,7 +798,7 @@ export default function Home() {
                     title="Run Analysis"
                     aria-label="Run AI calculation solver on canvas whiteboard content"
                 >
-                    <Sparkles size={16} className="text-amber-500 animate-pulse" />
+                    <Sparkles size={16} className="text-stone-900 dark:text-stone-100 animate-pulse" />
                     <span className="text-xs font-semibold select-none font-sans">Run</span>
                 </Button>
             </div>
@@ -830,8 +830,8 @@ export default function Home() {
                             y={activeSolveBox.y}
                             width={activeSolveBox.width}
                             height={activeSolveBox.height}
-                            fill={activeSolveRegion.status === 'scanning' ? 'rgba(245, 158, 11, 0.05)' : 'none'}
-                            stroke={activeSolveRegion.status === 'scanning' ? 'rgba(245, 158, 11, 0.6)' : 'rgba(245, 158, 11, 0.35)'}
+                            fill={activeSolveRegion.status === 'scanning' ? 'rgba(120, 113, 108, 0.05)' : 'none'}
+                            stroke={activeSolveRegion.status === 'scanning' ? 'rgba(120, 113, 108, 0.6)' : 'rgba(120, 113, 108, 0.35)'}
                             strokeWidth={activeSolveRegion.status === 'scanning' ? '2' : '1.5'}
                             strokeDasharray={activeSolveRegion.status === 'scanning' ? '6 4' : '4 4'}
                             rx="4"
@@ -840,7 +840,7 @@ export default function Home() {
                         <text
                             x={activeSolveBox.x + 8}
                             y={activeSolveBox.y - 6 < 15 ? activeSolveBox.y + 14 : activeSolveBox.y - 6}
-                            fill="rgba(245, 158, 11, 0.8)"
+                            fill="rgba(120, 113, 108, 0.8)"
                             className="text-[9px] font-sans font-bold select-none uppercase tracking-wider"
                         >
                             {activeSolveRegion.status === 'scanning' ? 'Solving Region...' : 'Solved Region'}
@@ -850,7 +850,10 @@ export default function Home() {
             )}
             {skeletonRegion && (
                 <div className={`transition-opacity duration-500 ${skeletonVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                    <ResultSkeleton position={getCardPosition({ bounds: skeletonRegion.bounds }, results.length)} />
+                    <ResultSkeleton 
+                        position={getCardPosition({ bounds: skeletonRegion.bounds }, results.length)} 
+                        zoomScale={camera.scale}
+                    />
                 </div>
             )}
             {results && results.map((result, index) => (
@@ -860,6 +863,7 @@ export default function Home() {
                     defaultPosition={getCardPosition(result, index)}
                     setPosition={(newPos) => handleCardPositionChange(result, newPos)}
                     onShare={handleShareResult}
+                    zoomScale={camera.scale}
                 />
             ))}
 
@@ -869,7 +873,7 @@ export default function Home() {
                 <div className="absolute top-[40%] sm:top-[35%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-canvas-placeholder flex flex-col items-center gap-6 max-w-lg w-full px-6 text-center select-none pointer-events-none">
                     <div className="flex flex-col items-center gap-2 pointer-events-auto">
                         <h2 className="text-2xl sm:text-3xl font-extrabold text-stone-900 dark:text-white tracking-tight">
-                            Unlock the Power of <span className="text-amber-500">SolveIQ</span>
+                            Unlock the Power of <span className="text-stone-900 dark:text-white font-extrabold">SolveIQ</span>
                         </h2>
                         <p className="text-stone-500 dark:text-gray-400 text-sm max-w-sm">
                             Draw your equations or click one of our pre-baked math examples below to see SolveIQ scan and solve in real-time.
@@ -883,8 +887,8 @@ export default function Home() {
                                 onClick={() => handleTryExample(problem)}
                                 className="cursor-pointer flex flex-col text-left p-3.5 rounded-xl border border-stone-200 dark:border-white/10 bg-white/80 dark:bg-white/5 hover:bg-stone-50 dark:hover:bg-white/10 hover:border-stone-300 dark:hover:border-white/20 active:scale-[0.98] transition-all text-stone-900 dark:text-white backdrop-blur-md shadow-lg group"
                             >
-                                <span className="text-sm font-bold text-amber-600 dark:text-amber-400 group-hover:text-amber-500 dark:group-hover:text-amber-300 flex items-center gap-1.5">
-                                    <Sparkles size={13} className="text-amber-500 animate-pulse" />
+                                <span className="text-sm font-bold text-stone-900 dark:text-white group-hover:opacity-85 flex items-center gap-1.5">
+                                    <Sparkles size={13} className="text-stone-900 dark:text-stone-100 animate-pulse" />
                                     {problem.name}
                                 </span>
                                 <span className="text-xs text-stone-500 dark:text-gray-400 mt-1 leading-normal line-clamp-2">
@@ -898,11 +902,11 @@ export default function Home() {
 
             <button
                 onClick={() => setIsCopilotOpen(!isCopilotOpen)}
-                className={`absolute bottom-6 right-6 z-controls w-14 h-14 rounded-full bg-gradient-to-tr from-rose-500 via-orange-500 to-amber-400 flex items-center justify-center shadow-lg shadow-orange-500/40 hover:scale-110 active:scale-95 transition-all duration-300 border border-white/20 cursor-pointer ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                className={`absolute bottom-6 right-6 z-controls w-14 h-14 rounded-full bg-stone-950 dark:bg-white hover:bg-stone-850 dark:hover:bg-stone-100 flex items-center justify-center shadow-lg shadow-stone-950/20 dark:shadow-white/5 hover:scale-110 active:scale-95 transition-all duration-300 border border-stone-800 dark:border-stone-200 cursor-pointer ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
                 title="Vector"
                 aria-label={isCopilotOpen ? "Close AI Copilot chat" : "Open AI Copilot chat"}
             >
-                {isCopilotOpen ? <X size={22} className="text-white" /> : <MessageSquare size={22} className="text-white" />}
+                {isCopilotOpen ? <X size={22} className="text-white dark:text-stone-950" /> : <MessageSquare size={22} className="text-white dark:text-stone-950" />}
             </button>
 
             {/* Copilot Sidebar Panel */}
@@ -939,55 +943,55 @@ export default function Home() {
                 <div className="flex flex-col gap-4 text-sm font-sans">
                     <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
                         <span className="text-stone-500 dark:text-gray-400">Undo stroke</span>
-                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">Ctrl + Z / ⌘ + Z</kbd>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-stone-750 dark:text-stone-300 font-bold border border-stone-200 dark:border-white/15">Ctrl + Z / ⌘ + Z</kbd>
                     </div>
                     <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
                         <span className="text-stone-500 dark:text-gray-400">Redo stroke</span>
-                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">Ctrl + Shift + Z / ⌘ + Shift + Z</kbd>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-stone-750 dark:text-stone-300 font-bold border border-stone-200 dark:border-white/15">Ctrl + Shift + Z / ⌘ + Shift + Z</kbd>
                     </div>
                     <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
                         <span className="text-stone-500 dark:text-gray-400">Pen (Freehand)</span>
-                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">P</kbd>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-stone-750 dark:text-stone-300 font-bold border border-stone-200 dark:border-white/15">P</kbd>
                     </div>
                     <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
                         <span className="text-stone-500 dark:text-gray-400">Eraser</span>
-                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">E</kbd>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-stone-750 dark:text-stone-300 font-bold border border-stone-200 dark:border-white/15">E</kbd>
                     </div>
                     <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
                         <span className="text-stone-500 dark:text-gray-400">Line Tool</span>
-                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">L</kbd>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-stone-750 dark:text-stone-300 font-bold border border-stone-200 dark:border-white/15">L</kbd>
                     </div>
                     <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
                         <span className="text-stone-500 dark:text-gray-400">Rectangle Tool</span>
-                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">R</kbd>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-stone-750 dark:text-stone-300 font-bold border border-stone-200 dark:border-white/15">R</kbd>
                     </div>
                     <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
                         <span className="text-stone-500 dark:text-gray-400">Circle Tool</span>
-                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">C</kbd>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-stone-750 dark:text-stone-300 font-bold border border-stone-200 dark:border-white/15">C</kbd>
                     </div>
                     <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
                         <span className="text-stone-500 dark:text-gray-400">Triangle Tool</span>
-                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">T</kbd>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-stone-750 dark:text-stone-300 font-bold border border-stone-200 dark:border-white/15">T</kbd>
                     </div>
                     <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
                         <span className="text-stone-500 dark:text-gray-400">Zoom in/out</span>
-                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">Scroll Wheel</kbd>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-stone-750 dark:text-stone-300 font-bold border border-stone-200 dark:border-white/15">Scroll Wheel</kbd>
                     </div>
                     <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
                         <span className="text-stone-500 dark:text-gray-400">Pan Canvas</span>
-                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">Space + Drag / Middle Drag</kbd>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-stone-750 dark:text-stone-300 font-bold border border-stone-200 dark:border-white/15">Space + Drag / Middle Drag</kbd>
                     </div>
                     <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
                         <span className="text-stone-500 dark:text-gray-400">Reset Canvas View</span>
-                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">Ctrl + 0 / ⌘ + 0</kbd>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-stone-750 dark:text-stone-300 font-bold border border-stone-200 dark:border-white/15">Ctrl + 0 / ⌘ + 0</kbd>
                     </div>
                     <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
                         <span className="text-stone-500 dark:text-gray-400">Focus / Presentation Mode</span>
-                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">F</kbd>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-stone-750 dark:text-stone-300 font-bold border border-stone-200 dark:border-white/15">F</kbd>
                     </div>
                     <div className="flex justify-between items-center py-1.5">
                         <span className="text-stone-500 dark:text-gray-400">Open Shortcuts Help</span>
-                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-amber-600 dark:text-amber-400 font-bold border border-stone-200 dark:border-white/15">?</kbd>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-stone-750 dark:text-stone-300 font-bold border border-stone-200 dark:border-white/15">?</kbd>
                     </div>
                 </div>
             </Modal>

@@ -1,17 +1,24 @@
-import Math3DBackground from '@/components/Math3DBackground';
+import { useMantineColorScheme } from '@mantine/core';
+import CursorGrid from '@/components/CursorGrid';
+import TextLoop from '@/components/TextLoop';
 
 interface LandingProps {
     onStart: () => void;
 }
 
 export default function Landing({ onStart }: LandingProps) {
+    const { colorScheme } = useMantineColorScheme();
+    const gridColor = colorScheme === 'dark' ? '#ffffff' : '#1c1917';
+    const loopRibbonColor = colorScheme === 'dark' ? '#1c1917' : '#f5f5f4';
+    const loopTextColor = colorScheme === 'dark' ? '#ffffff' : '#1c1917';
+
     return (
-        <div className="relative w-full h-screen bg-[#fafaf9] dark:bg-stone-950 overflow-hidden flex flex-col items-center justify-center font-sans transition-colors duration-300">
+        <div className="relative w-full h-screen bg-[#fafaf9] dark:bg-stone-950 overflow-hidden flex flex-col items-center justify-between font-sans transition-colors duration-300">
             
             <div className="absolute top-0 left-0 w-full p-6 md:p-8 flex items-center justify-between z-50 pointer-events-none">
                 <div className="flex items-center gap-2 select-none">
                     <span className="text-xl md:text-2xl font-extrabold tracking-tight text-stone-900 dark:text-stone-100">
-                        solve<span className="text-[#d97706]">IQ</span>
+                        solve<span className="text-stone-900 dark:text-white">IQ</span>
                     </span>
                 </div>
                 <div className="pointer-events-auto">
@@ -30,7 +37,24 @@ export default function Landing({ onStart }: LandingProps) {
                 </div>
             </div>
 
-            <Math3DBackground />
+            {/* Interactive Cursor Grid Background */}
+            <div className="absolute inset-0 z-0">
+                <CursorGrid
+                    cellSize={60}
+                    color={gridColor}
+                    radius={140}
+                    falloff="smooth"
+                    holdTime={200}
+                    fadeDuration={1000}
+                    lineWidth={4}
+                    maxOpacity={1}
+                    fillOpacity={0}
+                    gridOpacity={0}
+                    cellRadius={0}
+                    clickPulse={true}
+                    pulseSpeed={600}
+                />
+            </div>
 
             <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
                 <div className="floating-symbol symbol-1 left-[10%] top-[20%] text-5xl sm:text-7xl font-handwriting text-stone-400/20 dark:text-stone-600/10 select-none">∑</div>
@@ -43,18 +67,14 @@ export default function Landing({ onStart }: LandingProps) {
                 <div className="floating-symbol symbol-2 left-[35%] top-[85%] text-5xl sm:text-7xl font-handwriting text-stone-400/20 dark:text-stone-600/10 select-none hidden md:block">θ</div>
                 <div className="floating-symbol symbol-3 left-[65%] top-[25%] text-4xl sm:text-6xl font-handwriting text-stone-400/20 dark:text-stone-600/10 select-none hidden md:block">λ</div>
                 
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[800px] h-[300px] sm:h-[800px] bg-amber-500/5 blur-[80px] sm:blur-[150px] rounded-full pointer-events-none" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[800px] h-[300px] sm:h-[800px] bg-stone-500/5 blur-[80px] sm:blur-[150px] rounded-full pointer-events-none" />
             </div>
 
-            <div className="relative z-10 flex flex-col items-center max-w-3xl px-6 text-center select-none pointer-events-none">
-                
-                <div className="mb-4 md:mb-6 px-4 py-1.5 rounded-xl border border-amber-500/20 dark:border-amber-500/10 bg-amber-500/5 dark:bg-amber-500/10 flex items-center gap-2 text-xs sm:text-sm font-bold tracking-wide text-amber-700 dark:text-amber-450 font-handwriting animate-fade-in-up">
-                    <div className="w-2 h-2 rounded-full bg-amber-600 animate-pulse" />
-                    THE ULTIMATE AI MATH CANVAS
-                </div>
+            {/* Main Hero Content (takes up remaining vertical space and centers its children) */}
+            <div className="relative z-10 flex-1 flex flex-col items-center justify-center max-w-3xl px-6 text-center select-none pointer-events-none">
 
                 <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl leading-[1.2] md:leading-[1.15] font-extrabold text-stone-900 dark:text-stone-100 mb-6 tracking-tight font-sans animate-fade-in-up" style={{ animationDelay: '150ms' }}>
-                    Solve your <span className="relative inline-block px-4 py-1.5 mx-1 font-handwriting text-amber-700 dark:text-amber-400 bg-amber-100/55 dark:bg-amber-950/45 rounded-2xl -rotate-1 transform shadow-sm">complex math</span><br/> problems instantly.
+                    Solve your <span className="relative inline-block px-4 py-1.5 mx-1 font-handwriting text-stone-900 dark:text-white bg-stone-200/55 dark:bg-stone-800/60 rounded-2xl -rotate-1 transform shadow-sm">complex math</span><br/> problems instantly.
                 </h1>
                 
                 <p className="text-sm sm:text-base md:text-lg text-stone-500 dark:text-stone-450 mb-8 md:mb-10 max-w-xl font-medium leading-relaxed font-sans animate-fade-in-up" style={{ animationDelay: '300ms' }}>
@@ -72,7 +92,26 @@ export default function Landing({ onStart }: LandingProps) {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                     </svg>
                 </button>
+            </div>
 
+            {/* Scrolling Banner Tape (naturally flows at the bottom, padded off the lower viewport edge) */}
+            <div className="w-full h-12 mb-6 pointer-events-auto z-10 shrink-0">
+                <TextLoop
+                    text="SolveIQ ✦ Step-by-Step Reasoning ✦ Infinite Canvas ✦ Vector Strokes ✦ Interactive Whiteboard ✦ AI Solver"
+                    shape="line"
+                    speed={50}
+                    direction="forward"
+                    separator="✦"
+                    fontSize={14}
+                    fontWeight={800}
+                    letterSpacing={2}
+                    uppercase={true}
+                    color={loopTextColor}
+                    ribbon={true}
+                    ribbonColor={loopRibbonColor}
+                    ribbonWidth={42}
+                    pauseOnHover={true}
+                />
             </div>
         </div>
     );

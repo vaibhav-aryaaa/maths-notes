@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 
 interface ResultSkeletonProps {
     position: { x: number; y: number };
+    zoomScale?: number;
 }
 
-export const ResultSkeleton = ({ position }: ResultSkeletonProps) => {
+export const ResultSkeleton = ({ position, zoomScale = 1 }: ResultSkeletonProps) => {
     const [width, setWidth] = useState(() => {
         return typeof window !== 'undefined' ? Math.min(450, window.innerWidth - 32) : 450;
     });
@@ -21,7 +22,8 @@ export const ResultSkeleton = ({ position }: ResultSkeletonProps) => {
         <div
             className="absolute top-0 left-0 z-sidebar glassmorphic-card p-4 rounded-xl shadow-2xl flex flex-col overflow-hidden pointer-events-none"
             style={{
-                transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
+                transform: `translate3d(${position.x}px, ${position.y}px, 0) scale(${zoomScale})`,
+                transformOrigin: 'top left',
                 width: `${width}px`,
                 height: '280px',
             }}

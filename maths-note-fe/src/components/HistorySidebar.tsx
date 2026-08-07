@@ -51,7 +51,7 @@ function HistorySidebarInner({
             {/* Logo Branding (shifted right to make room for toggle button) */}
             <div className="flex items-center gap-2 mb-4 pb-3 border-b border-stone-200 dark:border-white/10 shrink-0 pl-14 h-10">
                 <span className="text-xl font-extrabold tracking-tight font-sans">
-                    solve<span className="text-[#d97706]">IQ</span>
+                    solve<span className="text-stone-900 dark:text-white">IQ</span>
                 </span>
             </div>
 
@@ -64,7 +64,7 @@ function HistorySidebarInner({
                             <div className="flex flex-wrap gap-1.5 align-content-start py-0.5">
                                 {Object.entries(dictOfVars).map(([name, value]) => (
                                     <div key={name} className="flex items-center gap-1.5 bg-stone-100 dark:bg-stone-900 border border-stone-200 dark:border-stone-800 px-2.5 py-1 rounded-lg text-xs">
-                                        <span className="font-mono font-bold text-[#d97706]">{name}</span>
+                                        <span className="font-mono font-bold text-stone-750 dark:text-stone-300">{name}</span>
                                         <span className="text-stone-500 dark:text-stone-400">=</span>
                                         <span className="font-mono text-stone-800 dark:text-stone-200">{value}</span>
                                     </div>

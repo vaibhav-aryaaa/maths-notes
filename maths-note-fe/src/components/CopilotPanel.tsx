@@ -70,7 +70,7 @@ function CopilotPanelInner({
                             }`}>
                                 {msg.text}
                                 {msg.role === 'ai' && i === copilotMessages.length - 1 && isCopilotStreaming && (
-                                    <span className="inline-block w-1.5 h-4 bg-amber-500 ml-0.5 animate-pulse align-middle" />
+                                    <span className="inline-block w-1.5 h-4 bg-stone-900 dark:bg-white ml-0.5 animate-pulse align-middle" />
                                 )}
                             </div>
                         </div>

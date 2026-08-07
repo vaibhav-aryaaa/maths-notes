@@ -40,6 +40,7 @@ interface DraggableResultCardProps {
     setPosition?: (pos: { x: number; y: number }) => void;
     readOnly?: boolean;
     onShare?: (result: GeneratedResult) => void;
+    zoomScale?: number;
 }
 
 export const DraggableResultCard = ({ 
@@ -47,7 +48,8 @@ export const DraggableResultCard = ({
     defaultPosition, 
     setPosition: setPositionProp,
     readOnly = false,
-    onShare
+    onShare,
+    zoomScale = 1
 }: DraggableResultCardProps) => {
     const [isDragging, setIsDragging] = useState(false);
     const [position, setPosition] = useState(defaultPosition);
@@ -205,8 +207,8 @@ export const DraggableResultCard = ({
         const maxHeight = Math.min(800, window.innerHeight - 32);
 
         const handleMouseMove = (e: MouseEvent) => {
-            const dx = e.clientX - resizeStart.current.x;
-            const dy = e.clientY - resizeStart.current.y;
+            const dx = (e.clientX - resizeStart.current.x) / zoomScale;
+            const dy = (e.clientY - resizeStart.current.y) / zoomScale;
             setSize({
                 width: Math.max(minWidth, Math.min(maxWidth, cardSizeStart.current.width + dx)),
                 height: Math.max(minHeight, Math.min(maxHeight, cardSizeStart.current.height + dy))
@@ -215,8 +217,8 @@ export const DraggableResultCard = ({
 
         const handleTouchMove = (e: TouchEvent) => {
             const touch = e.touches[0];
-            const dx = touch.clientX - resizeStart.current.x;
-            const dy = touch.clientY - resizeStart.current.y;
+            const dx = (touch.clientX - resizeStart.current.x) / zoomScale;
+            const dy = (touch.clientY - resizeStart.current.y) / zoomScale;
             setSize({
                 width: Math.max(minWidth, Math.min(maxWidth, cardSizeStart.current.width + dx)),
                 height: Math.max(minHeight, Math.min(maxHeight, cardSizeStart.current.height + dy))
@@ -238,7 +240,7 @@ export const DraggableResultCard = ({
             window.removeEventListener('touchmove', handleTouchMove);
             window.removeEventListener('touchend', handleMouseUp);
         };
-    }, [isResizing]);
+    }, [isResizing, zoomScale]);
 
     const serializedSolutions = JSON.stringify(result.solutions);
 
@@ -265,7 +267,7 @@ export const DraggableResultCard = ({
                 className="flex flex-col gap-2 p-3 bg-stone-100/50 dark:bg-white/5 border border-stone-200 dark:border-white/10 rounded-xl transition-all duration-300 animate-in fade-in slide-in-from-right-4"
             >
                 <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center justify-center text-xs font-bold font-sans">
+                    <span className="w-5 h-5 rounded-full bg-stone-200 dark:bg-white/10 text-stone-700 dark:text-stone-300 border border-stone-350 dark:border-white/10 flex items-center justify-center text-xs font-bold font-sans">
                         {step.order}
                     </span>
                     <span className="text-xs text-stone-600 dark:text-gray-400 font-bold uppercase tracking-wider font-sans">
@@ -355,7 +357,8 @@ export const DraggableResultCard = ({
             aria-label={`AI Result Card. Solution: ${summaryText}. Press arrow keys to move card around viewport.`}
             className="absolute top-0 left-0 z-controls glassmorphic-card p-4 rounded-xl shadow-2xl cursor-move select-none flex flex-col overflow-hidden animate-[fadeIn_0.5s_ease-out_forwards] focus-visible:outline-none"
             style={{ 
-                transform: `translate3d(${finalPosition.x}px, ${finalPosition.y}px, 0)`,
+                transform: `translate3d(${finalPosition.x}px, ${finalPosition.y}px, 0) scale(${zoomScale})`,
+                transformOrigin: 'top left',
                 width: isMinimized ? 'auto' : `${size.width}px`,
                 height: isMinimized ? 'auto' : `${size.height}px`,
             }}
@@ -394,19 +397,19 @@ export const DraggableResultCard = ({
                     )}
                     <button
                         onClick={() => setIsMinimized(!isMinimized)}
-                        className="w-3.5 h-3.5 rounded-full bg-purple-500 hover:bg-purple-400 border border-purple-600/50 transition-all cursor-pointer flex items-center justify-center group relative shadow-sm"
+                        className="w-3.5 h-3.5 rounded-full bg-red-500 hover:bg-red-400 border border-red-600/50 transition-all cursor-pointer flex items-center justify-center group relative shadow-sm"
                         title={isMinimized ? "Maximize" : "Minimize"}
                         aria-label={isMinimized ? "Maximize solution card layout" : "Minimize solution card layout"}
                     >
                         {isMinimized ? (
                             /* macOS style plus icon on hover */
                             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                <span className="w-1.5 h-[1.5px] bg-purple-950 absolute" />
-                                <span className="h-1.5 w-[1.5px] bg-purple-950 absolute" />
+                                <span className="w-1.5 h-[1.5px] bg-red-955 absolute" />
+                                <span className="h-1.5 w-[1.5px] bg-red-955 absolute" />
                             </div>
                         ) : (
                             /* macOS style minus icon on hover */
-                            <span className="w-1.5 h-[1.5px] bg-purple-950 opacity-0 group-hover:opacity-100 transition-opacity absolute" />
+                            <span className="w-1.5 h-[1.5px] bg-red-955 opacity-0 group-hover:opacity-100 transition-opacity absolute" />
                         )}
                     </button>
                 </div>
@@ -436,7 +439,7 @@ export const DraggableResultCard = ({
                                     </span>
                                     <button
                                         onClick={() => setShowAllSteps(false)}
-                                        className="cursor-pointer text-xs font-extrabold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 font-sans pl-3 py-0.5"
+                                        className="cursor-pointer text-xs font-extrabold text-stone-900 dark:text-stone-100 hover:text-stone-700 dark:hover:text-white font-sans pl-3 py-0.5"
                                         aria-label="Switch step presentation style to paced sequential view"
                                     >
                                         Switch to Paced View
@@ -456,7 +459,7 @@ export const DraggableResultCard = ({
                                         <button
                                             disabled={currentStepIndex === steps.length - 1}
                                             onClick={() => setCurrentStepIndex(prev => Math.min(steps.length - 1, prev + 1))}
-                                            className="cursor-pointer text-xs font-bold text-amber-800 dark:text-white px-2.5 py-1.5 rounded-lg border border-amber-200 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 disabled:opacity-30 disabled:hover:bg-amber-50 dark:disabled:hover:bg-amber-500/10 disabled:cursor-not-allowed transition-all font-sans animate-in fade-in"
+                                            className="cursor-pointer text-xs font-bold text-stone-900 dark:text-stone-100 px-2.5 py-1.5 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 disabled:opacity-30 disabled:hover:bg-stone-100 dark:disabled:hover:bg-stone-800 disabled:cursor-not-allowed transition-all font-sans animate-in fade-in"
                                             aria-label="Go forward to next mathematical step"
                                         >
                                             Next step →
@@ -468,7 +471,7 @@ export const DraggableResultCard = ({
                                         </span>
                                         <button
                                             onClick={() => setShowAllSteps(true)}
-                                            className="cursor-pointer text-xs font-extrabold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 font-sans border-l border-stone-200 dark:border-white/10 pl-3 py-0.5"
+                                            className="cursor-pointer text-xs font-extrabold text-stone-900 dark:text-stone-100 hover:text-stone-700 dark:hover:text-white font-sans border-l border-stone-200 dark:border-white/10 pl-3 py-0.5"
                                             aria-label="Show all mathematical step details sequentially in list"
                                         >
                                             Show All
