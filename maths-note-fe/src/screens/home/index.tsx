@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { SWATCHES } from '@/constants';
-import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Sparkles, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye } from 'lucide-react';
+import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Sparkles, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye, Hand, Target } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { ResultSkeleton } from '@/components/ResultSkeleton';
 import { useMathCanvas } from './useMathCanvas';
@@ -145,6 +145,9 @@ export default function Home() {
         resetView,
         redrawViewCanvas,
         strokesRef,
+        isSpacePressed,
+        isPanning,
+        zoomToContent
     } = useMathCanvas(handleSelectionSolve);
 
     const [savedInkColor, setSavedInkColor] = useState('rgb(255, 255, 255)');
@@ -551,6 +554,10 @@ export default function Home() {
                 setActiveTool('pen');
                 setSelectedShape('freehand');
             }
+            // Hand: H
+            else if (!cmdOrCtrl && !e.altKey && e.key.toLowerCase() === 'h') {
+                setActiveTool('hand');
+            }
             // Eraser: E
             else if (!cmdOrCtrl && !e.altKey && e.key.toLowerCase() === 'e') {
                 setActiveTool('eraser');
@@ -639,6 +646,7 @@ export default function Home() {
                         { id: 'marker' as const, label: 'Marker', icon: <Paintbrush size={14} /> },
                         { id: 'highlighter' as const, label: 'Highlighter', icon: <Highlighter size={14} /> },
                         { id: 'eraser' as const, label: 'Eraser', icon: <Eraser size={14} /> },
+                        { id: 'hand' as const, label: 'Hand Tool', icon: <Hand size={14} /> },
                         { id: 'select-lasso' as const, label: 'Lasso Solve', icon: <Scissors size={14} /> },
                         { id: 'select-rect' as const, label: 'Rect Solve', icon: <Crop size={14} /> },
                     ].map((t) => {
@@ -794,6 +802,17 @@ export default function Home() {
                     <Maximize size={14} className="text-stone-500 dark:text-gray-300" />
                 </Button>
 
+                {/* Zoom to Content Button */}
+                <Button
+                    onClick={zoomToContent}
+                    className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg cursor-pointer"
+                    variant="default"
+                    title="Zoom to Content (Ctrl+Shift+0)"
+                    aria-label="Fit drawn content within canvas workspace viewport"
+                >
+                    <Target size={14} className="text-stone-500 dark:text-gray-300" />
+                </Button>
+
                 {/* Shape Tool Selector Button */}
                 {activeTool === 'pen' && (
                     <>
@@ -906,7 +925,13 @@ export default function Home() {
             <canvas
                 ref={canvasRef}
                 id="canvas"
-                className={`absolute top-0 left-0 w-full h-full touch-none transition-all duration-300 ${colorScheme === 'light' ? 'invert-[0.93] hue-rotate-180' : ''}`}
+                className={`absolute top-0 left-0 w-full h-full touch-none transition-all duration-300 ${
+                    colorScheme === 'light' ? 'invert-[0.93] hue-rotate-180' : ''
+                } ${
+                    (activeTool === 'hand' || isSpacePressed)
+                        ? (isPanning ? 'cursor-grabbing' : 'cursor-grab')
+                        : ''
+                }`}
                 width={windowSize.width}
                 height={windowSize.height}
                 onMouseDown={startDrawing}

@@ -89,7 +89,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
     const [isDrawing, setIsDrawing] = useState(false);
     const [isCanvasEmpty, setIsCanvasEmpty] = useState(true);
-    const [activeTool, setActiveTool] = useState<'pen' | 'fountain' | 'marker' | 'highlighter' | 'eraser' | 'select-rect' | 'select-lasso'>('pen');
+    const [activeTool, setActiveTool] = useState<'pen' | 'fountain' | 'marker' | 'highlighter' | 'eraser' | 'select-rect' | 'select-lasso' | 'hand'>('pen');
     const [color, setColor] = useState(() => {
         if (typeof window !== 'undefined') {
             return localStorage.getItem('solvelq_color') || 'rgb(255, 255, 255)';
@@ -137,6 +137,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
     });
 
     const isPanningRef = useRef(false);
+    const [isPanning, setIsPanning] = useState(false);
     const isPinchingRef = useRef(false);
     const panStartRef = useRef({ x: 0, y: 0 });
     const panOffsetStartRef = useRef({ x: 0, y: 0 });
@@ -554,29 +555,40 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         const handleWheel = (e: WheelEvent) => {
             e.preventDefault();
 
-            const rect = canvas.getBoundingClientRect();
-            const cursorX = e.clientX - rect.left;
-            const cursorY = e.clientY - rect.top;
+            if (e.ctrlKey) {
+                // Zoom logic (Mac pinch-to-zoom / Ctrl+scroll)
+                const rect = canvas.getBoundingClientRect();
+                const cursorX = e.clientX - rect.left;
+                const cursorY = e.clientY - rect.top;
 
-            const { offsetX, offsetY, scale } = cameraRef.current;
+                const { offsetX, offsetY, scale } = cameraRef.current;
 
-            const worldCursorX = (cursorX - offsetX) / scale;
-            const worldCursorY = (cursorY - offsetY) / scale;
+                const worldCursorX = (cursorX - offsetX) / scale;
+                const worldCursorY = (cursorY - offsetY) / scale;
 
-            const delta = -e.deltaY;
-            // Use smooth exponential zoom scaling for a natural scroll feel
-            const zoomSensitivity = 0.0015;
-            const factor = Math.exp(delta * zoomSensitivity);
-            const newScale = Math.min(4, Math.max(0.2, scale * factor));
+                const delta = -e.deltaY;
+                // Much higher zoom sensitivity (0.007) for extremely fast trackpad pinch zoom response
+                const zoomSensitivity = 0.007;
+                const factor = Math.exp(delta * zoomSensitivity);
+                const newScale = Math.min(4, Math.max(0.2, scale * factor));
 
-            const newOffsetX = cursorX - worldCursorX * newScale;
-            const newOffsetY = cursorY - worldCursorY * newScale;
+                const newOffsetX = cursorX - worldCursorX * newScale;
+                const newOffsetY = cursorY - worldCursorY * newScale;
 
-            cameraRef.current = {
-                offsetX: newOffsetX,
-                offsetY: newOffsetY,
-                scale: newScale
-            };
+                cameraRef.current = {
+                    offsetX: newOffsetX,
+                    offsetY: newOffsetY,
+                    scale: newScale
+                };
+            } else {
+                // Pan logic (Mac two-finger scroll) - use 1.5x multiplier for responsive trackpad scroll
+                const panMultiplier = 1.5;
+                cameraRef.current = {
+                    ...cameraRef.current,
+                    offsetX: cameraRef.current.offsetX - e.deltaX * panMultiplier,
+                    offsetY: cameraRef.current.offsetY - e.deltaY * panMultiplier
+                };
+            }
             setCamera({ ...cameraRef.current });
             redrawViewCanvas();
         };
@@ -608,8 +620,9 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        if (isSpacePressed || e.button === 1) {
+        if (isSpacePressed || e.button === 1 || activeTool === 'hand') {
             isPanningRef.current = true;
+            setIsPanning(true);
             panStartRef.current = { x: e.clientX, y: e.clientY };
             panOffsetStartRef.current = { x: cameraRef.current.offsetX, y: cameraRef.current.offsetY };
             return;
@@ -697,6 +710,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
     const stopDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
         if (isPanningRef.current) {
             isPanningRef.current = false;
+            setIsPanning(false);
             return;
         }
 
@@ -803,6 +817,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
         if (e.touches.length === 2) {
             isPanningRef.current = true;
+            setIsPanning(true);
             isPinchingRef.current = true;
             setIsDrawing(false);
 
@@ -819,8 +834,9 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             return;
         }
 
-        if (isSpacePressed) {
+        if (isSpacePressed || activeTool === 'hand') {
             isPanningRef.current = true;
+            setIsPanning(true);
             panStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
             panOffsetStartRef.current = { x: cameraRef.current.offsetX, y: cameraRef.current.offsetY };
             return;
@@ -930,6 +946,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             }
             if (e.touches.length === 0) {
                 isPanningRef.current = false;
+                setIsPanning(false);
             }
             return;
         }
@@ -937,6 +954,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         if (isPanningRef.current) {
             if (e.touches.length === 0) {
                 isPanningRef.current = false;
+                setIsPanning(false);
             }
             return;
         }
@@ -1111,19 +1129,93 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         requestAnimationFrame(animate);
     }, [redrawViewCanvas, getCenteredCamera]);
 
-    // Handle Ctrl+0/Cmd+0 keyboard shortcut for reset view
+    const zoomToContent = useCallback(() => {
+        const strokes = strokesRef.current;
+        if (strokes.length === 0) {
+            resetView();
+            return;
+        }
+
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+
+        strokes.forEach(stroke => {
+            stroke.points.forEach(pt => {
+                if (pt.x < minX) minX = pt.x;
+                if (pt.x > maxX) maxX = pt.x;
+                if (pt.y < minY) minY = pt.y;
+                if (pt.y > maxY) maxY = pt.y;
+            });
+        });
+
+        const padding = 80;
+        const contentWidth = maxX - minX;
+        const contentHeight = maxY - minY;
+
+        if (contentWidth < 1 || contentHeight < 1) {
+            resetView();
+            return;
+        }
+
+        const viewportWidth = windowSize.width;
+        const viewportHeight = windowSize.height;
+
+        const scaleX = (viewportWidth - padding * 2) / contentWidth;
+        const scaleY = (viewportHeight - padding * 2) / contentHeight;
+        let targetScale = Math.min(scaleX, scaleY);
+
+        targetScale = Math.min(4, Math.max(0.2, targetScale));
+
+        const contentCenterX = minX + contentWidth / 2;
+        const contentCenterY = minY + contentHeight / 2;
+
+        const targetOffsetX = viewportWidth / 2 - contentCenterX * targetScale;
+        const targetOffsetY = viewportHeight / 2 - contentCenterY * targetScale;
+
+        const start = performance.now();
+        const startOffsetX = cameraRef.current.offsetX;
+        const startOffsetY = cameraRef.current.offsetY;
+        const startScale = cameraRef.current.scale;
+
+        const animate = (time: number) => {
+            const elapsed = time - start;
+            const progress = Math.min(elapsed / 200, 1);
+            const ease = 1 - Math.pow(1 - progress, 3);
+
+            cameraRef.current = {
+                offsetX: startOffsetX + (targetOffsetX - startOffsetX) * ease,
+                offsetY: startOffsetY + (targetOffsetY - startOffsetY) * ease,
+                scale: startScale + (targetScale - startScale) * ease
+            };
+            setCamera({ ...cameraRef.current });
+            redrawViewCanvas();
+
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            }
+        };
+        requestAnimationFrame(animate);
+    }, [redrawViewCanvas, resetView, windowSize]);
+
+    // Handle Ctrl+0/Cmd+0 keyboard shortcut for reset view, and Ctrl+Shift+0/Cmd+Shift+0 to zoom to content
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
             const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
             if (cmdOrCtrl && e.key === '0') {
                 e.preventDefault();
-                resetView();
+                if (e.shiftKey) {
+                    zoomToContent();
+                } else {
+                    resetView();
+                }
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [resetView]);
+    }, [resetView, zoomToContent]);
 
 
 
@@ -1211,5 +1303,8 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             
             redrawViewCanvas();
         },
+        isSpacePressed,
+        isPanning,
+        zoomToContent
     };
 };
