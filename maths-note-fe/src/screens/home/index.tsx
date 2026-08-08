@@ -8,7 +8,7 @@ import { useMathCanvas } from './useMathCanvas';
 import { useCanvasSolver } from './useCanvasSolver';
 import { rasterizeRegion } from './canvasUtils';
 import { useCopilotChat } from './useCopilotChat';
-import { Modal, useMantineColorScheme, Slider } from '@mantine/core';
+import { Modal, useMantineColorScheme, Slider, Popover } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import axios from 'axios';
 
@@ -149,6 +149,7 @@ export default function Home() {
 
     const [savedInkColor, setSavedInkColor] = useState('rgb(255, 255, 255)');
     const [savedHighlighterColor, setSavedHighlighterColor] = useState('#FEF08A');
+    const [popoverOpen, setPopoverOpen] = useState(false);
 
     const [toolWidths, setToolWidths] = useState<Record<string, number>>(() => {
         if (typeof window !== 'undefined') {
@@ -205,6 +206,9 @@ export default function Home() {
             }
             setColor(savedInkColor);
         }
+
+        // Close popover when activeTool changes (e.g. from hotkeys)
+        setPopoverOpen(false);
 
         prevToolRef.current = activeTool;
     }, [activeTool]);
@@ -637,26 +641,105 @@ export default function Home() {
                         { id: 'eraser' as const, label: 'Eraser', icon: <Eraser size={14} /> },
                         { id: 'select-lasso' as const, label: 'Lasso Solve', icon: <Scissors size={14} /> },
                         { id: 'select-rect' as const, label: 'Rect Solve', icon: <Crop size={14} /> },
-                    ].map((t) => (
-                        <button
-                            key={t.id}
-                            onClick={() => {
-                                setActiveTool(t.id);
-                                if (t.id === 'pen' || t.id === 'fountain' || t.id === 'marker' || t.id === 'highlighter') {
-                                    setSelectedShape('freehand');
-                                }
-                            }}
-                            className={`cursor-pointer transition-all w-9 h-9 flex items-center justify-center rounded-lg ${
-                                activeTool === t.id 
-                                    ? 'bg-stone-100 dark:bg-white/10 text-stone-950 dark:text-white font-bold shadow-none' 
-                                    : 'hover:bg-stone-100 dark:hover:bg-white/5 text-stone-600 dark:text-gray-300'
-                            }`}
-                            title={t.label}
-                            aria-label={`Select ${t.label} tool`}
-                        >
-                            {t.icon}
-                        </button>
-                    ))}
+                    ].map((t) => {
+                        const isConfigurable = ['pen', 'fountain', 'marker', 'highlighter', 'eraser'].includes(t.id);
+                        const isActive = activeTool === t.id;
+
+                        const buttonElement = (
+                            <button
+                                key={t.id}
+                                onClick={() => {
+                                    if (isActive) {
+                                        setPopoverOpen(!popoverOpen);
+                                    } else {
+                                        setActiveTool(t.id);
+                                        setPopoverOpen(false);
+                                        if (['pen', 'fountain', 'marker', 'highlighter'].includes(t.id)) {
+                                            setSelectedShape('freehand');
+                                        }
+                                    }
+                                }}
+                                className={`cursor-pointer transition-all w-9 h-9 flex items-center justify-center rounded-lg relative ${
+                                    isActive 
+                                        ? 'bg-stone-100 dark:bg-white/10 text-stone-950 dark:text-white font-bold shadow-none' 
+                                        : 'hover:bg-stone-100 dark:hover:bg-white/5 text-stone-600 dark:text-gray-300'
+                                }`}
+                                title={t.label}
+                                aria-label={`Select ${t.label} tool`}
+                                aria-haspopup={isConfigurable ? "dialog" : undefined}
+                                aria-expanded={isConfigurable && isActive ? popoverOpen : undefined}
+                            >
+                                {t.icon}
+                                {isActive && t.id !== 'eraser' && (
+                                    <div 
+                                        className="absolute bottom-1 right-1 w-2 h-2 rounded-full border border-white dark:border-stone-900 shadow-sm"
+                                        style={{ backgroundColor: color }}
+                                    />
+                                )}
+                            </button>
+                        );
+
+                        if (isConfigurable && isActive) {
+                            return (
+                                <Popover
+                                    key={t.id}
+                                    opened={popoverOpen}
+                                    onChange={setPopoverOpen}
+                                    position="bottom"
+                                    withArrow
+                                    shadow="md"
+                                    trapFocus
+                                    withinPortal
+                                >
+                                    <Popover.Target>
+                                        {buttonElement}
+                                    </Popover.Target>
+                                    <Popover.Dropdown className="bg-white dark:bg-[#1c1c1f] border border-stone-200 dark:border-[#2d2d30] p-3 rounded-xl shadow-xl flex flex-col gap-3">
+                                        {/* Color swatches inside popover for drawing tools */}
+                                        {t.id !== 'eraser' && (
+                                            <div className="flex items-center gap-1.5">
+                                                {(t.id === 'highlighter' ? HIGHLIGHTER_SWATCHES : SWATCHES).map((swatch) => (
+                                                    <button
+                                                        key={swatch}
+                                                        onClick={() => setColor(swatch)}
+                                                        className={`cursor-pointer w-5 h-5 rounded-full border border-stone-200 dark:border-[#2d2d30] transition-all hover:scale-110 active:scale-90 ${
+                                                            color === swatch 
+                                                                ? 'ring-2 ring-stone-900 dark:ring-stone-100 ring-offset-2 ring-offset-white dark:ring-offset-[#1c1c1f] scale-110' 
+                                                                : ''
+                                                        }`}
+                                                        style={{ backgroundColor: swatch }}
+                                                        title={swatch}
+                                                        aria-label={`Select brush color ${swatch}`}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Width slider inside popover */}
+                                        <div className="flex items-center gap-3 min-w-[150px] select-none">
+                                            <Slider
+                                                size="xs"
+                                                className="flex-1"
+                                                min={WIDTH_RANGES[t.id]?.min ?? 1}
+                                                max={WIDTH_RANGES[t.id]?.max ?? 20}
+                                                value={t.id === 'eraser' ? eraserWidth : strokeWidth}
+                                                onChange={handleWidthChange}
+                                                label={null}
+                                                styles={{
+                                                    thumb: { transition: 'transform 100ms ease' }
+                                                }}
+                                            />
+                                            <span className="text-[11px] font-bold text-stone-500 dark:text-gray-400 font-mono w-7 text-right select-none">
+                                                {(t.id === 'eraser' ? eraserWidth : strokeWidth)}px
+                                            </span>
+                                        </div>
+                                    </Popover.Dropdown>
+                                </Popover>
+                            );
+                        }
+
+                        return buttonElement;
+                    })}
                 </div>
 
                 {/* Divider */}
@@ -711,122 +794,52 @@ export default function Home() {
                     <Maximize size={14} className="text-stone-500 dark:text-gray-300" />
                 </Button>
 
-                {['pen', 'fountain', 'marker', 'highlighter'].includes(activeTool) && (
+                {/* Shape Tool Selector Button */}
+                {activeTool === 'pen' && (
                     <>
-                        {/* Shape Tool Selector Button */}
-                        {activeTool === 'pen' && (
-                            <>
-                                {/* Divider */}
-                                <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
-                                <div className="relative">
-                                    <button
-                                        onClick={() => {
-                                            setIsShapeMenuOpen(!isShapeMenuOpen);
-                                        }}
-                                        className={`bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white rounded-lg flex items-center justify-center h-9 w-9 transition-all cursor-pointer ${isShapeMenuOpen ? 'bg-stone-100 dark:bg-white/10' : ''}`}
-                                        title="Select Drawing Tool"
-                                        aria-label={`Select shape drawing tool (currently active: ${selectedShape === 'freehand' ? 'Pen' : selectedShape})`}
-                                    >
-                                        {selectedShape === 'freehand' && <Pen size={14} className="text-stone-500 dark:text-gray-300" />}
-                                        {selectedShape === 'line' && <Slash size={14} className="text-stone-500 dark:text-gray-300" />}
-                                        {selectedShape === 'rectangle' && <Square size={14} className="text-stone-500 dark:text-gray-300" />}
-                                        {selectedShape === 'circle' && <Circle size={14} className="text-stone-500 dark:text-gray-300" />}
-                                        {selectedShape === 'triangle' && <Triangle size={14} className="text-stone-500 dark:text-gray-300" />}
-                                    </button>
-                                    
-                                    {isShapeMenuOpen && (
-                                        <div className="absolute top-12 left-1/2 -translate-x-1/2 bg-white dark:bg-[#18181c] border border-stone-200 dark:border-[#2d2d30] p-1.5 rounded-xl shadow-2xl z-50 flex flex-col gap-0.5 min-w-[125px] pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-150">
-                                            {[
-                                                { id: 'freehand' as const, label: 'Pen', icon: <Pen size={13} /> },
-                                                { id: 'line' as const, label: 'Line', icon: <Slash size={13} /> },
-                                                { id: 'rectangle' as const, label: 'Rectangle', icon: <Square size={13} /> },
-                                                { id: 'circle' as const, label: 'Circle', icon: <Circle size={13} /> },
-                                                { id: 'triangle' as const, label: 'Triangle', icon: <Triangle size={13} /> },
-                                            ].map((tool) => (
-                                                <button
-                                                    key={tool.id}
-                                                    onClick={() => {
-                                                        setSelectedShape(tool.id);
-                                                        setActiveTool('pen');
-                                                        setIsShapeMenuOpen(false);
-                                                    }}
-                                                    className={`cursor-pointer hover:bg-stone-100 dark:hover:bg-white/5 transition-colors p-1.5 text-left rounded-lg text-xs flex items-center gap-2 w-full text-stone-700 dark:text-white ${selectedShape === tool.id ? 'bg-stone-150 dark:bg-white/10 font-bold' : ''}`}
-                                                    aria-label={`Use ${tool.label} drawing tool`}
-                                                >
-                                                    <span className="text-stone-400 dark:text-gray-400">{tool.icon}</span>
-                                                    <span>{tool.label}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
+                        {/* Divider */}
+                        <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
+                        <div className="relative">
+                            <button
+                                onClick={() => {
+                                    setIsShapeMenuOpen(!isShapeMenuOpen);
+                                }}
+                                className={`bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white rounded-lg flex items-center justify-center h-9 w-9 transition-all cursor-pointer ${isShapeMenuOpen ? 'bg-stone-100 dark:bg-white/10' : ''}`}
+                                title="Select Drawing Tool"
+                                aria-label={`Select shape drawing tool (currently active: ${selectedShape === 'freehand' ? 'Pen' : selectedShape})`}
+                            >
+                                {selectedShape === 'freehand' && <Pen size={14} className="text-stone-500 dark:text-gray-300" />}
+                                {selectedShape === 'line' && <Slash size={14} className="text-stone-500 dark:text-gray-300" />}
+                                {selectedShape === 'rectangle' && <Square size={14} className="text-stone-500 dark:text-gray-300" />}
+                                {selectedShape === 'circle' && <Circle size={14} className="text-stone-500 dark:text-gray-300" />}
+                                {selectedShape === 'triangle' && <Triangle size={14} className="text-stone-500 dark:text-gray-300" />}
+                            </button>
+                            
+                            {isShapeMenuOpen && (
+                                <div className="absolute top-12 left-1/2 -translate-x-1/2 bg-white dark:bg-[#18181c] border border-stone-200 dark:border-[#2d2d30] p-1.5 rounded-xl shadow-2xl z-50 flex flex-col gap-0.5 min-w-[125px] pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-150">
+                                    {[
+                                        { id: 'freehand' as const, label: 'Pen', icon: <Pen size={13} /> },
+                                        { id: 'line' as const, label: 'Line', icon: <Slash size={13} /> },
+                                        { id: 'rectangle' as const, label: 'Rectangle', icon: <Square size={13} /> },
+                                        { id: 'circle' as const, label: 'Circle', icon: <Circle size={13} /> },
+                                        { id: 'triangle' as const, label: 'Triangle', icon: <Triangle size={13} /> },
+                                    ].map((tool) => (
+                                        <button
+                                            key={tool.id}
+                                            onClick={() => {
+                                                setSelectedShape(tool.id);
+                                                setActiveTool('pen');
+                                                setIsShapeMenuOpen(false);
+                                            }}
+                                            className={`cursor-pointer hover:bg-stone-100 dark:hover:bg-white/5 transition-colors p-1.5 text-left rounded-lg text-xs flex items-center gap-2 w-full text-stone-700 dark:text-white ${selectedShape === tool.id ? 'bg-stone-150 dark:bg-white/10 font-bold' : ''}`}
+                                            aria-label={`Use ${tool.label} drawing tool`}
+                                        >
+                                            <span className="text-stone-400 dark:text-gray-400">{tool.icon}</span>
+                                            <span>{tool.label}</span>
+                                        </button>
+                                    ))}
                                 </div>
-                            </>
-                        )}
-
-                        {/* Divider */}
-                        <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
-
-                        {/* Inline Color Palette Swatches */}
-                        <div className="flex items-center gap-2 px-1.5 flex-shrink-0">
-                            {(activeTool === 'highlighter' ? HIGHLIGHTER_SWATCHES : SWATCHES).map((swatch) => (
-                                <button
-                                    key={swatch}
-                                    onClick={() => setColor(swatch)}
-                                    className={`cursor-pointer w-4 h-4 rounded-full border border-stone-200 dark:border-white/20 transition-all hover:scale-110 active:scale-90 ${
-                                        color === swatch 
-                                            ? 'ring-2 ring-stone-900 dark:ring-stone-100 ring-offset-2 ring-offset-white dark:ring-offset-[#1c1c1f] scale-110' 
-                                             : ''
-                                    }`}
-                                    style={{ backgroundColor: swatch }}
-                                    title={swatch}
-                                    aria-label={`Select brush color ${swatch}`}
-                                />
-                            ))}
-                        </div>
-
-                        {/* Divider */}
-                        <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
-
-                        {/* Stroke Width Slider */}
-                        <div className="flex items-center gap-2 pl-1.5 flex-shrink-0 select-none">
-                            <Slider
-                                size="xs"
-                                w={80}
-                                min={WIDTH_RANGES[activeTool]?.min ?? 1}
-                                max={WIDTH_RANGES[activeTool]?.max ?? 20}
-                                value={strokeWidth}
-                                onChange={handleWidthChange}
-                                label={null}
-                                styles={{
-                                    thumb: { transition: 'transform 100ms ease' }
-                                }}
-                            />
-                            <span className="text-[11px] font-bold text-stone-500 dark:text-gray-400 font-mono w-7 text-right select-none">{strokeWidth}px</span>
-                        </div>
-                    </>
-                )}
-
-                {/* Eraser specific settings: Sizes */}
-                {activeTool === 'eraser' && (
-                    <>
-                        {/* Divider */}
-                        <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
-
-                        {/* Eraser Width Slider */}
-                        <div className="flex items-center gap-2 pl-1.5 flex-shrink-0 select-none">
-                            <Slider
-                                size="xs"
-                                w={80}
-                                min={WIDTH_RANGES.eraser.min}
-                                max={WIDTH_RANGES.eraser.max}
-                                value={eraserWidth}
-                                onChange={handleWidthChange}
-                                label={null}
-                                styles={{
-                                    thumb: { transition: 'transform 100ms ease' }
-                                }}
-                            />
-                            <span className="text-[11px] font-bold text-stone-500 dark:text-gray-400 font-mono w-7 text-right select-none">{eraserWidth}px</span>
+                            )}
                         </div>
                     </>
                 )}
