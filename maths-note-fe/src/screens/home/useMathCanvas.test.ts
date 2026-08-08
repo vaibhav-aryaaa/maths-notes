@@ -47,6 +47,8 @@ describe('useMathCanvas', () => {
                     rect: () => {},
                     scale: () => {},
                     translate: () => {},
+                    closePath: () => {},
+                    fill: () => {},
                 } as unknown as CanvasRenderingContext2D;
             }
             return null;
@@ -84,6 +86,8 @@ describe('useMathCanvas', () => {
             drawImage: () => {},
             scale: () => {},
             translate: () => {},
+            closePath: () => {},
+            fill: () => {},
         } as unknown as CanvasRenderingContext2D)) as any;
         
         Object.defineProperty(result.current.canvasRef, 'current', {

@@ -62,7 +62,8 @@ export const useCanvasSolver = (
 
             const tempCanvas = rasterizeRegion(strokes, cropRegion, {
                 clipPath: selection?.type === 'lasso' ? selection.points : undefined,
-                scale: 2.0 // Render at 2x resolution for high accuracy OCR
+                scale: 2.0, // Render at 2x resolution for high accuracy OCR
+                excludeHighlighter: true
             });
             const croppedImageBase64 = tempCanvas.toDataURL('image/png');
 

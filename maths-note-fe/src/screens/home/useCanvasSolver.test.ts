@@ -33,6 +33,7 @@ describe('useCanvasSolver', () => {
             stroke: vi.fn(),
             rect: vi.fn(),
             closePath: vi.fn(),
+            fill: vi.fn(),
             save: vi.fn(),
             restore: vi.fn(),
         };
@@ -52,7 +53,7 @@ describe('useCanvasSolver', () => {
                     tool: 'pen',
                     color: 'white',
                     width: 3,
-                    points: [{ x: 100, y: 150 }, { x: 300, y: 350 }]
+                    points: [{ x: 100, y: 150, timestamp: 0 }, { x: 300, y: 350, timestamp: 0 }]
                 }
             ]
         };
@@ -95,6 +96,8 @@ describe('useCanvasSolver', () => {
                 lineTo: vi.fn(),
                 stroke: vi.fn(),
                 rect: vi.fn(),
+                closePath: vi.fn(),
+                fill: vi.fn(),
                 save: vi.fn(),
                 restore: vi.fn(),
             }),
@@ -150,6 +153,8 @@ describe('useCanvasSolver', () => {
                 lineTo: vi.fn(),
                 stroke: vi.fn(),
                 rect: vi.fn(),
+                closePath: vi.fn(),
+                fill: vi.fn(),
                 save: vi.fn(),
                 restore: vi.fn(),
             }),

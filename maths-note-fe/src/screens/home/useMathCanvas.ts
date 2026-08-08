@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Stroke } from '@/types';
-import { getStrokeBounds, drawStroke } from './canvasUtils';
+import { getStrokeBounds, drawStroke, getStrokeOutline } from './canvasUtils';
 
 const generateUUID = () => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -34,7 +34,8 @@ const hitTestStroke = (ex: number, ey: number, stroke: Stroke, radius: number) =
     const pts = stroke.points;
     if (pts.length === 0) return false;
 
-    if (stroke.tool === 'pen') {
+    const isFreehand = ['pen', 'fountain', 'marker', 'highlighter'].includes(stroke.tool);
+    if (isFreehand) {
         for (let i = 0; i < pts.length - 1; i++) {
             if (distToSegmentSq(ex, ey, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y) <= thresholdSq) {
                 return true;
@@ -88,7 +89,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
     const [isDrawing, setIsDrawing] = useState(false);
     const [isCanvasEmpty, setIsCanvasEmpty] = useState(true);
-    const [activeTool, setActiveTool] = useState<'pen' | 'eraser' | 'select-rect' | 'select-lasso'>('pen');
+    const [activeTool, setActiveTool] = useState<'pen' | 'fountain' | 'marker' | 'highlighter' | 'eraser' | 'select-rect' | 'select-lasso'>('pen');
     const [color, setColor] = useState(() => {
         if (typeof window !== 'undefined') {
             return localStorage.getItem('solvelq_color') || 'rgb(255, 255, 255)';
@@ -148,7 +149,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
     const startPosRef = useRef({ x: 0, y: 0 });
     const lastActivePosRef = useRef({ x: 0, y: 0 });
-    const activeStrokePointsRef = useRef<{ x: number; y: number }[]>([]);
+    const activeStrokePointsRef = useRef<{ x: number; y: number; timestamp: number }[]>([]);
     
     // Bounds tracking for canvas crop optimization (stores world coordinates on master canvas)
     const drawBoundsRef = useRef({ minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
@@ -240,21 +241,43 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         // Apply camera transform
         viewCtx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
 
-        // Render culled vector strokes
+        // 1. Render static highlighter strokes
         for (const stroke of strokesRef.current) {
-            const bounds = getStrokeBounds(stroke);
-            const isVisible = !(
-                bounds.maxX < visibleMinX ||
-                bounds.minX > visibleMaxX ||
-                bounds.maxY < visibleMinY ||
-                bounds.minY > visibleMaxY
-            );
-            if (isVisible) {
-                drawStroke(viewCtx, stroke);
+            if (stroke.tool === 'highlighter') {
+                const bounds = getStrokeBounds(stroke);
+                const isVisible = !(
+                    bounds.maxX < visibleMinX ||
+                    bounds.minX > visibleMaxX ||
+                    bounds.maxY < visibleMinY ||
+                    bounds.minY > visibleMaxY
+                );
+                if (isVisible) {
+                    drawStroke(viewCtx, stroke);
+                }
             }
         }
 
-        // Draw legacy masterCanvas background if canvas is not empty but we have no vector strokes (loaded legacy history entry)
+        const isPenTool = ['pen', 'fountain', 'marker', 'highlighter'].includes(activeTool);
+
+        // 2. Draw active freehand highlighter preview (if drawing highlighter)
+        if (isDrawing && activeStrokePointsRef.current.length > 1 && selectedShape === 'freehand' && activeTool === 'highlighter') {
+            if (viewCtx.save) viewCtx.save();
+            viewCtx.beginPath();
+            viewCtx.moveTo(activeStrokePointsRef.current[0].x, activeStrokePointsRef.current[0].y);
+            for (let i = 1; i < activeStrokePointsRef.current.length; i++) {
+                viewCtx.lineTo(activeStrokePointsRef.current[i].x, activeStrokePointsRef.current[i].y);
+            }
+            viewCtx.strokeStyle = colorRef.current;
+            viewCtx.lineWidth = strokeWidthRef.current;
+            viewCtx.lineCap = 'round';
+            viewCtx.lineJoin = 'round';
+            viewCtx.globalCompositeOperation = 'screen';
+            viewCtx.globalAlpha = 0.6;
+            viewCtx.stroke();
+            if (viewCtx.restore) viewCtx.restore();
+        }
+
+        // 3. Draw legacy masterCanvas background if canvas is not empty but we have no vector strokes (loaded legacy history entry)
         if (!isCanvasEmpty && strokesRef.current.length === 0 && masterCanvasRef.current) {
             const masterCanvas = masterCanvasRef.current;
             const srcX = Math.max(0, -offsetX / scale);
@@ -274,23 +297,68 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             }
         }
 
-        // Draw active freehand stroke preview if drawing in pen mode
-        if (isDrawing && activeStrokePointsRef.current.length > 1 && selectedShape === 'freehand' && activeTool === 'pen') {
-            viewCtx.beginPath();
-            viewCtx.moveTo(activeStrokePointsRef.current[0].x, activeStrokePointsRef.current[0].y);
-            for (let i = 1; i < activeStrokePointsRef.current.length; i++) {
-                viewCtx.lineTo(activeStrokePointsRef.current[i].x, activeStrokePointsRef.current[i].y);
+        // 4. Render static non-highlighter strokes
+        for (const stroke of strokesRef.current) {
+            if (stroke.tool !== 'highlighter') {
+                const bounds = getStrokeBounds(stroke);
+                const isVisible = !(
+                    bounds.maxX < visibleMinX ||
+                    bounds.minX > visibleMaxX ||
+                    bounds.maxY < visibleMinY ||
+                    bounds.minY > visibleMaxY
+                );
+                if (isVisible) {
+                    drawStroke(viewCtx, stroke);
+                }
             }
-            viewCtx.lineCap = 'round';
-            viewCtx.lineJoin = 'round';
-            viewCtx.lineWidth = strokeWidthRef.current;
-            viewCtx.strokeStyle = colorRef.current;
-            viewCtx.globalCompositeOperation = 'source-over';
-            viewCtx.stroke();
         }
 
-        // Draw shape preview on screen if drawing shapes in pen mode
-        if (isDrawing && activeStrokePointsRef.current.length > 0 && selectedShape !== 'freehand' && activeTool === 'pen') {
+        // 5. Draw active freehand non-highlighter preview (if drawing non-highlighter)
+        if (isDrawing && activeStrokePointsRef.current.length > 1 && selectedShape === 'freehand' && isPenTool && activeTool !== 'highlighter') {
+            if (viewCtx.save) viewCtx.save();
+            viewCtx.strokeStyle = colorRef.current;
+            viewCtx.lineWidth = strokeWidthRef.current;
+            viewCtx.globalCompositeOperation = 'source-over';
+
+            if (activeTool === 'fountain') {
+                const tempStroke: Stroke = {
+                    id: 'temp',
+                    tool: 'fountain',
+                    color: colorRef.current,
+                    width: strokeWidthRef.current,
+                    points: activeStrokePointsRef.current
+                };
+                const outline = getStrokeOutline(tempStroke);
+                if (outline.length > 0) {
+                    viewCtx.beginPath();
+                    viewCtx.moveTo(outline[0][0], outline[0][1]);
+                    for (let i = 1; i < outline.length; i++) {
+                        viewCtx.lineTo(outline[i][0], outline[i][1]);
+                    }
+                    viewCtx.closePath();
+                    viewCtx.fillStyle = colorRef.current;
+                    viewCtx.fill();
+                }
+            } else {
+                viewCtx.beginPath();
+                viewCtx.moveTo(activeStrokePointsRef.current[0].x, activeStrokePointsRef.current[0].y);
+                for (let i = 1; i < activeStrokePointsRef.current.length; i++) {
+                    viewCtx.lineTo(activeStrokePointsRef.current[i].x, activeStrokePointsRef.current[i].y);
+                }
+                if (activeTool === 'marker') {
+                    viewCtx.lineCap = 'square';
+                    viewCtx.lineJoin = 'round';
+                } else {
+                    viewCtx.lineCap = 'round';
+                    viewCtx.lineJoin = 'round';
+                }
+                viewCtx.stroke();
+            }
+            if (viewCtx.restore) viewCtx.restore();
+        }
+
+        // 6. Draw shape preview on screen if drawing shapes in pen mode
+        if (isDrawing && selectedShape !== 'freehand' && isPenTool) {
             viewCtx.beginPath();
             viewCtx.lineCap = 'round';
             viewCtx.lineJoin = 'round';
@@ -556,7 +624,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             setIsDrawing(true);
             lastActivePosRef.current = { x: worldPos.x, y: worldPos.y };
             startPosRef.current = { x: worldPos.x, y: worldPos.y };
-            activeStrokePointsRef.current = [{ x: worldPos.x, y: worldPos.y }];
+            activeStrokePointsRef.current = [{ x: worldPos.x, y: worldPos.y, timestamp: Date.now() }];
             redrawViewCanvas();
             return;
         }
@@ -567,7 +635,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
         lastActivePosRef.current = { x: worldPos.x, y: worldPos.y };
         if (selectedShape === 'freehand') {
-            activeStrokePointsRef.current = [{ x: worldPos.x, y: worldPos.y }];
+            activeStrokePointsRef.current = [{ x: worldPos.x, y: worldPos.y, timestamp: Date.now() }];
         } else {
             startPosRef.current = { x: worldPos.x, y: worldPos.y };
         }
@@ -614,14 +682,14 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
         if (activeTool === 'select-rect' || activeTool === 'select-lasso') {
             if (activeTool === 'select-lasso') {
-                activeStrokePointsRef.current.push({ x: worldPos.x, y: worldPos.y });
+                activeStrokePointsRef.current.push({ x: worldPos.x, y: worldPos.y, timestamp: Date.now() });
             }
             redrawViewCanvas();
             return;
         }
 
         if (selectedShape === 'freehand') {
-            activeStrokePointsRef.current.push({ x: worldPos.x, y: worldPos.y });
+            activeStrokePointsRef.current.push({ x: worldPos.x, y: worldPos.y, timestamp: Date.now() });
         }
         redrawViewCanvas();
     };
@@ -634,6 +702,12 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
         if (!isDrawing) return;
         setIsDrawing(false);
+
+        if (activeTool === 'eraser') {
+            activeStrokePointsRef.current = [];
+            redrawViewCanvas();
+            return;
+        }
 
         const canvas = canvasRef.current;
 
@@ -692,12 +766,12 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
             const newPoints = selectedShape === 'freehand'
                 ? [...activeStrokePointsRef.current]
-                : [{ x: sx, y: sy }, { x, y }];
+                : [{ x: sx, y: sy, timestamp: Date.now() }, { x, y, timestamp: Date.now() }];
 
             if (newPoints.length > 0) {
                 const newStroke: Stroke = {
                     id: generateUUID(),
-                    tool: selectedShape === 'freehand' ? 'pen' : (selectedShape as any),
+                    tool: selectedShape === 'freehand' ? activeTool as any : (selectedShape === 'rectangle' ? 'rect' : selectedShape as any),
                     color: colorRef.current,
                     width: strokeWidthRef.current,
                     points: newPoints
@@ -759,7 +833,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             setIsDrawing(true);
             lastActivePosRef.current = { x: worldPos.x, y: worldPos.y };
             startPosRef.current = { x: worldPos.x, y: worldPos.y };
-            activeStrokePointsRef.current = [{ x: worldPos.x, y: worldPos.y }];
+            activeStrokePointsRef.current = [{ x: worldPos.x, y: worldPos.y, timestamp: Date.now() }];
             redrawViewCanvas();
             return;
         }
@@ -770,7 +844,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
         lastActivePosRef.current = { x: worldPos.x, y: worldPos.y };
         if (selectedShape === 'freehand') {
-            activeStrokePointsRef.current = [{ x: worldPos.x, y: worldPos.y }];
+            activeStrokePointsRef.current = [{ x: worldPos.x, y: worldPos.y, timestamp: Date.now() }];
         } else {
             startPosRef.current = { x: worldPos.x, y: worldPos.y };
         }
@@ -837,14 +911,14 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
         if (activeTool === 'select-rect' || activeTool === 'select-lasso') {
             if (activeTool === 'select-lasso') {
-                activeStrokePointsRef.current.push({ x: worldPos.x, y: worldPos.y });
+                activeStrokePointsRef.current.push({ x: worldPos.x, y: worldPos.y, timestamp: Date.now() });
             }
             redrawViewCanvas();
             return;
         }
 
         if (selectedShape === 'freehand') {
-            activeStrokePointsRef.current.push({ x: worldPos.x, y: worldPos.y });
+            activeStrokePointsRef.current.push({ x: worldPos.x, y: worldPos.y, timestamp: Date.now() });
         }
         redrawViewCanvas();
     };
@@ -869,6 +943,12 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
         if (!isDrawing) return;
         setIsDrawing(false);
+
+        if (activeTool === 'eraser') {
+            activeStrokePointsRef.current = [];
+            redrawViewCanvas();
+            return;
+        }
 
         const canvas = canvasRef.current;
 
@@ -923,12 +1003,12 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
             const newPoints = selectedShape === 'freehand'
                 ? [...activeStrokePointsRef.current]
-                : [{ x: sx, y: sy }, { x, y }];
+                : [{ x: sx, y: sy, timestamp: Date.now() }, { x, y, timestamp: Date.now() }];
 
             if (newPoints.length > 0) {
                 const newStroke: Stroke = {
                     id: generateUUID(),
-                    tool: selectedShape === 'freehand' ? 'pen' : (selectedShape as any),
+                    tool: selectedShape === 'freehand' ? activeTool as any : (selectedShape === 'rectangle' ? 'rect' : selectedShape as any),
                     color: colorRef.current,
                     width: strokeWidthRef.current,
                     points: newPoints
@@ -985,7 +1065,8 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             if (stroke.length === 0) return;
             const newPoints = stroke.map(pt => ({
                 x: pt.x + offsetX,
-                y: pt.y + offsetY
+                y: pt.y + offsetY,
+                timestamp: Date.now()
             }));
             
             const newStroke: Stroke = {

@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { SWATCHES } from '@/constants';
-import { Eraser, Pen, MessageSquare, X, Menu, Sparkles, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye } from 'lucide-react';
+import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Sparkles, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { ResultSkeleton } from '@/components/ResultSkeleton';
 import { useMathCanvas } from './useMathCanvas';
 import { useCanvasSolver } from './useCanvasSolver';
 import { rasterizeRegion } from './canvasUtils';
 import { useCopilotChat } from './useCopilotChat';
-import { Modal, useMantineColorScheme } from '@mantine/core';
+import { Modal, useMantineColorScheme, Slider } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import axios from 'axios';
 
@@ -19,6 +19,14 @@ import { AuthManager } from '@/components/AuthManager';
 import { CopilotPanel } from '@/components/CopilotPanel';
 
 import { EXAMPLE_PROBLEMS } from '@/data/exampleProblems';
+
+const HIGHLIGHTER_SWATCHES = [
+    '#FEF08A', // pastel yellow
+    '#BBF7D0', // pastel green
+    '#FBCFE8', // pastel pink
+    '#BFDBFE', // pastel blue
+    '#E9D5FF'  // pastel purple
+];
 
 const copyToClipboard = async (text: string): Promise<boolean> => {
     try {
@@ -47,6 +55,14 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
         console.error("Fallback copy failed:", err);
         return false;
     }
+};
+
+const WIDTH_RANGES: Record<string, { min: number; max: number; default: number }> = {
+    pen: { min: 1, max: 12, default: 3 },
+    fountain: { min: 1, max: 16, default: 4 },
+    marker: { min: 8, max: 40, default: 18 },
+    highlighter: { min: 10, max: 36, default: 16 },
+    eraser: { min: 4, max: 40, default: 12 },
 };
 
 export default function Home() {
@@ -130,6 +146,77 @@ export default function Home() {
         redrawViewCanvas,
         strokesRef,
     } = useMathCanvas(handleSelectionSolve);
+
+    const [savedInkColor, setSavedInkColor] = useState('rgb(255, 255, 255)');
+    const [savedHighlighterColor, setSavedHighlighterColor] = useState('#FEF08A');
+
+    const [toolWidths, setToolWidths] = useState<Record<string, number>>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('solvelq_tool_widths');
+            if (saved) {
+                try {
+                    return JSON.parse(saved);
+                } catch (e) {
+                    console.warn(e);
+                }
+            }
+        }
+        return {
+            pen: 3,
+            fountain: 4,
+            marker: 18,
+            highlighter: 16,
+            eraser: 12,
+        };
+    });
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('solvelq_tool_widths', JSON.stringify(toolWidths));
+        }
+    }, [toolWidths]);
+
+    const prevToolRef = useRef(activeTool);
+
+    useEffect(() => {
+        // Save the previous tool's width first before updating
+        const prevTool = prevToolRef.current;
+        if (['pen', 'fountain', 'marker', 'highlighter', 'eraser'].includes(prevTool)) {
+            const currentWidth = prevTool === 'eraser' ? eraserWidth : strokeWidth;
+            setToolWidths(prev => ({ ...prev, [prevTool]: currentWidth }));
+        }
+
+        // Apply new tool's color and width
+        const nextWidth = toolWidths[activeTool] ?? WIDTH_RANGES[activeTool]?.default ?? 3;
+        if (activeTool === 'eraser') {
+            setEraserWidth(nextWidth);
+        } else {
+            setStrokeWidth(nextWidth);
+        }
+
+        if (activeTool === 'highlighter') {
+            if (!HIGHLIGHTER_SWATCHES.includes(color)) {
+                setSavedInkColor(color);
+            }
+            setColor(savedHighlighterColor);
+        } else if (['pen', 'fountain', 'marker'].includes(activeTool)) {
+            if (HIGHLIGHTER_SWATCHES.includes(color)) {
+                setSavedHighlighterColor(color);
+            }
+            setColor(savedInkColor);
+        }
+
+        prevToolRef.current = activeTool;
+    }, [activeTool]);
+
+    const handleWidthChange = (val: number) => {
+        setToolWidths(prev => ({ ...prev, [activeTool]: val }));
+        if (activeTool === 'eraser') {
+            setEraserWidth(val);
+        } else {
+            setStrokeWidth(val);
+        }
+    };
 
     const { 
         history, 
@@ -457,31 +544,31 @@ export default function Home() {
             }
             // Pen: P
             else if (!cmdOrCtrl && !e.altKey && e.key.toLowerCase() === 'p') {
-                setIsEraser(false);
+                setActiveTool('pen');
                 setSelectedShape('freehand');
             }
             // Eraser: E
             else if (!cmdOrCtrl && !e.altKey && e.key.toLowerCase() === 'e') {
-                setIsEraser(true);
+                setActiveTool('eraser');
             }
             // Line: L
             else if (!cmdOrCtrl && !e.altKey && e.key.toLowerCase() === 'l') {
-                setIsEraser(false);
+                setActiveTool('pen');
                 setSelectedShape('line');
             }
             // Rectangle: R
             else if (!cmdOrCtrl && !e.altKey && e.key.toLowerCase() === 'r') {
-                setIsEraser(false);
+                setActiveTool('pen');
                 setSelectedShape('rectangle');
             }
             // Circle: C
             else if (!cmdOrCtrl && !e.altKey && e.key.toLowerCase() === 'c') {
-                setIsEraser(false);
+                setActiveTool('pen');
                 setSelectedShape('circle');
             }
             // Triangle: T
             else if (!cmdOrCtrl && !e.altKey && e.key.toLowerCase() === 't') {
-                setIsEraser(false);
+                setActiveTool('pen');
                 setSelectedShape('triangle');
             }
             // Focus Mode: F
@@ -544,13 +631,21 @@ export default function Home() {
                 <div className="flex items-center gap-1">
                     {[
                         { id: 'pen' as const, label: 'Pen', icon: <Pen size={14} /> },
+                        { id: 'fountain' as const, label: 'Fountain Pen', icon: <PenTool size={14} /> },
+                        { id: 'marker' as const, label: 'Marker', icon: <Paintbrush size={14} /> },
+                        { id: 'highlighter' as const, label: 'Highlighter', icon: <Highlighter size={14} /> },
                         { id: 'eraser' as const, label: 'Eraser', icon: <Eraser size={14} /> },
                         { id: 'select-lasso' as const, label: 'Lasso Solve', icon: <Scissors size={14} /> },
                         { id: 'select-rect' as const, label: 'Rect Solve', icon: <Crop size={14} /> },
                     ].map((t) => (
                         <button
                             key={t.id}
-                            onClick={() => setActiveTool(t.id)}
+                            onClick={() => {
+                                setActiveTool(t.id);
+                                if (t.id === 'pen' || t.id === 'fountain' || t.id === 'marker' || t.id === 'highlighter') {
+                                    setSelectedShape('freehand');
+                                }
+                            }}
                             className={`cursor-pointer transition-all w-9 h-9 flex items-center justify-center rounded-lg ${
                                 activeTool === t.id 
                                     ? 'bg-stone-100 dark:bg-white/10 text-stone-950 dark:text-white font-bold shadow-none' 
@@ -616,61 +711,64 @@ export default function Home() {
                     <Maximize size={14} className="text-stone-500 dark:text-gray-300" />
                 </Button>
 
-                {activeTool === 'pen' && (
+                {['pen', 'fountain', 'marker', 'highlighter'].includes(activeTool) && (
                     <>
-                        {/* Divider */}
-                        <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
-
                         {/* Shape Tool Selector Button */}
-                        <div className="relative">
-                            <button
-                                onClick={() => {
-                                    setIsShapeMenuOpen(!isShapeMenuOpen);
-                                }}
-                                className={`bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white rounded-lg flex items-center justify-center h-9 w-9 transition-all cursor-pointer ${isShapeMenuOpen ? 'bg-stone-100 dark:bg-white/10' : ''}`}
-                                title="Select Drawing Tool"
-                                aria-label={`Select shape drawing tool (currently active: ${selectedShape === 'freehand' ? 'Pen' : selectedShape})`}
-                            >
-                                {selectedShape === 'freehand' && <Pen size={14} className="text-stone-500 dark:text-gray-300" />}
-                                {selectedShape === 'line' && <Slash size={14} className="text-stone-500 dark:text-gray-300" />}
-                                {selectedShape === 'rectangle' && <Square size={14} className="text-stone-500 dark:text-gray-300" />}
-                                {selectedShape === 'circle' && <Circle size={14} className="text-stone-500 dark:text-gray-300" />}
-                                {selectedShape === 'triangle' && <Triangle size={14} className="text-stone-500 dark:text-gray-300" />}
-                            </button>
-                            
-                            {isShapeMenuOpen && (
-                                <div className="absolute top-12 left-1/2 -translate-x-1/2 bg-white dark:bg-[#18181c] border border-stone-200 dark:border-[#2d2d30] p-1.5 rounded-xl shadow-2xl z-50 flex flex-col gap-0.5 min-w-[125px] pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-150">
-                                    {[
-                                        { id: 'freehand' as const, label: 'Pen', icon: <Pen size={13} /> },
-                                        { id: 'line' as const, label: 'Line', icon: <Slash size={13} /> },
-                                        { id: 'rectangle' as const, label: 'Rectangle', icon: <Square size={13} /> },
-                                        { id: 'circle' as const, label: 'Circle', icon: <Circle size={13} /> },
-                                        { id: 'triangle' as const, label: 'Triangle', icon: <Triangle size={13} /> },
-                                    ].map((tool) => (
-                                        <button
-                                            key={tool.id}
-                                            onClick={() => {
-                                                setSelectedShape(tool.id);
-                                                setIsEraser(false);
-                                                setIsShapeMenuOpen(false);
-                                            }}
-                                            className={`cursor-pointer hover:bg-stone-100 dark:hover:bg-white/5 transition-colors p-1.5 text-left rounded-lg text-xs flex items-center gap-2 w-full text-stone-700 dark:text-white ${selectedShape === tool.id ? 'bg-stone-150 dark:bg-white/10 font-bold' : ''}`}
-                                            aria-label={`Use ${tool.label} drawing tool`}
-                                        >
-                                            <span className="text-stone-400 dark:text-gray-400">{tool.icon}</span>
-                                            <span>{tool.label}</span>
-                                        </button>
-                                    ))}
+                        {activeTool === 'pen' && (
+                            <>
+                                {/* Divider */}
+                                <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
+                                <div className="relative">
+                                    <button
+                                        onClick={() => {
+                                            setIsShapeMenuOpen(!isShapeMenuOpen);
+                                        }}
+                                        className={`bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white rounded-lg flex items-center justify-center h-9 w-9 transition-all cursor-pointer ${isShapeMenuOpen ? 'bg-stone-100 dark:bg-white/10' : ''}`}
+                                        title="Select Drawing Tool"
+                                        aria-label={`Select shape drawing tool (currently active: ${selectedShape === 'freehand' ? 'Pen' : selectedShape})`}
+                                    >
+                                        {selectedShape === 'freehand' && <Pen size={14} className="text-stone-500 dark:text-gray-300" />}
+                                        {selectedShape === 'line' && <Slash size={14} className="text-stone-500 dark:text-gray-300" />}
+                                        {selectedShape === 'rectangle' && <Square size={14} className="text-stone-500 dark:text-gray-300" />}
+                                        {selectedShape === 'circle' && <Circle size={14} className="text-stone-500 dark:text-gray-300" />}
+                                        {selectedShape === 'triangle' && <Triangle size={14} className="text-stone-500 dark:text-gray-300" />}
+                                    </button>
+                                    
+                                    {isShapeMenuOpen && (
+                                        <div className="absolute top-12 left-1/2 -translate-x-1/2 bg-white dark:bg-[#18181c] border border-stone-200 dark:border-[#2d2d30] p-1.5 rounded-xl shadow-2xl z-50 flex flex-col gap-0.5 min-w-[125px] pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-150">
+                                            {[
+                                                { id: 'freehand' as const, label: 'Pen', icon: <Pen size={13} /> },
+                                                { id: 'line' as const, label: 'Line', icon: <Slash size={13} /> },
+                                                { id: 'rectangle' as const, label: 'Rectangle', icon: <Square size={13} /> },
+                                                { id: 'circle' as const, label: 'Circle', icon: <Circle size={13} /> },
+                                                { id: 'triangle' as const, label: 'Triangle', icon: <Triangle size={13} /> },
+                                            ].map((tool) => (
+                                                <button
+                                                    key={tool.id}
+                                                    onClick={() => {
+                                                        setSelectedShape(tool.id);
+                                                        setActiveTool('pen');
+                                                        setIsShapeMenuOpen(false);
+                                                    }}
+                                                    className={`cursor-pointer hover:bg-stone-100 dark:hover:bg-white/5 transition-colors p-1.5 text-left rounded-lg text-xs flex items-center gap-2 w-full text-stone-700 dark:text-white ${selectedShape === tool.id ? 'bg-stone-150 dark:bg-white/10 font-bold' : ''}`}
+                                                    aria-label={`Use ${tool.label} drawing tool`}
+                                                >
+                                                    <span className="text-stone-400 dark:text-gray-400">{tool.icon}</span>
+                                                    <span>{tool.label}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                        </div>
+                            </>
+                        )}
 
                         {/* Divider */}
                         <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
 
                         {/* Inline Color Palette Swatches */}
                         <div className="flex items-center gap-2 px-1.5 flex-shrink-0">
-                            {SWATCHES.map((swatch) => (
+                            {(activeTool === 'highlighter' ? HIGHLIGHTER_SWATCHES : SWATCHES).map((swatch) => (
                                 <button
                                     key={swatch}
                                     onClick={() => setColor(swatch)}
@@ -689,27 +787,21 @@ export default function Home() {
                         {/* Divider */}
                         <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
 
-                        {/* Stroke Width Presets */}
-                        <div className="flex items-center gap-0.5">
-                            {[
-                                { val: 3, label: 'Thin', sizeClass: 'w-1.5 h-1.5' },
-                                { val: 6, label: 'Medium', sizeClass: 'w-2.5 h-2.5' },
-                                { val: 10, label: 'Thick', sizeClass: 'w-3.5 h-3.5' }
-                            ].map((preset) => (
-                                <button
-                                    key={preset.val}
-                                    onClick={() => setStrokeWidth(preset.val)}
-                                    className={`cursor-pointer transition-all w-7 h-7 flex items-center justify-center rounded-md ${
-                                        strokeWidth === preset.val
-                                            ? 'bg-stone-100 dark:bg-white/10 text-stone-955 dark:text-white font-bold shadow-none'
-                                            : 'hover:bg-stone-100 dark:hover:bg-white/5 text-stone-450 dark:text-gray-400'
-                                    }`}
-                                    title={`Pen size: ${preset.label}`}
-                                    aria-label={`Set brush size to ${preset.label}`}
-                                >
-                                    <div className={`rounded-full bg-current ${preset.sizeClass}`} />
-                                </button>
-                            ))}
+                        {/* Stroke Width Slider */}
+                        <div className="flex items-center gap-2 pl-1.5 flex-shrink-0 select-none">
+                            <Slider
+                                size="xs"
+                                w={80}
+                                min={WIDTH_RANGES[activeTool]?.min ?? 1}
+                                max={WIDTH_RANGES[activeTool]?.max ?? 20}
+                                value={strokeWidth}
+                                onChange={handleWidthChange}
+                                label={null}
+                                styles={{
+                                    thumb: { transition: 'transform 100ms ease' }
+                                }}
+                            />
+                            <span className="text-[11px] font-bold text-stone-500 dark:text-gray-400 font-mono w-7 text-right select-none">{strokeWidth}px</span>
                         </div>
                     </>
                 )}
@@ -720,27 +812,21 @@ export default function Home() {
                         {/* Divider */}
                         <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
 
-                        {/* Eraser Width Presets */}
-                        <div className="flex items-center gap-0.5">
-                            {[
-                                { val: 15, label: 'Thin', sizeClass: 'w-1.5 h-1.5' },
-                                { val: 30, label: 'Medium', sizeClass: 'w-2.5 h-2.5' },
-                                { val: 50, label: 'Thick', sizeClass: 'w-3.5 h-3.5' }
-                            ].map((preset) => (
-                                <button
-                                    key={preset.val}
-                                    onClick={() => setEraserWidth(preset.val)}
-                                    className={`cursor-pointer transition-all w-7 h-7 flex items-center justify-center rounded-md ${
-                                        eraserWidth === preset.val
-                                            ? 'bg-stone-100 dark:bg-white/10 text-stone-955 dark:text-white font-bold shadow-none'
-                                            : 'hover:bg-stone-100 dark:hover:bg-white/5 text-stone-450 dark:text-gray-400'
-                                    }`}
-                                    title={`Eraser size: ${preset.label}`}
-                                    aria-label={`Set eraser size to ${preset.label}`}
-                                >
-                                    <div className={`rounded-full bg-current ${preset.sizeClass}`} />
-                                </button>
-                            ))}
+                        {/* Eraser Width Slider */}
+                        <div className="flex items-center gap-2 pl-1.5 flex-shrink-0 select-none">
+                            <Slider
+                                size="xs"
+                                w={80}
+                                min={WIDTH_RANGES.eraser.min}
+                                max={WIDTH_RANGES.eraser.max}
+                                value={eraserWidth}
+                                onChange={handleWidthChange}
+                                label={null}
+                                styles={{
+                                    thumb: { transition: 'transform 100ms ease' }
+                                }}
+                            />
+                            <span className="text-[11px] font-bold text-stone-500 dark:text-gray-400 font-mono w-7 text-right select-none">{eraserWidth}px</span>
                         </div>
                     </>
                 )}

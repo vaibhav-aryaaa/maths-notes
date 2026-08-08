@@ -59,11 +59,13 @@ export interface CopilotResponse {
     reply: string;
 }
 
+export type PenType = 'pen' | 'fountain' | 'marker' | 'highlighter';
+
 export interface Stroke {
     id: string;              // crypto.randomUUID()
-    tool: 'pen' | 'eraser' | 'rect' | 'circle' | 'triangle' | 'line';
+    tool: PenType | 'eraser' | 'rect' | 'circle' | 'triangle' | 'line';
     color: string;
     width: number;
-    points: { x: number; y: number; pressure?: number }[]; // world-space coordinates
+    points: { x: number; y: number; timestamp: number }[]; // world-space coordinates
     bounds?: { minX: number; minY: number; maxX: number; maxY: number };
 }
