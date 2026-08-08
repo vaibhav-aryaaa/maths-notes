@@ -54,7 +54,7 @@ export const getStrokeBounds = (stroke: Stroke) => {
 export const getStrokeOutline = (stroke: Stroke): number[][] => {
     const pts = stroke.points;
     
-    let size = stroke.width;
+    const size = stroke.width;
     let thinning = 0.0; // Default to 0 (constant width) for standard pen, marker, highlighter
     let smoothing = 0.5;
     let streamline = 0.5;
