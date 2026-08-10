@@ -83,6 +83,8 @@ const hitTestStroke = (ex: number, ey: number, stroke: Stroke, radius: number) =
     return false;
 };
 
+
+
 export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'lasso'; points: { x: number; y: number }[]; bounds: { minX: number; minY: number; maxX: number; maxY: number } }) => void) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const masterCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -307,7 +309,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             viewCtx.lineCap = 'round';
             viewCtx.lineJoin = 'round';
             viewCtx.globalCompositeOperation = 'screen';
-            viewCtx.globalAlpha = 0.6 * strokeOpacityRef.current;
+            viewCtx.globalAlpha = strokeOpacityRef.current;
             viewCtx.stroke();
             if (viewCtx.restore) viewCtx.restore();
         }
@@ -747,7 +749,16 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         }
 
         if (selectedShape === 'freehand') {
-            activeStrokePointsRef.current.push({ x: worldPos.x, y: worldPos.y, timestamp: Date.now() });
+            const isFreehandPen = ['pen', 'fountain', 'marker'].includes(activeTool);
+            if (e.shiftKey && isFreehandPen && activeStrokePointsRef.current.length > 0) {
+                const startPt = activeStrokePointsRef.current[0];
+                activeStrokePointsRef.current = [
+                    startPt,
+                    { x: worldPos.x, y: worldPos.y, timestamp: Date.now() }
+                ];
+            } else {
+                activeStrokePointsRef.current.push({ x: worldPos.x, y: worldPos.y, timestamp: Date.now() });
+            }
         }
         redrawViewCanvas();
     };
@@ -980,7 +991,16 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         }
 
         if (selectedShape === 'freehand') {
-            activeStrokePointsRef.current.push({ x: worldPos.x, y: worldPos.y, timestamp: Date.now() });
+            const isFreehandPen = ['pen', 'fountain', 'marker'].includes(activeTool);
+            if (e.shiftKey && isFreehandPen && activeStrokePointsRef.current.length > 0) {
+                const startPt = activeStrokePointsRef.current[0];
+                activeStrokePointsRef.current = [
+                    startPt,
+                    { x: worldPos.x, y: worldPos.y, timestamp: Date.now() }
+                ];
+            } else {
+                activeStrokePointsRef.current.push({ x: worldPos.x, y: worldPos.y, timestamp: Date.now() });
+            }
         }
         redrawViewCanvas();
     };

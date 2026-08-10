@@ -147,7 +147,6 @@ export const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
 
         if (stroke.tool === 'highlighter') {
             ctx.globalCompositeOperation = 'screen';
-            ctx.globalAlpha = 0.6 * baseOpacity;
         }
 
         ctx.stroke();
