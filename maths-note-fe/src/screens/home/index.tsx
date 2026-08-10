@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { SWATCHES } from '@/constants';
-import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Sparkles, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut } from 'lucide-react';
+import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Sparkles, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut, Grid } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { ResultSkeleton } from '@/components/ResultSkeleton';
 import { useMathCanvas } from './useMathCanvas';
@@ -151,7 +151,9 @@ export default function Home() {
         zoomIn,
         zoomOut,
         strokeOpacity,
-        setStrokeOpacity
+        setStrokeOpacity,
+        showGrid,
+        setShowGrid
     } = useMathCanvas(handleSelectionSolve);
 
     const [savedInkColor, setSavedInkColor] = useState('rgb(255, 255, 255)');
@@ -904,6 +906,22 @@ export default function Home() {
                             className="hover:bg-stone-100 dark:hover:bg-white/5 text-xs text-stone-700 dark:text-white rounded-lg transition-colors p-2"
                         >
                             Reset to 100%
+                        </MantineMenu.Item>
+
+                        <MantineMenu.Divider className="border-stone-100 dark:border-stone-800/60 my-1" />
+
+                        <MantineMenu.Item
+                            onClick={() => setShowGrid(!showGrid)}
+                            closeMenuOnClick={false}
+                            leftSection={<Grid size={14} className="text-stone-500" />}
+                            rightSection={
+                                <div className={`w-3.5 h-3.5 rounded border border-stone-300 dark:border-stone-600 flex items-center justify-center transition-colors ${showGrid ? 'bg-stone-900 dark:bg-stone-100 border-none' : ''}`}>
+                                    {showGrid && <span className="text-[9px] text-white dark:text-stone-900 font-bold">✓</span>}
+                                </div>
+                            }
+                            className="hover:bg-stone-100 dark:hover:bg-white/5 text-xs text-stone-700 dark:text-white rounded-lg transition-colors p-2"
+                        >
+                            Grid Background
                         </MantineMenu.Item>
                     </MantineMenu.Dropdown>
                 </MantineMenu>

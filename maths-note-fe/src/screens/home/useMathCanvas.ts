@@ -104,6 +104,12 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         return 3;
     });
     const [strokeOpacity, setStrokeOpacity] = useState(1.0);
+    const [showGrid, setShowGrid] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('solvelq_show_grid') === 'true';
+        }
+        return false;
+    });
     const [eraserWidth, setEraserWidth] = useState(() => {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('solvelq_eraser_width');
@@ -129,6 +135,8 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             localStorage.setItem('solvelq_eraser_width', String(eraserWidth));
         }
     }, [eraserWidth]);
+
+
 
     const [selectedShape, setSelectedShape] = useState<'freehand' | 'line' | 'rectangle' | 'circle' | 'triangle'>('freehand');
     const [isShapeMenuOpen, setIsShapeMenuOpen] = useState(false);
@@ -247,6 +255,26 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
         // Apply camera transform
         viewCtx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
+
+        // Draw dot grid if enabled
+        if (showGrid) {
+            const gridSpacing = 40;
+            const startX = Math.floor(visibleMinX / gridSpacing) * gridSpacing;
+            const endX = Math.ceil(visibleMaxX / gridSpacing) * gridSpacing;
+            const startY = Math.floor(visibleMinY / gridSpacing) * gridSpacing;
+            const endY = Math.ceil(visibleMaxY / gridSpacing) * gridSpacing;
+
+            viewCtx.save();
+            viewCtx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+            for (let x = startX; x <= endX; x += gridSpacing) {
+                for (let y = startY; y <= endY; y += gridSpacing) {
+                    viewCtx.beginPath();
+                    viewCtx.arc(x, y, 1.2, 0, 2 * Math.PI);
+                    viewCtx.fill();
+                }
+            }
+            viewCtx.restore();
+        }
 
         // 1. Render static highlighter strokes
         for (const stroke of strokesRef.current) {
@@ -441,7 +469,14 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
         // Reset transform back to identity
         viewCtx.setTransform(1, 0, 0, 1, 0, 0);
-    }, [isDrawing, selectedShape, activeTool]);
+    }, [isDrawing, selectedShape, activeTool, showGrid]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('solvelq_show_grid', String(showGrid));
+        }
+        redrawViewCanvas();
+    }, [showGrid, redrawViewCanvas]);
 
     const getWordCoords = (screenX: number, screenY: number) => {
         const { offsetX, offsetY, scale } = cameraRef.current;
@@ -1368,6 +1403,8 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         zoomIn,
         zoomOut,
         strokeOpacity,
-        setStrokeOpacity
+        setStrokeOpacity,
+        showGrid,
+        setShowGrid
     };
 };
