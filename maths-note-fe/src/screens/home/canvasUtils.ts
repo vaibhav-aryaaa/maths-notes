@@ -113,9 +113,11 @@ export const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
     if (pts.length === 0) return;
 
     if (ctx.save) ctx.save();
+    const baseOpacity = stroke.opacity ?? 1.0;
     ctx.strokeStyle = stroke.color;
     ctx.lineWidth = stroke.width;
     ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = baseOpacity;
 
     if (stroke.tool === 'fountain') {
         const outline = getStrokeOutline(stroke);
@@ -145,7 +147,7 @@ export const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
 
         if (stroke.tool === 'highlighter') {
             ctx.globalCompositeOperation = 'screen';
-            ctx.globalAlpha = 0.6;
+            ctx.globalAlpha = 0.6 * baseOpacity;
         }
 
         ctx.stroke();

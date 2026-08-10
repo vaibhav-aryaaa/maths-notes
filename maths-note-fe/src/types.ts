@@ -66,6 +66,7 @@ export interface Stroke {
     tool: PenType | 'eraser' | 'rect' | 'circle' | 'triangle' | 'line';
     color: string;
     width: number;
+    opacity?: number;        // opacity range: 0 to 1
     points: { x: number; y: number; timestamp: number }[]; // world-space coordinates
     bounds?: { minX: number; minY: number; maxX: number; maxY: number };
 }

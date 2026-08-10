@@ -103,6 +103,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         }
         return 3;
     });
+    const [strokeOpacity, setStrokeOpacity] = useState(1.0);
     const [eraserWidth, setEraserWidth] = useState(() => {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('solvelq_eraser_width');
@@ -206,6 +207,11 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         eraserWidthRef.current = eraserWidth;
     }, [eraserWidth]);
 
+    const strokeOpacityRef = useRef(strokeOpacity);
+    useEffect(() => {
+        strokeOpacityRef.current = strokeOpacity;
+    }, [strokeOpacity]);
+
     const isEraser = activeTool === 'eraser';
 
     const setIsEraserWrapped = useCallback((val: boolean | ((prev: boolean) => boolean)) => {
@@ -273,7 +279,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             viewCtx.lineCap = 'round';
             viewCtx.lineJoin = 'round';
             viewCtx.globalCompositeOperation = 'screen';
-            viewCtx.globalAlpha = 0.6;
+            viewCtx.globalAlpha = 0.6 * strokeOpacityRef.current;
             viewCtx.stroke();
             if (viewCtx.restore) viewCtx.restore();
         }
@@ -320,6 +326,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             viewCtx.strokeStyle = colorRef.current;
             viewCtx.lineWidth = strokeWidthRef.current;
             viewCtx.globalCompositeOperation = 'source-over';
+            viewCtx.globalAlpha = strokeOpacityRef.current;
 
             if (activeTool === 'fountain') {
                 const tempStroke: Stroke = {
@@ -360,12 +367,14 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
         // 6. Draw shape preview on screen if drawing shapes in pen mode
         if (isDrawing && selectedShape !== 'freehand' && isPenTool) {
+            if (viewCtx.save) viewCtx.save();
             viewCtx.beginPath();
             viewCtx.lineCap = 'round';
             viewCtx.lineJoin = 'round';
             viewCtx.lineWidth = strokeWidthRef.current;
             viewCtx.strokeStyle = colorRef.current;
             viewCtx.globalCompositeOperation = 'source-over';
+            viewCtx.globalAlpha = strokeOpacityRef.current;
 
             const sx = startPosRef.current.x;
             const sy = startPosRef.current.y;
@@ -389,6 +398,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                 viewCtx.closePath();
             }
             viewCtx.stroke();
+            if (viewCtx.restore) viewCtx.restore();
         }
 
         // Draw eraser cursor circle outline
@@ -788,6 +798,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                     tool: selectedShape === 'freehand' ? activeTool as any : (selectedShape === 'rectangle' ? 'rect' : selectedShape as any),
                     color: colorRef.current,
                     width: strokeWidthRef.current,
+                    opacity: strokeOpacityRef.current,
                     points: newPoints
                 };
 
@@ -1029,6 +1040,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                     tool: selectedShape === 'freehand' ? activeTool as any : (selectedShape === 'rectangle' ? 'rect' : selectedShape as any),
                     color: colorRef.current,
                     width: strokeWidthRef.current,
+                    opacity: strokeOpacityRef.current,
                     points: newPoints
                 };
 
@@ -1092,6 +1104,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                 tool: 'pen',
                 color: colorRef.current,
                 width: 3,
+                opacity: 1.0,
                 points: newPoints
             };
             strokesRef.current.push(newStroke);
@@ -1199,6 +1212,52 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         requestAnimationFrame(animate);
     }, [redrawViewCanvas, resetView, windowSize]);
 
+    const zoomIn = useCallback(() => {
+        const { offsetX, offsetY, scale } = cameraRef.current;
+        // Limit zoom to maximum 400%
+        const newScale = Math.min(4, scale + 0.1);
+        if (newScale === scale) return;
+
+        const viewportWidth = windowSize.width;
+        const viewportHeight = windowSize.height;
+        const centerX = viewportWidth / 2;
+        const centerY = viewportHeight / 2;
+
+        const worldCenterX = (centerX - offsetX) / scale;
+        const worldCenterY = (centerY - offsetY) / scale;
+
+        cameraRef.current = {
+            offsetX: centerX - worldCenterX * newScale,
+            offsetY: centerY - worldCenterY * newScale,
+            scale: newScale
+        };
+        setCamera({ ...cameraRef.current });
+        redrawViewCanvas();
+    }, [redrawViewCanvas, windowSize]);
+
+    const zoomOut = useCallback(() => {
+        const { offsetX, offsetY, scale } = cameraRef.current;
+        // Limit zoom to minimum 20%
+        const newScale = Math.max(0.2, scale - 0.1);
+        if (newScale === scale) return;
+
+        const viewportWidth = windowSize.width;
+        const viewportHeight = windowSize.height;
+        const centerX = viewportWidth / 2;
+        const centerY = viewportHeight / 2;
+
+        const worldCenterX = (centerX - offsetX) / scale;
+        const worldCenterY = (centerY - offsetY) / scale;
+
+        cameraRef.current = {
+            offsetX: centerX - worldCenterX * newScale,
+            offsetY: centerY - worldCenterY * newScale,
+            scale: newScale
+        };
+        setCamera({ ...cameraRef.current });
+        redrawViewCanvas();
+    }, [redrawViewCanvas, windowSize]);
+
     // Handle Ctrl+0/Cmd+0 keyboard shortcut for reset view, and Ctrl+Shift+0/Cmd+Shift+0 to zoom to content
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -1305,6 +1364,10 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         },
         isSpacePressed,
         isPanning,
-        zoomToContent
+        zoomToContent,
+        zoomIn,
+        zoomOut,
+        strokeOpacity,
+        setStrokeOpacity
     };
 };

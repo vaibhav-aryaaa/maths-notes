@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { SWATCHES } from '@/constants';
-import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Sparkles, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye, Hand, Target } from 'lucide-react';
+import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Sparkles, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { ResultSkeleton } from '@/components/ResultSkeleton';
 import { useMathCanvas } from './useMathCanvas';
 import { useCanvasSolver } from './useCanvasSolver';
 import { rasterizeRegion } from './canvasUtils';
 import { useCopilotChat } from './useCopilotChat';
-import { Modal, useMantineColorScheme, Slider, Popover } from '@mantine/core';
+import { Modal, useMantineColorScheme, Slider, Popover, Menu as MantineMenu } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import axios from 'axios';
 
@@ -147,7 +147,11 @@ export default function Home() {
         strokesRef,
         isSpacePressed,
         isPanning,
-        zoomToContent
+        zoomToContent,
+        zoomIn,
+        zoomOut,
+        strokeOpacity,
+        setStrokeOpacity
     } = useMathCanvas(handleSelectionSolve);
 
     const [savedInkColor, setSavedInkColor] = useState('rgb(255, 255, 255)');
@@ -174,28 +178,58 @@ export default function Home() {
         };
     });
 
+    const [toolOpacities, setToolOpacities] = useState<Record<string, number>>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('solvelq_tool_opacities');
+            if (saved) {
+                try {
+                    return JSON.parse(saved);
+                } catch (e) {
+                    console.warn(e);
+                }
+            }
+        }
+        return {
+            pen: 1.0,
+            fountain: 1.0,
+            marker: 1.0,
+            highlighter: 0.6,
+        };
+    });
+
     useEffect(() => {
         if (typeof window !== 'undefined') {
             localStorage.setItem('solvelq_tool_widths', JSON.stringify(toolWidths));
         }
     }, [toolWidths]);
 
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('solvelq_tool_opacities', JSON.stringify(toolOpacities));
+        }
+    }, [toolOpacities]);
+
     const prevToolRef = useRef(activeTool);
 
     useEffect(() => {
-        // Save the previous tool's width first before updating
+        // Save the previous tool's width and opacity first before updating
         const prevTool = prevToolRef.current;
         if (['pen', 'fountain', 'marker', 'highlighter', 'eraser'].includes(prevTool)) {
             const currentWidth = prevTool === 'eraser' ? eraserWidth : strokeWidth;
             setToolWidths(prev => ({ ...prev, [prevTool]: currentWidth }));
+            if (prevTool !== 'eraser') {
+                setToolOpacities(prev => ({ ...prev, [prevTool]: strokeOpacity }));
+            }
         }
 
-        // Apply new tool's color and width
+        // Apply new tool's color, width, and opacity
         const nextWidth = toolWidths[activeTool] ?? WIDTH_RANGES[activeTool]?.default ?? 3;
         if (activeTool === 'eraser') {
             setEraserWidth(nextWidth);
         } else {
             setStrokeWidth(nextWidth);
+            const nextOpacity = toolOpacities[activeTool] ?? (activeTool === 'highlighter' ? 0.6 : 1.0);
+            setStrokeOpacity(nextOpacity);
         }
 
         if (activeTool === 'highlighter') {
@@ -222,6 +256,13 @@ export default function Home() {
             setEraserWidth(val);
         } else {
             setStrokeWidth(val);
+        }
+    };
+
+    const handleOpacityChange = (val: number) => {
+        setStrokeOpacity(val);
+        if (['pen', 'fountain', 'marker', 'highlighter'].includes(activeTool)) {
+            setToolOpacities(prev => ({ ...prev, [activeTool]: val }));
         }
     };
 
@@ -724,23 +765,55 @@ export default function Home() {
                                         )}
 
                                         {/* Width slider inside popover */}
-                                        <div className="flex items-center gap-3 min-w-[150px] select-none">
-                                            <Slider
-                                                size="xs"
-                                                className="flex-1"
-                                                min={WIDTH_RANGES[t.id]?.min ?? 1}
-                                                max={WIDTH_RANGES[t.id]?.max ?? 20}
-                                                value={t.id === 'eraser' ? eraserWidth : strokeWidth}
-                                                onChange={handleWidthChange}
-                                                label={null}
-                                                styles={{
-                                                    thumb: { transition: 'transform 100ms ease' }
-                                                }}
-                                            />
-                                            <span className="text-[11px] font-bold text-stone-500 dark:text-gray-400 font-mono w-7 text-right select-none">
-                                                {(t.id === 'eraser' ? eraserWidth : strokeWidth)}px
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 dark:text-gray-500 select-none">
+                                                Thickness
                                             </span>
+                                            <div className="flex items-center gap-3 min-w-[150px] select-none">
+                                                <Slider
+                                                    size="xs"
+                                                    className="flex-1"
+                                                    min={WIDTH_RANGES[t.id]?.min ?? 1}
+                                                    max={WIDTH_RANGES[t.id]?.max ?? 20}
+                                                    value={t.id === 'eraser' ? eraserWidth : strokeWidth}
+                                                    onChange={handleWidthChange}
+                                                    label={null}
+                                                    styles={{
+                                                        thumb: { transition: 'transform 100ms ease' }
+                                                    }}
+                                                />
+                                                <span className="text-[11px] font-bold text-stone-500 dark:text-gray-400 font-mono w-7 text-right select-none">
+                                                    {(t.id === 'eraser' ? eraserWidth : strokeWidth)}px
+                                                </span>
+                                            </div>
                                         </div>
+
+                                        {/* Opacity slider inside popover (only for drawing tools) */}
+                                        {t.id !== 'eraser' && (
+                                            <div className="flex flex-col gap-1 mt-1">
+                                                <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 dark:text-gray-500 select-none">
+                                                    Opacity
+                                                </span>
+                                                <div className="flex items-center gap-3 min-w-[150px] select-none">
+                                                    <Slider
+                                                        size="xs"
+                                                        className="flex-1"
+                                                        min={0.1}
+                                                        max={t.id === 'highlighter' ? 0.6 : 1.0}
+                                                        step={0.05}
+                                                        value={strokeOpacity}
+                                                        onChange={handleOpacityChange}
+                                                        label={null}
+                                                        styles={{
+                                                            thumb: { transition: 'transform 100ms ease' }
+                                                        }}
+                                                    />
+                                                    <span className="text-[11px] font-bold text-stone-500 dark:text-gray-400 font-mono w-7 text-right select-none">
+                                                        {Math.round(strokeOpacity * 100)}%
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
                                     </Popover.Dropdown>
                                 </Popover>
                             );
@@ -791,27 +864,49 @@ export default function Home() {
                     <Redo2 size={14} className="text-stone-500 dark:text-gray-300" />
                 </Button>
 
-                {/* Reset View Button */}
-                <Button
-                    onClick={resetView}
-                    className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg cursor-pointer"
-                    variant="default"
-                    title="Reset View (Ctrl+0)"
-                    aria-label="Reset zoom and pan position of canvas workspace"
-                >
-                    <Maximize size={14} className="text-stone-500 dark:text-gray-300" />
-                </Button>
+                {/* Zoom Controller Menu */}
+                <MantineMenu shadow="md" width={160} position="bottom-end">
+                    <MantineMenu.Target>
+                        <button
+                            className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 px-2 flex items-center justify-center rounded-lg cursor-pointer text-xs font-mono font-bold select-none"
+                            title="Zoom Controls"
+                            aria-label={`Zoom controls (current zoom: ${Math.round(camera.scale * 100)}%)`}
+                        >
+                            {Math.round(camera.scale * 100)}%
+                        </button>
+                    </MantineMenu.Target>
 
-                {/* Zoom to Content Button */}
-                <Button
-                    onClick={zoomToContent}
-                    className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg cursor-pointer"
-                    variant="default"
-                    title="Zoom to Content (Ctrl+Shift+0)"
-                    aria-label="Fit drawn content within canvas workspace viewport"
-                >
-                    <Target size={14} className="text-stone-500 dark:text-gray-300" />
-                </Button>
+                    <MantineMenu.Dropdown className="bg-white dark:bg-[#18181c] border border-stone-200 dark:border-[#2d2d30] p-1 rounded-xl shadow-2xl z-50">
+                        <MantineMenu.Item
+                            onClick={zoomIn}
+                            leftSection={<ZoomIn size={14} className="text-stone-500" />}
+                            className="hover:bg-stone-100 dark:hover:bg-white/5 text-xs text-stone-700 dark:text-white rounded-lg transition-colors p-2"
+                        >
+                            Zoom In
+                        </MantineMenu.Item>
+                        <MantineMenu.Item
+                            onClick={zoomOut}
+                            leftSection={<ZoomOut size={14} className="text-stone-500" />}
+                            className="hover:bg-stone-100 dark:hover:bg-white/5 text-xs text-stone-700 dark:text-white rounded-lg transition-colors p-2"
+                        >
+                            Zoom Out
+                        </MantineMenu.Item>
+                        <MantineMenu.Item
+                            onClick={zoomToContent}
+                            leftSection={<Target size={14} className="text-stone-500" />}
+                            className="hover:bg-stone-100 dark:hover:bg-white/5 text-xs text-stone-700 dark:text-white rounded-lg transition-colors p-2"
+                        >
+                            Zoom to Fit
+                        </MantineMenu.Item>
+                        <MantineMenu.Item
+                            onClick={resetView}
+                            leftSection={<Maximize size={14} className="text-stone-500" />}
+                            className="hover:bg-stone-100 dark:hover:bg-white/5 text-xs text-stone-700 dark:text-white rounded-lg transition-colors p-2"
+                        >
+                            Reset to 100%
+                        </MantineMenu.Item>
+                    </MantineMenu.Dropdown>
+                </MantineMenu>
 
                 {/* Shape Tool Selector Button */}
                 {activeTool === 'pen' && (
