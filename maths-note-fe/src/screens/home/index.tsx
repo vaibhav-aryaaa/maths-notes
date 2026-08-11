@@ -641,7 +641,7 @@ export default function Home() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [undo, redo, setIsEraser, setSelectedShape, toggleFocusMode]);
 
-    const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     return (
         <>
@@ -1107,7 +1107,7 @@ export default function Home() {
             {isScanning && <div className="scanning-laser" />}
 
             {showExamples && (
-                <div className="absolute top-[40%] sm:top-[35%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-canvas-placeholder flex flex-col items-center gap-6 max-w-lg w-full px-6 text-center select-none pointer-events-none">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-canvas-placeholder flex flex-col items-center gap-6 max-w-lg w-full px-6 text-center select-none pointer-events-none">
                     <div className="flex flex-col items-center gap-2 pointer-events-auto">
                         <h2 className="text-2xl sm:text-3xl font-extrabold text-stone-900 dark:text-white tracking-tight">
                             Unlock the Power of <span className="text-stone-900 dark:text-white font-extrabold">SolveIQ</span>
@@ -1118,21 +1118,26 @@ export default function Home() {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full mt-2 pointer-events-auto">
-                        {EXAMPLE_PROBLEMS.map((problem) => (
-                            <button
-                                key={problem.id}
-                                onClick={() => handleTryExample(problem)}
-                                className="cursor-pointer flex flex-col text-left p-3.5 rounded-xl border border-stone-200 dark:border-white/10 bg-white/80 dark:bg-white/5 hover:bg-stone-50 dark:hover:bg-white/10 hover:border-stone-300 dark:hover:border-white/20 active:scale-[0.98] transition-all text-stone-900 dark:text-white backdrop-blur-md shadow-lg group"
-                            >
-                                <span className="text-sm font-bold text-stone-900 dark:text-white group-hover:opacity-85 flex items-center gap-1.5">
-                                    <Sparkles size={13} className="text-stone-900 dark:text-stone-100 animate-pulse" />
-                                    {problem.name}
-                                </span>
-                                <span className="text-xs text-stone-500 dark:text-gray-400 mt-1 leading-normal line-clamp-2">
-                                    {problem.description}
-                                </span>
-                            </button>
-                        ))}
+                        {EXAMPLE_PROBLEMS.map((problem, index) => {
+                            const isLastOdd = index === EXAMPLE_PROBLEMS.length - 1 && EXAMPLE_PROBLEMS.length % 2 !== 0;
+                            return (
+                                <button
+                                    key={problem.id}
+                                    onClick={() => handleTryExample(problem)}
+                                    className={`cursor-pointer flex flex-col text-left p-3.5 rounded-xl border border-stone-200 dark:border-white/10 bg-white/80 dark:bg-white/5 hover:bg-stone-50 dark:hover:bg-white/10 hover:border-stone-300 dark:hover:border-white/20 active:scale-[0.98] transition-all text-stone-900 dark:text-white backdrop-blur-md shadow-lg group ${
+                                        isLastOdd ? 'sm:col-span-2 sm:w-[calc(50%-6px)] sm:mx-auto' : ''
+                                    }`}
+                                >
+                                    <span className="text-sm font-bold text-stone-900 dark:text-white group-hover:opacity-85 flex items-center gap-1.5">
+                                        <Sparkles size={13} className="text-stone-900 dark:text-stone-100 animate-pulse" />
+                                        {problem.name}
+                                    </span>
+                                    <span className="text-xs text-stone-500 dark:text-gray-400 mt-1 leading-normal line-clamp-2">
+                                        {problem.description}
+                                    </span>
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
             )}
