@@ -12,6 +12,7 @@ export interface HistoryEntry {
     results: GeneratedResult[];
     dictOfVars: DictOfVars;
     strokes?: any[];
+    elements?: any[];
 }
 
 const DB_NAME = 'SolveIQHistoryDB';
@@ -219,7 +220,7 @@ export function useSolveHistory() {
         canvas: HTMLCanvasElement,
         results: GeneratedResult[],
         dictOfVars: DictOfVars,
-        strokes?: any[]
+        elements?: any[]
     ) => {
         const canvasThumbnail = getCanvasThumbnail(canvas);
         const canvasImage = canvas.toDataURL('image/png');
@@ -233,7 +234,7 @@ export function useSolveHistory() {
             canvasImage,
             results,
             dictOfVars,
-            strokes
+            elements
         };
 
         // Try backend write first if authenticated

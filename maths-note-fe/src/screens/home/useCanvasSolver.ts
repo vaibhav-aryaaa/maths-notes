@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import axios from 'axios';
 import { notifications } from '@mantine/notifications';
-import type { GeneratedResult, DictOfVars, CalculateResponseItem, Stroke } from '@/types';
+import type { GeneratedResult, DictOfVars, CalculateResponseItem, CanvasElement } from '@/types';
 import { trackEvent } from '@/lib/analytics';
 import { rasterizeRegion } from './canvasUtils';
 
 export const useCanvasSolver = (
     canvasRef: React.RefObject<HTMLCanvasElement | null>,
-    strokesRef: React.RefObject<Stroke[]>,
+    elementsRef: React.RefObject<CanvasElement[]>,
     drawBoundsRef: React.RefObject<{ minX: number; minY: number; maxX: number; maxY: number }>,
     onSaveHistory?: (canvas: HTMLCanvasElement, allResults: GeneratedResult[], dictOfVars: DictOfVars) => void,
     redrawViewCanvas?: () => void
@@ -32,8 +32,8 @@ export const useCanvasSolver = (
         }
 
         const canvas = canvasRef.current;
-        const strokes = strokesRef.current;
-        if (!canvas || !strokes) return;
+        const elements = elementsRef.current;
+        if (!canvas || !elements) return;
 
         const bounds = selection ? selection.bounds : drawBoundsRef.current;
         if (!selection && (!bounds || bounds.minX === Infinity || bounds.minY === Infinity)) {
@@ -60,7 +60,7 @@ export const useCanvasSolver = (
             const cropHeight = Math.min(12000 - cropY, (bounds.maxY - bounds.minY) + padding * 2);
             const cropRegion = { x: cropX, y: cropY, width: cropWidth, height: cropHeight };
 
-            const tempCanvas = rasterizeRegion(strokes, cropRegion, {
+            const tempCanvas = rasterizeRegion(elements, cropRegion, {
                 clipPath: selection?.type === 'lasso' ? selection.points : undefined,
                 scale: 2.0, // Render at 2x resolution for high accuracy OCR
                 excludeHighlighter: true
@@ -116,7 +116,7 @@ export const useCanvasSolver = (
                 setResults(updatedResults);
 
                 // Create a temporary region-sized canvas for history saving (backwards compatibility)
-                const historyCanvas = rasterizeRegion(strokes, cropRegion, {
+                const historyCanvas = rasterizeRegion(elements, cropRegion, {
                     clipPath: selection?.type === 'lasso' ? selection.points : undefined,
                     scale: 1.0
                 });

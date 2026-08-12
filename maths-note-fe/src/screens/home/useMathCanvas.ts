@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import type { Stroke } from '@/types';
-import { getStrokeBounds, drawStroke, getStrokeOutline } from './canvasUtils';
+import type { Stroke, CanvasElement } from '@/types';
+import { getStrokeOutline, getElementBounds, getElementCenter, drawElement, getStrokeBounds } from './canvasUtils';
 
 const generateUUID = () => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -83,7 +83,105 @@ const hitTestStroke = (ex: number, ey: number, stroke: Stroke, radius: number) =
     return false;
 };
 
+const cloneCanvasElement = (el: CanvasElement): CanvasElement => {
+    if (el.kind === 'text') {
+        return { ...el };
+    } else if (el.kind === 'image') {
+        return { ...el };
+    } else {
+        return {
+            ...el,
+            points: el.points.map(pt => ({ ...pt })),
+            bounds: el.bounds ? { ...el.bounds } : undefined
+        };
+    }
+};
 
+const isPointInPolygon = (px: number, py: number, polygon: { x: number; y: number }[]): boolean => {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i].x, yi = polygon[i].y;
+        const xj = polygon[j].x, yj = polygon[j].y;
+        const intersect = ((yi > py) !== (yj > py))
+            && (px < (xj - xi) * (py - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
+};
+
+const hitTestElement = (ex: number, ey: number, element: CanvasElement, threshold: number = 8) => {
+    if (element.kind === 'text' || element.kind === 'image') {
+        const bounds = getElementBounds(element);
+        return (
+            ex >= bounds.minX - threshold &&
+            ex <= bounds.maxX + threshold &&
+            ey >= bounds.minY - threshold &&
+            ey <= bounds.maxY + threshold
+        );
+    } else {
+        return hitTestStroke(ex, ey, element, threshold);
+    }
+};
+
+const getElementAtPosition = (ex: number, ey: number, elements: CanvasElement[]): CanvasElement | null => {
+    for (let i = elements.length - 1; i >= 0; i--) {
+        if (hitTestElement(ex, ey, elements[i])) {
+            return elements[i];
+        }
+    }
+    return null;
+};
+
+const getElementsInSelection = (
+    elements: CanvasElement[],
+    boundary: any,
+    shape: 'rectangle' | 'lasso'
+): string[] => {
+    const selectedIds: string[] = [];
+
+    for (const el of elements) {
+        if (shape === 'rectangle') {
+            if (el.kind === 'text' || el.kind === 'image') {
+                const center = getElementCenter(el);
+                if (
+                    center.x >= boundary.minX &&
+                    center.x <= boundary.maxX &&
+                    center.y >= boundary.minY &&
+                    center.y <= boundary.maxY
+                ) {
+                    selectedIds.push(el.id);
+                }
+            } else {
+                const hasPointInside = el.points.some(pt =>
+                    pt.x >= boundary.minX && pt.x <= boundary.maxX &&
+                    pt.y >= boundary.minY && pt.y <= boundary.maxY
+                );
+                if (hasPointInside) {
+                    selectedIds.push(el.id);
+                }
+            }
+        } else if (shape === 'lasso') {
+            const polygon = boundary as { x: number; y: number }[];
+            if (polygon.length < 3) continue;
+
+            if (el.kind === 'text' || el.kind === 'image') {
+                const center = getElementCenter(el);
+                if (isPointInPolygon(center.x, center.y, polygon)) {
+                    selectedIds.push(el.id);
+                }
+            } else {
+                const hasPointInside = el.points.some(pt =>
+                    isPointInPolygon(pt.x, pt.y, polygon)
+                );
+                if (hasPointInside) {
+                    selectedIds.push(el.id);
+                }
+            }
+        }
+    }
+
+    return selectedIds;
+};
 
 export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'lasso'; points: { x: number; y: number }[]; bounds: { minX: number; minY: number; maxX: number; maxY: number } }) => void) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -91,7 +189,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
     const [isDrawing, setIsDrawing] = useState(false);
     const [isCanvasEmpty, setIsCanvasEmpty] = useState(true);
-    const [activeTool, setActiveTool] = useState<'pen' | 'fountain' | 'marker' | 'highlighter' | 'eraser' | 'select-rect' | 'select-lasso' | 'hand'>('pen');
+    const [activeTool, setActiveTool] = useState<'pen' | 'fountain' | 'marker' | 'highlighter' | 'eraser' | 'select-rect' | 'select-lasso' | 'hand' | 'select'>('pen');
     const [color, setColor] = useState(() => {
         if (typeof window !== 'undefined') {
             return localStorage.getItem('solvelq_color') || 'rgb(255, 255, 255)';
@@ -159,6 +257,14 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
     const [isSpacePressed, setIsSpacePressed] = useState(false);
 
+    useEffect(() => {
+        if (isSpacePressed || activeTool === 'hand') {
+            setCanvasCursor(isPanningRef.current ? 'grabbing' : 'grab');
+        } else {
+            setCanvasCursor('default');
+        }
+    }, [isSpacePressed, activeTool]);
+
     const startPosRef = useRef({ x: 0, y: 0 });
     const lastActivePosRef = useRef({ x: 0, y: 0 });
     const activeStrokePointsRef = useRef<{ x: number; y: number; timestamp: number }[]>([]);
@@ -167,10 +273,21 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
     const drawBoundsRef = useRef({ minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
 
     // Vector state database
-    const strokesRef = useRef<Stroke[]>([]);
+    const elementsRef = useRef<CanvasElement[]>([]);
+
+    // Selected elements for the select tool
+    const [selectedElementIds, setSelectedElementIds] = useState<string[]>([]);
+    const [selectedSelectionShape, setSelectedSelectionShape] = useState<'rectangle' | 'lasso'>('rectangle');
+    const [canvasCursor, setCanvasCursor] = useState<string>('default');
+
+    // Selection tool refs
+    const isDraggingSelectionRef = useRef(false);
+    const dragStartPositionsRef = useRef<Map<string, CanvasElement>>(new Map());
+    const isMarqueeSelectingRef = useRef(false);
+    const hasDraggedRef = useRef(false);
 
     interface HistoryState {
-        strokes: Stroke[];
+        elements: CanvasElement[];
         bounds: { minX: number; minY: number; maxX: number; maxY: number };
     }
 
@@ -279,9 +396,9 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         }
 
         // 1. Render static highlighter strokes
-        for (const stroke of strokesRef.current) {
-            if (stroke.tool === 'highlighter') {
-                const bounds = getStrokeBounds(stroke);
+        for (const el of elementsRef.current) {
+            if (el.kind !== 'text' && el.kind !== 'image' && el.tool === 'highlighter') {
+                const bounds = getElementBounds(el);
                 const isVisible = !(
                     bounds.maxX < visibleMinX ||
                     bounds.minX > visibleMaxX ||
@@ -289,7 +406,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                     bounds.minY > visibleMaxY
                 );
                 if (isVisible) {
-                    drawStroke(viewCtx, stroke);
+                    drawElement(viewCtx, el);
                 }
             }
         }
@@ -315,7 +432,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         }
 
         // 3. Draw legacy masterCanvas background if canvas is not empty but we have no vector strokes (loaded legacy history entry)
-        if (!isCanvasEmpty && strokesRef.current.length === 0 && masterCanvasRef.current) {
+        if (!isCanvasEmpty && elementsRef.current.length === 0 && masterCanvasRef.current) {
             const masterCanvas = masterCanvasRef.current;
             const srcX = Math.max(0, -offsetX / scale);
             const srcY = Math.max(0, -offsetY / scale);
@@ -334,10 +451,10 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             }
         }
 
-        // 4. Render static non-highlighter strokes
-        for (const stroke of strokesRef.current) {
-            if (stroke.tool !== 'highlighter') {
-                const bounds = getStrokeBounds(stroke);
+        // 4. Render static non-highlighter strokes/elements
+        for (const el of elementsRef.current) {
+            if (el.kind === 'text' || el.kind === 'image' || el.tool !== 'highlighter') {
+                const bounds = getElementBounds(el);
                 const isVisible = !(
                     bounds.maxX < visibleMinX ||
                     bounds.minX > visibleMaxX ||
@@ -345,7 +462,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                     bounds.minY > visibleMaxY
                 );
                 if (isVisible) {
-                    drawStroke(viewCtx, stroke);
+                    drawElement(viewCtx, el);
                 }
             }
         }
@@ -443,22 +560,63 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             viewCtx.setLineDash([]);
         }
 
+        // Draw selected elements outline/bounding box
+        if (selectedElementIds.length > 0) {
+            viewCtx.save();
+            viewCtx.strokeStyle = '#3b82f6';
+            viewCtx.lineWidth = 1.5 / scale;
+            viewCtx.setLineDash([4 / scale, 4 / scale]);
+            
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            let foundAny = false;
+            for (const id of selectedElementIds) {
+                const el = elementsRef.current.find(e => e.id === id);
+                if (el) {
+                    const bounds = getElementBounds(el);
+                    if (bounds.minX < minX) minX = bounds.minX;
+                    if (bounds.minY < minY) minY = bounds.minY;
+                    if (bounds.maxX > maxX) maxX = bounds.maxX;
+                    if (bounds.maxY > maxY) maxY = bounds.maxY;
+                    foundAny = true;
+                }
+            }
+
+            if (foundAny) {
+                const pad = 6 / scale;
+                viewCtx.beginPath();
+                viewCtx.rect(
+                    minX - pad,
+                    minY - pad,
+                    (maxX - minX) + 2 * pad,
+                    (maxY - minY) + 2 * pad
+                );
+                viewCtx.stroke();
+            }
+            viewCtx.restore();
+        }
+
         // Draw selection outline preview if drawing selection
-        if (isDrawing && (activeTool === 'select-rect' || activeTool === 'select-lasso')) {
+        if (isDrawing && (
+            activeTool === 'select-rect' || 
+            activeTool === 'select-lasso' || 
+            (activeTool === 'select' && isMarqueeSelectingRef.current)
+        )) {
             viewCtx.beginPath();
             viewCtx.lineWidth = 1.5 / scale;
             viewCtx.strokeStyle = '#3b82f6';
             viewCtx.setLineDash([5 / scale, 5 / scale]);
             viewCtx.globalCompositeOperation = 'source-over';
 
-            if (activeTool === 'select-rect') {
+            const currentShape = activeTool === 'select' ? selectedSelectionShape : (activeTool === 'select-rect' ? 'rectangle' : 'lasso');
+
+            if (currentShape === 'rectangle') {
                 const sx = startPosRef.current.x;
                 const sy = startPosRef.current.y;
                 const x = lastActivePosRef.current.x;
                 const y = lastActivePosRef.current.y;
                 viewCtx.rect(sx, sy, x - sx, y - sy);
                 viewCtx.stroke();
-            } else if (activeTool === 'select-lasso' && activeStrokePointsRef.current.length > 1) {
+            } else if (currentShape === 'lasso' && activeStrokePointsRef.current.length > 1) {
                 viewCtx.moveTo(activeStrokePointsRef.current[0].x, activeStrokePointsRef.current[0].y);
                 for (let i = 1; i < activeStrokePointsRef.current.length; i++) {
                     viewCtx.lineTo(activeStrokePointsRef.current[i].x, activeStrokePointsRef.current[i].y);
@@ -471,7 +629,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
         // Reset transform back to identity
         viewCtx.setTransform(1, 0, 0, 1, 0, 0);
-    }, [isDrawing, selectedShape, activeTool, showGrid]);
+    }, [isDrawing, selectedShape, activeTool, showGrid, selectedElementIds, selectedSelectionShape]);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -490,10 +648,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
     const saveState = () => {
         const state: HistoryState = {
-            strokes: strokesRef.current.map(s => ({
-                ...s,
-                points: s.points.map(pt => ({ ...pt }))
-            })),
+            elements: elementsRef.current.map(cloneCanvasElement),
             bounds: { ...drawBoundsRef.current }
         };
 
@@ -647,7 +802,8 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
     }, [redrawViewCanvas]);
 
     const resetCanvas = () => {
-        strokesRef.current = [];
+        elementsRef.current = [];
+        setSelectedElementIds([]);
         drawBoundsRef.current = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
         setIsCanvasEmpty(true);
         undoStackRef.current = [];
@@ -679,6 +835,74 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         const screenX = e.clientX - rect.left;
         const screenY = e.clientY - rect.top;
         const worldPos = getWordCoords(screenX, screenY);
+
+        if (activeTool === 'select') {
+            // Calculate consolidated bounding box of currently selected elements
+            let selectedBounds: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
+            if (selectedElementIds.length > 0) {
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                let foundAny = false;
+                for (const id of selectedElementIds) {
+                    const el = elementsRef.current.find(e => e.id === id);
+                    if (el) {
+                        const bounds = getElementBounds(el);
+                        if (bounds.minX < minX) minX = bounds.minX;
+                        if (bounds.minY < minY) minY = bounds.minY;
+                        if (bounds.maxX > maxX) maxX = bounds.maxX;
+                        if (bounds.maxY > maxY) maxY = bounds.maxY;
+                        foundAny = true;
+                    }
+                }
+                if (foundAny) {
+                    const pad = 6 / cameraRef.current.scale;
+                    selectedBounds = {
+                        minX: minX - pad,
+                        minY: minY - pad,
+                        maxX: maxX + pad,
+                        maxY: maxY + pad
+                    };
+                }
+            }
+
+            const clickInSelectionBox = selectedBounds && 
+                worldPos.x >= selectedBounds.minX && worldPos.x <= selectedBounds.maxX &&
+                worldPos.y >= selectedBounds.minY && worldPos.y <= selectedBounds.maxY;
+
+            const clickedEl = getElementAtPosition(worldPos.x, worldPos.y, elementsRef.current);
+
+            if (clickInSelectionBox || clickedEl) {
+                // If clicked an element that is NOT in the selection, and shift is not pressed, select only that element
+                let nextSelection = selectedElementIds;
+                if (clickedEl && !selectedElementIds.includes(clickedEl.id)) {
+                    nextSelection = e.shiftKey
+                        ? [...selectedElementIds, clickedEl.id]
+                        : [clickedEl.id];
+                }
+
+                setSelectedElementIds(nextSelection);
+                isDraggingSelectionRef.current = true;
+                hasDraggedRef.current = false;
+                startPosRef.current = { x: worldPos.x, y: worldPos.y };
+
+                dragStartPositionsRef.current = new Map(
+                    elementsRef.current
+                        .filter(el => nextSelection.includes(el.id))
+                        .map(el => [el.id, cloneCanvasElement(el)])
+                );
+            } else {
+                if (!e.shiftKey) {
+                    setSelectedElementIds([]);
+                }
+                isMarqueeSelectingRef.current = true;
+                hasDraggedRef.current = false;
+                startPosRef.current = { x: worldPos.x, y: worldPos.y };
+                lastActivePosRef.current = { x: worldPos.x, y: worldPos.y };
+                activeStrokePointsRef.current = [{ x: worldPos.x, y: worldPos.y, timestamp: Date.now() }];
+            }
+            setIsDrawing(true);
+            redrawViewCanvas();
+            return;
+        }
 
         if (activeTool === 'select-rect' || activeTool === 'select-lasso') {
             setIsDrawing(true);
@@ -712,11 +936,12 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             cameraRef.current.offsetX = panOffsetStartRef.current.x + dx;
             cameraRef.current.offsetY = panOffsetStartRef.current.y + dy;
             setCamera({ ...cameraRef.current });
+            setCanvasCursor('grabbing');
             redrawViewCanvas();
             return;
         }
 
-        if (!isDrawing && activeTool !== 'eraser') return;
+        if (!isDrawing && activeTool !== 'eraser' && activeTool !== 'select') return;
 
         const rect = canvas.getBoundingClientRect();
         const screenX = e.clientX - rect.left;
@@ -728,13 +953,89 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         if (activeTool === 'eraser') {
             if (e.buttons === 1) { // Left button pressed
                 const eraserRadius = eraserWidthRef.current / 2;
-                const originalLength = strokesRef.current.length;
-                strokesRef.current = strokesRef.current.filter(stroke => !hitTestStroke(worldPos.x, worldPos.y, stroke, eraserRadius));
-                if (strokesRef.current.length !== originalLength) {
-                    setIsCanvasEmpty(strokesRef.current.length === 0);
+                const originalLength = elementsRef.current.length;
+                elementsRef.current = elementsRef.current.filter(el => !hitTestElement(worldPos.x, worldPos.y, el, eraserRadius));
+                if (elementsRef.current.length !== originalLength) {
+                    setIsCanvasEmpty(elementsRef.current.length === 0);
                 }
             }
             redrawViewCanvas(); // Always redraw to update eraser cursor preview
+            return;
+        }
+
+        if (activeTool === 'select') {
+            if (isDraggingSelectionRef.current) {
+                hasDraggedRef.current = true;
+                const dx = worldPos.x - startPosRef.current.x;
+                const dy = worldPos.y - startPosRef.current.y;
+
+                elementsRef.current = elementsRef.current.map(el => {
+                    const initial = dragStartPositionsRef.current.get(el.id);
+                    if (initial) {
+                        if (el.kind === 'text' || el.kind === 'image') {
+                            const initTextOrImg = initial as any;
+                            return { ...el, x: initTextOrImg.x + dx, y: initTextOrImg.y + dy };
+                        } else {
+                            return {
+                                ...el,
+                                bounds: undefined,
+                                points: (initial as Stroke).points.map(pt => ({
+                                    ...pt,
+                                    x: pt.x + dx,
+                                    y: pt.y + dy
+                                }))
+                            };
+                        }
+                    }
+                    return el;
+                });
+                setCanvasCursor('move');
+            } else if (isMarqueeSelectingRef.current) {
+                hasDraggedRef.current = true;
+                if (selectedSelectionShape === 'lasso') {
+                    activeStrokePointsRef.current.push({ x: worldPos.x, y: worldPos.y, timestamp: Date.now() });
+                }
+                setCanvasCursor('default');
+            } else {
+                // Just hovering - change cursor to 4-arrow move cursor if hovering inside selection box or over any element
+                let selectedBounds: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
+                if (selectedElementIds.length > 0) {
+                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                    let foundAny = false;
+                    for (const id of selectedElementIds) {
+                        const el = elementsRef.current.find(e => e.id === id);
+                        if (el) {
+                            const bounds = getElementBounds(el);
+                            if (bounds.minX < minX) minX = bounds.minX;
+                            if (bounds.minY < minY) minY = bounds.minY;
+                            if (bounds.maxX > maxX) maxX = bounds.maxX;
+                            if (bounds.maxY > maxY) maxY = bounds.maxY;
+                            foundAny = true;
+                        }
+                    }
+                    if (foundAny) {
+                        const pad = 6 / cameraRef.current.scale;
+                        selectedBounds = {
+                            minX: minX - pad,
+                            minY: minY - pad,
+                            maxX: maxX + pad,
+                            maxY: maxY + pad
+                        };
+                    }
+                }
+
+                const hoverInSelectionBox = selectedBounds && 
+                    worldPos.x >= selectedBounds.minX && worldPos.x <= selectedBounds.maxX &&
+                    worldPos.y >= selectedBounds.minY && worldPos.y <= selectedBounds.maxY;
+
+                const hoveredEl = getElementAtPosition(worldPos.x, worldPos.y, elementsRef.current);
+                if (hoverInSelectionBox || hoveredEl) {
+                    setCanvasCursor('move');
+                } else {
+                    setCanvasCursor('default');
+                }
+            }
+            redrawViewCanvas();
             return;
         }
 
@@ -767,6 +1068,42 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         if (isPanningRef.current) {
             isPanningRef.current = false;
             setIsPanning(false);
+            return;
+        }
+
+        if (activeTool === 'select') {
+            if (isDraggingSelectionRef.current) {
+                isDraggingSelectionRef.current = false;
+                if (hasDraggedRef.current) {
+                    saveState();
+                }
+            } else if (isMarqueeSelectingRef.current) {
+                isMarqueeSelectingRef.current = false;
+                const canvas = canvasRef.current;
+                if (canvas && hasDraggedRef.current) {
+                    const rect = canvas.getBoundingClientRect();
+                    const screenX = e.clientX - rect.left;
+                    const screenY = e.clientY - rect.top;
+                    const worldPos = getWordCoords(screenX, screenY);
+
+                    let boundary: any = null;
+                    if (selectedSelectionShape === 'rectangle') {
+                        boundary = {
+                            minX: Math.min(startPosRef.current.x, worldPos.x),
+                            maxX: Math.max(startPosRef.current.x, worldPos.x),
+                            minY: Math.min(startPosRef.current.y, worldPos.y),
+                            maxY: Math.max(startPosRef.current.y, worldPos.y)
+                        };
+                    } else {
+                        boundary = [...activeStrokePointsRef.current];
+                    }
+
+                    const newlySelected = getElementsInSelection(elementsRef.current, boundary, selectedSelectionShape);
+                    setSelectedElementIds(newlySelected);
+                }
+                activeStrokePointsRef.current = [];
+            }
+            redrawViewCanvas();
             return;
         }
 
@@ -839,7 +1176,8 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                 : [{ x: sx, y: sy, timestamp: Date.now() }, { x, y, timestamp: Date.now() }];
 
             if (newPoints.length > 0) {
-                const newStroke: Stroke = {
+                const newStroke: CanvasElement = {
+                    kind: 'stroke',
                     id: generateUUID(),
                     tool: selectedShape === 'freehand' ? activeTool as any : (selectedShape === 'rectangle' ? 'rect' : selectedShape as any),
                     color: colorRef.current,
@@ -848,7 +1186,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                     points: newPoints
                 };
 
-                strokesRef.current.push(newStroke);
+                elementsRef.current.push(newStroke);
                 newPoints.forEach(pt => updateBounds(pt.x, pt.y));
                 setIsCanvasEmpty(false);
             }
@@ -901,6 +1239,77 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
         const pos = getTouchPos(e);
         const worldPos = getWordCoords(pos.x, pos.y);
+
+        if (activeTool === 'select') {
+            // Calculate consolidated bounding box of currently selected elements
+            let selectedBounds: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
+            if (selectedElementIds.length > 0) {
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                let foundAny = false;
+                for (const id of selectedElementIds) {
+                    const el = elementsRef.current.find(e => e.id === id);
+                    if (el) {
+                        const bounds = getElementBounds(el);
+                        if (bounds.minX < minX) minX = bounds.minX;
+                        if (bounds.minY < minY) minY = bounds.minY;
+                        if (bounds.maxX > maxX) maxX = bounds.maxX;
+                        if (bounds.maxY > maxY) maxY = bounds.maxY;
+                        foundAny = true;
+                    }
+                }
+                if (foundAny) {
+                    const pad = 6 / cameraRef.current.scale;
+                    selectedBounds = {
+                        minX: minX - pad,
+                        minY: minY - pad,
+                        maxX: maxX + pad,
+                        maxY: maxY + pad
+                    };
+                }
+            }
+
+            const clickInSelectionBox = selectedBounds && 
+                worldPos.x >= selectedBounds.minX && worldPos.x <= selectedBounds.maxX &&
+                worldPos.y >= selectedBounds.minY && worldPos.y <= selectedBounds.maxY;
+
+            const clickedEl = getElementAtPosition(worldPos.x, worldPos.y, elementsRef.current);
+
+            if (clickInSelectionBox || clickedEl) {
+                // If clicked an element that is NOT in the selection, and shift is not pressed, select only that element
+                let nextSelection = selectedElementIds;
+                if (clickedEl && !selectedElementIds.includes(clickedEl.id)) {
+                    // Touch events do not have shiftKey natively on the touch event, check if supported or fallback
+                    const hasShift = (e as any).shiftKey;
+                    nextSelection = hasShift
+                        ? [...selectedElementIds, clickedEl.id]
+                        : [clickedEl.id];
+                }
+
+                setSelectedElementIds(nextSelection);
+                isDraggingSelectionRef.current = true;
+                hasDraggedRef.current = false;
+                startPosRef.current = { x: worldPos.x, y: worldPos.y };
+
+                dragStartPositionsRef.current = new Map(
+                    elementsRef.current
+                        .filter(el => nextSelection.includes(el.id))
+                        .map(el => [el.id, cloneCanvasElement(el)])
+                );
+            } else {
+                const hasShift = (e as any).shiftKey;
+                if (!hasShift) {
+                    setSelectedElementIds([]);
+                }
+                isMarqueeSelectingRef.current = true;
+                hasDraggedRef.current = false;
+                startPosRef.current = { x: worldPos.x, y: worldPos.y };
+                lastActivePosRef.current = { x: worldPos.x, y: worldPos.y };
+                activeStrokePointsRef.current = [{ x: worldPos.x, y: worldPos.y, timestamp: Date.now() }];
+            }
+            setIsDrawing(true);
+            redrawViewCanvas();
+            return;
+        }
 
         if (activeTool === 'select-rect' || activeTool === 'select-lasso') {
             setIsDrawing(true);
@@ -971,12 +1380,48 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
         if (activeTool === 'eraser') {
             const eraserRadius = eraserWidthRef.current / 2;
-            const originalLength = strokesRef.current.length;
-            strokesRef.current = strokesRef.current.filter(stroke => !hitTestStroke(worldPos.x, worldPos.y, stroke, eraserRadius));
-            if (strokesRef.current.length !== originalLength) {
-                setIsCanvasEmpty(strokesRef.current.length === 0);
+            const originalLength = elementsRef.current.length;
+            elementsRef.current = elementsRef.current.filter(el => !hitTestElement(worldPos.x, worldPos.y, el, eraserRadius));
+            if (elementsRef.current.length !== originalLength) {
+                setIsCanvasEmpty(elementsRef.current.length === 0);
             }
             redrawViewCanvas(); // Always redraw to update eraser cursor preview
+            return;
+        }
+
+        if (activeTool === 'select') {
+            if (isDraggingSelectionRef.current) {
+                hasDraggedRef.current = true;
+                const dx = worldPos.x - startPosRef.current.x;
+                const dy = worldPos.y - startPosRef.current.y;
+
+                elementsRef.current = elementsRef.current.map(el => {
+                    const initial = dragStartPositionsRef.current.get(el.id);
+                    if (initial) {
+                        if (el.kind === 'text' || el.kind === 'image') {
+                            const initTextOrImg = initial as any;
+                            return { ...el, x: initTextOrImg.x + dx, y: initTextOrImg.y + dy };
+                        } else {
+                            return {
+                                ...el,
+                                bounds: undefined,
+                                points: (initial as Stroke).points.map(pt => ({
+                                    ...pt,
+                                    x: pt.x + dx,
+                                    y: pt.y + dy
+                                }))
+                            };
+                        }
+                    }
+                    return el;
+                });
+            } else if (isMarqueeSelectingRef.current) {
+                hasDraggedRef.current = true;
+                if (selectedSelectionShape === 'lasso') {
+                    activeStrokePointsRef.current.push({ x: worldPos.x, y: worldPos.y, timestamp: Date.now() });
+                }
+            }
+            redrawViewCanvas();
             return;
         }
 
@@ -1022,6 +1467,40 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                 isPanningRef.current = false;
                 setIsPanning(false);
             }
+            return;
+        }
+
+        if (activeTool === 'select') {
+            if (isDraggingSelectionRef.current) {
+                isDraggingSelectionRef.current = false;
+                if (hasDraggedRef.current) {
+                    saveState();
+                }
+            } else if (isMarqueeSelectingRef.current) {
+                isMarqueeSelectingRef.current = false;
+                const canvas = canvasRef.current;
+                if (canvas && hasDraggedRef.current) {
+                    const pos = getTouchPos(e);
+                    const worldPos = getWordCoords(pos.x, pos.y);
+
+                    let boundary: any = null;
+                    if (selectedSelectionShape === 'rectangle') {
+                        boundary = {
+                            minX: Math.min(startPosRef.current.x, worldPos.x),
+                            maxX: Math.max(startPosRef.current.x, worldPos.x),
+                            minY: Math.min(startPosRef.current.y, worldPos.y),
+                            maxY: Math.max(startPosRef.current.y, worldPos.y)
+                        };
+                    } else {
+                        boundary = [...activeStrokePointsRef.current];
+                    }
+
+                    const newlySelected = getElementsInSelection(elementsRef.current, boundary, selectedSelectionShape);
+                    setSelectedElementIds(newlySelected);
+                }
+                activeStrokePointsRef.current = [];
+            }
+            redrawViewCanvas();
             return;
         }
 
@@ -1090,7 +1569,8 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                 : [{ x: sx, y: sy, timestamp: Date.now() }, { x, y, timestamp: Date.now() }];
 
             if (newPoints.length > 0) {
-                const newStroke: Stroke = {
+                const newStroke: CanvasElement = {
+                    kind: 'stroke',
                     id: generateUUID(),
                     tool: selectedShape === 'freehand' ? activeTool as any : (selectedShape === 'rectangle' ? 'rect' : selectedShape as any),
                     color: colorRef.current,
@@ -1099,7 +1579,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                     points: newPoints
                 };
 
-                strokesRef.current.push(newStroke);
+                elementsRef.current.push(newStroke);
                 newPoints.forEach(pt => updateBounds(pt.x, pt.y));
                 setIsCanvasEmpty(false);
             }
@@ -1109,7 +1589,8 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
     };
 
     const drawStrokes = (rawStrokes: { x: number; y: number }[][]) => {
-        strokesRef.current = [];
+        elementsRef.current = [];
+        setSelectedElementIds([]);
         drawBoundsRef.current = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
         setIsCanvasEmpty(false);
         undoStackRef.current = [];
@@ -1154,7 +1635,8 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                 timestamp: Date.now()
             }));
             
-            const newStroke: Stroke = {
+            const newStroke: CanvasElement = {
+                kind: 'stroke',
                 id: generateUUID(),
                 tool: 'pen',
                 color: colorRef.current,
@@ -1162,7 +1644,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                 opacity: 1.0,
                 points: newPoints
             };
-            strokesRef.current.push(newStroke);
+            elementsRef.current.push(newStroke);
             newPoints.forEach(pt => updateBounds(pt.x, pt.y));
         });
 
@@ -1198,8 +1680,8 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
     }, [redrawViewCanvas, getCenteredCamera]);
 
     const zoomToContent = useCallback(() => {
-        const strokes = strokesRef.current;
-        if (strokes.length === 0) {
+        const elements = elementsRef.current;
+        if (elements.length === 0) {
             resetView();
             return;
         }
@@ -1209,13 +1691,12 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         let maxX = -Infinity;
         let maxY = -Infinity;
 
-        strokes.forEach(stroke => {
-            stroke.points.forEach(pt => {
-                if (pt.x < minX) minX = pt.x;
-                if (pt.x > maxX) maxX = pt.x;
-                if (pt.y < minY) minY = pt.y;
-                if (pt.y > maxY) maxY = pt.y;
-            });
+        elements.forEach(el => {
+            const bounds = getElementBounds(el);
+            if (bounds.minX < minX) minX = bounds.minX;
+            if (bounds.maxX > maxX) maxX = bounds.maxX;
+            if (bounds.minY < minY) minY = bounds.minY;
+            if (bounds.maxY > maxY) maxY = bounds.maxY;
         });
 
         const padding = 80;
@@ -1368,27 +1849,26 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         camera,
         resetView,
         redrawViewCanvas,
-        strokesRef,
+        elementsRef,
+        strokesRef: elementsRef as any,
+        selectedElementIds,
+        setSelectedElementIds,
+        selectedSelectionShape,
+        setSelectedSelectionShape,
         undo: () => {
             if (undoStackRef.current.length === 0) return;
 
             const currentState: HistoryState = {
-                strokes: strokesRef.current.map(s => ({
-                    ...s,
-                    points: s.points.map(pt => ({ ...pt }))
-                })),
+                elements: elementsRef.current.map(cloneCanvasElement),
                 bounds: { ...drawBoundsRef.current }
             };
             redoStackRef.current.push(currentState);
             setCanRedo(true);
 
             const prevState = undoStackRef.current.pop()!;
-            strokesRef.current = prevState.strokes.map(s => ({
-                ...s,
-                points: s.points.map(pt => ({ ...pt }))
-            }));
+            elementsRef.current = prevState.elements.map(cloneCanvasElement);
             drawBoundsRef.current = { ...prevState.bounds };
-            setIsCanvasEmpty(strokesRef.current.length === 0);
+            setIsCanvasEmpty(elementsRef.current.length === 0);
             setCanUndo(undoStackRef.current.length > 0);
             
             redrawViewCanvas();
@@ -1397,28 +1877,23 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
             if (redoStackRef.current.length === 0) return;
 
             const currentState: HistoryState = {
-                strokes: strokesRef.current.map(s => ({
-                    ...s,
-                    points: s.points.map(pt => ({ ...pt }))
-                })),
+                elements: elementsRef.current.map(cloneCanvasElement),
                 bounds: { ...drawBoundsRef.current }
             };
             undoStackRef.current.push(currentState);
             setCanUndo(true);
 
             const nextState = redoStackRef.current.pop()!;
-            strokesRef.current = nextState.strokes.map(s => ({
-                ...s,
-                points: s.points.map(pt => ({ ...pt }))
-            }));
+            elementsRef.current = nextState.elements.map(cloneCanvasElement);
             drawBoundsRef.current = { ...nextState.bounds };
-            setIsCanvasEmpty(strokesRef.current.length === 0);
+            setIsCanvasEmpty(elementsRef.current.length === 0);
             setCanRedo(redoStackRef.current.length > 0);
             
             redrawViewCanvas();
         },
         isSpacePressed,
         isPanning,
+        canvasCursor,
         zoomToContent,
         zoomIn,
         zoomOut,

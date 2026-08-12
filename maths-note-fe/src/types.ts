@@ -70,3 +70,30 @@ export interface Stroke {
     points: { x: number; y: number; timestamp: number }[]; // world-space coordinates
     bounds?: { minX: number; minY: number; maxX: number; maxY: number };
 }
+
+export interface StrokeElement extends Stroke {
+    kind?: 'stroke';
+}
+
+export interface TextElement {
+    kind: 'text';
+    id: string;
+    x: number;
+    y: number;
+    text: string;
+    fontSize: number;
+    color: string;
+}
+
+export interface ImageElement {
+    kind: 'image';
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    src: string; // Base64 data URL
+    bitmap?: ImageBitmap | HTMLImageElement;
+}
+
+export type CanvasElement = StrokeElement | TextElement | ImageElement;

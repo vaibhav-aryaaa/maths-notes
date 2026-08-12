@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { SWATCHES } from '@/constants';
-import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Sparkles, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut, Grid } from 'lucide-react';
+import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Sparkles, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut, Grid, MousePointer } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { ResultSkeleton } from '@/components/ResultSkeleton';
 import { useMathCanvas } from './useMathCanvas';
 import { useCanvasSolver } from './useCanvasSolver';
-import { rasterizeRegion } from './canvasUtils';
+import { rasterizeRegion, getElementBounds } from './canvasUtils';
 import { useCopilotChat } from './useCopilotChat';
 import { Modal, useMantineColorScheme, Slider, Popover, Menu as MantineMenu } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -144,9 +144,11 @@ export default function Home() {
         camera,
         resetView,
         redrawViewCanvas,
-        strokesRef,
-        isSpacePressed,
-        isPanning,
+        elementsRef,
+        setSelectedElementIds,
+        selectedSelectionShape,
+        setSelectedSelectionShape,
+        canvasCursor,
         zoomToContent,
         zoomIn,
         zoomOut,
@@ -288,10 +290,10 @@ export default function Home() {
         runRoute,
     } = useCanvasSolver(
         canvasRef,
-        strokesRef,
+        elementsRef,
         drawBoundsRef,
         (canvas, allResults, currentDict) => {
-            saveHistoryEntry(canvas, allResults, currentDict, strokesRef.current);
+            saveHistoryEntry(canvas, allResults, currentDict, elementsRef.current);
         },
         redrawViewCanvas
     );
@@ -376,7 +378,7 @@ export default function Home() {
             const cropWidth = Math.min(12000 - cropX, (bounds.maxX - bounds.minX) + padding * 2);
             const cropHeight = Math.min(12000 - cropY, (bounds.maxY - bounds.minY) + padding * 2);
 
-            const tempCanvas = rasterizeRegion(strokesRef.current, { x: cropX, y: cropY, width: cropWidth, height: cropHeight });
+            const tempCanvas = rasterizeRegion(elementsRef.current, { x: cropX, y: cropY, width: cropWidth, height: cropHeight });
             croppedImageBase64 = tempCanvas.toDataURL('image/png');
         } else {
             // Fallback to a default center region or empty black canvas if nothing drawn
@@ -492,21 +494,33 @@ export default function Home() {
     const activeSolveBox = activeSolveRegion ? getSelectionBox(activeSolveRegion.bounds) : null;
 
     const handleSelectHistoryEntry = (entry: any) => {
-        if (entry.strokes) {
-            strokesRef.current = entry.strokes.map((s: any) => ({
-                ...s,
-                points: s.points.map((pt: any) => ({ ...pt }))
-            }));
-            setIsCanvasEmpty(entry.strokes.length === 0);
+        setSelectedElementIds([]);
+        if (entry.elements || entry.strokes) {
+            if (entry.elements) {
+                elementsRef.current = entry.elements.map((el: any) => {
+                    if (el.kind === 'text') return { ...el };
+                    if (el.kind === 'image') return { ...el };
+                    return {
+                        ...el,
+                        points: el.points.map((pt: any) => ({ ...pt }))
+                    };
+                });
+            } else {
+                elementsRef.current = entry.strokes.map((s: any) => ({
+                    kind: 'stroke',
+                    ...s,
+                    points: s.points.map((pt: any) => ({ ...pt }))
+                }));
+            }
+            setIsCanvasEmpty(elementsRef.current.length === 0);
             
             let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-            entry.strokes.forEach((stroke: any) => {
-                stroke.points.forEach((pt: any) => {
-                    if (pt.x < minX) minX = pt.x;
-                    if (pt.x > maxX) maxX = pt.x;
-                    if (pt.y < minY) minY = pt.y;
-                    if (pt.y > maxY) maxY = pt.y;
-                });
+            elementsRef.current.forEach((el: any) => {
+                const bounds = getElementBounds(el);
+                if (bounds.minX < minX) minX = bounds.minX;
+                if (bounds.maxX > maxX) maxX = bounds.maxX;
+                if (bounds.minY < minY) minY = bounds.minY;
+                if (bounds.maxY > maxY) maxY = bounds.maxY;
             });
             drawBoundsRef.current = { minX, minY, maxX, maxY };
             resetView();
@@ -529,7 +543,7 @@ export default function Home() {
                 const yOffset = 6000 - img.height / 2;
                 masterCtx.drawImage(img, xOffset, yOffset);
                 setIsCanvasEmpty(false);
-                strokesRef.current = [];
+                elementsRef.current = [];
                 
                 drawBoundsRef.current.minX = xOffset;
                 drawBoundsRef.current.minY = yOffset;
@@ -630,6 +644,11 @@ export default function Home() {
                 e.preventDefault();
                 toggleFocusMode();
             }
+            // Escape to clear selection
+            else if (e.key === 'Escape') {
+                e.preventDefault();
+                setSelectedElementIds([]);
+            }
             // Help: ? (shift + /)
             else if (e.key === '?') {
                 e.preventDefault();
@@ -639,7 +658,7 @@ export default function Home() {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [undo, redo, setIsEraser, setSelectedShape, toggleFocusMode]);
+    }, [undo, redo, setIsEraser, setSelectedShape, toggleFocusMode, setSelectedElementIds]);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -690,10 +709,11 @@ export default function Home() {
                         { id: 'highlighter' as const, label: 'Highlighter', icon: <Highlighter size={14} /> },
                         { id: 'eraser' as const, label: 'Eraser', icon: <Eraser size={14} /> },
                         { id: 'hand' as const, label: 'Hand Tool', icon: <Hand size={14} /> },
+                        { id: 'select' as const, label: 'Select Element', icon: <MousePointer size={14} /> },
                         { id: 'select-lasso' as const, label: 'Lasso Solve', icon: <Scissors size={14} /> },
                         { id: 'select-rect' as const, label: 'Rect Solve', icon: <Crop size={14} /> },
                     ].map((t) => {
-                        const isConfigurable = ['pen', 'fountain', 'marker', 'highlighter', 'eraser'].includes(t.id);
+                        const isConfigurable = ['pen', 'fountain', 'marker', 'highlighter', 'eraser', 'select'].includes(t.id);
                         const isActive = activeTool === t.id;
 
                         const buttonElement = (
@@ -746,75 +766,113 @@ export default function Home() {
                                         {buttonElement}
                                     </Popover.Target>
                                     <Popover.Dropdown className="bg-white dark:bg-[#1c1c1f] border border-stone-200 dark:border-[#2d2d30] p-3 rounded-xl shadow-xl flex flex-col gap-3">
-                                        {/* Color swatches inside popover for drawing tools */}
-                                        {t.id !== 'eraser' && (
-                                            <div className="flex items-center gap-1.5">
-                                                {(t.id === 'highlighter' ? HIGHLIGHTER_SWATCHES : SWATCHES).map((swatch) => (
-                                                    <button
-                                                        key={swatch}
-                                                        onClick={() => setColor(swatch)}
-                                                        className={`cursor-pointer w-5 h-5 rounded-full border border-stone-200 dark:border-[#2d2d30] transition-all hover:scale-110 active:scale-90 ${
-                                                            color === swatch 
-                                                                ? 'ring-2 ring-stone-900 dark:ring-stone-100 ring-offset-2 ring-offset-white dark:ring-offset-[#1c1c1f] scale-110' 
-                                                                : ''
-                                                        }`}
-                                                        style={{ backgroundColor: swatch }}
-                                                        title={swatch}
-                                                        aria-label={`Select brush color ${swatch}`}
-                                                    />
-                                                ))}
-                                            </div>
-                                        )}
-
-                                        {/* Width slider inside popover */}
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 dark:text-gray-500 select-none">
-                                                Thickness
-                                            </span>
-                                            <div className="flex items-center gap-3 min-w-[150px] select-none">
-                                                <Slider
-                                                    size="xs"
-                                                    className="flex-1"
-                                                    min={WIDTH_RANGES[t.id]?.min ?? 1}
-                                                    max={WIDTH_RANGES[t.id]?.max ?? 20}
-                                                    value={t.id === 'eraser' ? eraserWidth : strokeWidth}
-                                                    onChange={handleWidthChange}
-                                                    label={null}
-                                                    styles={{
-                                                        thumb: { transition: 'transform 100ms ease' }
-                                                    }}
-                                                />
-                                                <span className="text-[11px] font-bold text-stone-500 dark:text-gray-400 font-mono w-7 text-right select-none">
-                                                    {(t.id === 'eraser' ? eraserWidth : strokeWidth)}px
+                                        {t.id === 'select' ? (
+                                            <div className="flex flex-col gap-1.5 select-none">
+                                                <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 dark:text-gray-500">
+                                                    Selection Mode
                                                 </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Opacity slider inside popover (only for drawing tools) */}
-                                        {t.id !== 'eraser' && (
-                                            <div className="flex flex-col gap-1 mt-1">
-                                                <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 dark:text-gray-500 select-none">
-                                                    Opacity
-                                                </span>
-                                                <div className="flex items-center gap-3 min-w-[150px] select-none">
-                                                    <Slider
+                                                <div className="flex items-center gap-2">
+                                                    <Button
                                                         size="xs"
-                                                        className="flex-1"
-                                                        min={0.1}
-                                                        max={t.id === 'highlighter' ? 0.6 : 1.0}
-                                                        step={0.05}
-                                                        value={strokeOpacity}
-                                                        onChange={handleOpacityChange}
-                                                        label={null}
-                                                        styles={{
-                                                            thumb: { transition: 'transform 100ms ease' }
-                                                        }}
-                                                    />
-                                                    <span className="text-[11px] font-bold text-stone-500 dark:text-gray-400 font-mono w-7 text-right select-none">
-                                                        {Math.round(strokeOpacity * 100)}%
-                                                    </span>
+                                                        variant={selectedSelectionShape === 'rectangle' ? 'default' : 'outline'}
+                                                        className={`flex-1 flex items-center justify-center gap-1.5 h-8 text-xs font-bold ${
+                                                            selectedSelectionShape === 'rectangle'
+                                                                ? 'bg-stone-900 dark:bg-white text-white dark:text-stone-950 hover:bg-stone-850 dark:hover:bg-stone-100'
+                                                                : 'border-stone-200 dark:border-stone-850 hover:bg-stone-50 dark:hover:bg-white/5'
+                                                        }`}
+                                                        onClick={() => setSelectedSelectionShape('rectangle')}
+                                                    >
+                                                        <Square size={13} />
+                                                        Rectangle
+                                                    </Button>
+                                                    <Button
+                                                        size="xs"
+                                                        variant={selectedSelectionShape === 'lasso' ? 'default' : 'outline'}
+                                                        className={`flex-1 flex items-center justify-center gap-1.5 h-8 text-xs font-bold ${
+                                                            selectedSelectionShape === 'lasso'
+                                                                ? 'bg-stone-900 dark:bg-white text-white dark:text-stone-950 hover:bg-stone-850 dark:hover:bg-stone-100'
+                                                                : 'border-stone-200 dark:border-stone-850 hover:bg-stone-50 dark:hover:bg-white/5'
+                                                        }`}
+                                                        onClick={() => setSelectedSelectionShape('lasso')}
+                                                    >
+                                                        <Scissors size={13} />
+                                                        Lasso
+                                                    </Button>
                                                 </div>
                                             </div>
+                                        ) : (
+                                            <>
+                                                {/* Color swatches inside popover for drawing tools */}
+                                                {t.id !== 'eraser' && (
+                                                    <div className="flex items-center gap-1.5">
+                                                        {(t.id === 'highlighter' ? HIGHLIGHTER_SWATCHES : SWATCHES).map((swatch) => (
+                                                            <button
+                                                                key={swatch}
+                                                                onClick={() => setColor(swatch)}
+                                                                className={`cursor-pointer w-5 h-5 rounded-full border border-stone-200 dark:border-[#2d2d30] transition-all hover:scale-110 active:scale-90 ${
+                                                                    color === swatch 
+                                                                        ? 'ring-2 ring-stone-900 dark:ring-stone-100 ring-offset-2 ring-offset-white dark:ring-offset-[#1c1c1f] scale-110' 
+                                                                        : ''
+                                                                }`}
+                                                                style={{ backgroundColor: swatch }}
+                                                                title={swatch}
+                                                                aria-label={`Select brush color ${swatch}`}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {/* Width slider inside popover */}
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 dark:text-gray-500 select-none">
+                                                        Thickness
+                                                    </span>
+                                                    <div className="flex items-center gap-3 min-w-[150px] select-none">
+                                                        <Slider
+                                                            size="xs"
+                                                            className="flex-1"
+                                                            min={WIDTH_RANGES[t.id]?.min ?? 1}
+                                                            max={WIDTH_RANGES[t.id]?.max ?? 20}
+                                                            value={t.id === 'eraser' ? eraserWidth : strokeWidth}
+                                                            onChange={handleWidthChange}
+                                                            label={null}
+                                                            styles={{
+                                                                thumb: { transition: 'transform 100ms ease' }
+                                                            }}
+                                                        />
+                                                        <span className="text-[11px] font-bold text-stone-500 dark:text-gray-400 font-mono w-7 text-right select-none">
+                                                            {(t.id === 'eraser' ? eraserWidth : strokeWidth)}px
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Opacity slider inside popover (only for drawing tools) */}
+                                                {t.id !== 'eraser' && (
+                                                    <div className="flex flex-col gap-1 mt-1">
+                                                        <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 dark:text-gray-500 select-none">
+                                                            Opacity
+                                                        </span>
+                                                        <div className="flex items-center gap-3 min-w-[150px] select-none">
+                                                            <Slider
+                                                                size="xs"
+                                                                className="flex-1"
+                                                                min={0.1}
+                                                                max={t.id === 'highlighter' ? 0.6 : 1.0}
+                                                                step={0.05}
+                                                                value={strokeOpacity}
+                                                                onChange={handleOpacityChange}
+                                                                label={null}
+                                                                styles={{
+                                                                    thumb: { transition: 'transform 100ms ease' }
+                                                                }}
+                                                            />
+                                                            <span className="text-[11px] font-bold text-stone-500 dark:text-gray-400 font-mono w-7 text-right select-none">
+                                                                {Math.round(strokeOpacity * 100)}%
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
                                     </Popover.Dropdown>
                                 </Popover>
@@ -1040,11 +1098,8 @@ export default function Home() {
                 id="canvas"
                 className={`absolute top-0 left-0 w-full h-full touch-none transition-all duration-300 ${
                     colorScheme === 'light' ? 'invert-[0.93] hue-rotate-180' : ''
-                } ${
-                    (activeTool === 'hand' || isSpacePressed)
-                        ? (isPanning ? 'cursor-grabbing' : 'cursor-grab')
-                        : ''
                 }`}
+                style={{ cursor: canvasCursor }}
                 width={windowSize.width}
                 height={windowSize.height}
                 onMouseDown={startDrawing}

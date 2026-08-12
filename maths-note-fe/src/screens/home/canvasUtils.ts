@@ -1,5 +1,35 @@
-import type { Stroke } from '@/types';
+import type { Stroke, CanvasElement } from '@/types';
 import { getStroke } from 'perfect-freehand';
+
+export const getElementBounds = (element: CanvasElement): { minX: number; minY: number; maxX: number; maxY: number } => {
+    if (element.kind === 'text') {
+        const width = element.text.length * element.fontSize * 0.6;
+        const height = element.fontSize;
+        return {
+            minX: element.x,
+            minY: element.y - height,
+            maxX: element.x + width,
+            maxY: element.y
+        };
+    } else if (element.kind === 'image') {
+        return {
+            minX: element.x,
+            minY: element.y,
+            maxX: element.x + element.width,
+            maxY: element.y + element.height
+        };
+    } else {
+        return getStrokeBounds(element);
+    }
+};
+
+export const getElementCenter = (element: CanvasElement): { x: number; y: number } => {
+    const bounds = getElementBounds(element);
+    return {
+        x: (bounds.minX + bounds.maxX) / 2,
+        y: (bounds.minY + bounds.maxY) / 2
+    };
+};
 
 export const getStrokeBounds = (stroke: Stroke) => {
     if (stroke.bounds) {
@@ -201,8 +231,33 @@ export const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
     if (ctx.restore) ctx.restore();
 };
 
+export const drawElement = (ctx: CanvasRenderingContext2D, element: CanvasElement) => {
+    if (element.kind === 'text') {
+        if (ctx.save) ctx.save();
+        ctx.fillStyle = element.color;
+        ctx.font = `${element.fontSize}px sans-serif`;
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillText(element.text, element.x, element.y);
+        if (ctx.restore) ctx.restore();
+    } else if (element.kind === 'image') {
+        if (element.bitmap) {
+            if (ctx.save) ctx.save();
+            ctx.drawImage(element.bitmap, element.x, element.y, element.width, element.height);
+            if (ctx.restore) ctx.restore();
+        } else {
+            const img = new Image();
+            img.src = element.src;
+            img.onload = () => {
+                element.bitmap = img;
+            };
+        }
+    } else {
+        drawStroke(ctx, element);
+    }
+};
+
 export function rasterizeRegion(
-    strokes: Stroke[],
+    elements: CanvasElement[],
     region: { x: number; y: number; width: number; height: number },
     options?: { clipPath?: { x: number; y: number }[]; scale?: number; excludeHighlighter?: boolean }
 ): HTMLCanvasElement {
@@ -233,30 +288,30 @@ export function rasterizeRegion(
 
     // Pass 1: Highlighter strokes (only if not excluded)
     if (!options?.excludeHighlighter) {
-        for (const stroke of strokes) {
-            if (stroke.tool === 'highlighter') {
-                const bounds = getStrokeBounds(stroke);
+        for (const el of elements) {
+            if (el.kind !== 'text' && el.kind !== 'image' && el.tool === 'highlighter') {
+                const bounds = getElementBounds(el);
                 const intersects = !(
                     bounds.maxX < region.x || bounds.minX > region.x + region.width ||
                     bounds.maxY < region.y || bounds.minY > region.y + region.height
                 );
                 if (intersects) {
-                    drawStroke(ctx, stroke);
+                    drawElement(ctx, el);
                 }
             }
         }
     }
 
-    // Pass 2: Non-highlighter strokes
-    for (const stroke of strokes) {
-        if (stroke.tool !== 'highlighter') {
-            const bounds = getStrokeBounds(stroke);
+    // Pass 2: Non-highlighter strokes/elements
+    for (const el of elements) {
+        if (el.kind === 'text' || el.kind === 'image' || el.tool !== 'highlighter') {
+            const bounds = getElementBounds(el);
             const intersects = !(
                 bounds.maxX < region.x || bounds.minX > region.x + region.width ||
                 bounds.maxY < region.y || bounds.minY > region.y + region.height
             );
             if (intersects) {
-                drawStroke(ctx, stroke);
+                drawElement(ctx, el);
             }
         }
     }
