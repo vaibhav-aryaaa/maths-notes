@@ -3,13 +3,18 @@ import { getStroke } from 'perfect-freehand';
 
 export const getElementBounds = (element: CanvasElement): { minX: number; minY: number; maxX: number; maxY: number } => {
     if (element.kind === 'text') {
-        const width = element.text.length * element.fontSize * 0.6;
-        const height = element.fontSize;
+        const lines = element.text.split('\n');
+        const lineHeight = element.fontSize * 1.2;
+        let maxWidth = 0;
+        lines.forEach(line => {
+            const w = line.length * element.fontSize * 0.6;
+            if (w > maxWidth) maxWidth = w;
+        });
         return {
             minX: element.x,
-            minY: element.y - height,
-            maxX: element.x + width,
-            maxY: element.y
+            minY: element.y - element.fontSize,
+            maxX: element.x + maxWidth,
+            maxY: element.y + (lines.length - 1) * lineHeight + (element.fontSize * 0.2)
         };
     } else if (element.kind === 'image') {
         return {
@@ -237,7 +242,11 @@ export const drawElement = (ctx: CanvasRenderingContext2D, element: CanvasElemen
         ctx.fillStyle = element.color;
         ctx.font = `${element.fontSize}px sans-serif`;
         ctx.textBaseline = 'alphabetic';
-        ctx.fillText(element.text, element.x, element.y);
+        const lines = element.text.split('\n');
+        const lineHeight = element.fontSize * 1.2;
+        lines.forEach((line, index) => {
+            ctx.fillText(line, element.x, element.y + index * lineHeight);
+        });
         if (ctx.restore) ctx.restore();
     } else if (element.kind === 'image') {
         if (element.bitmap) {

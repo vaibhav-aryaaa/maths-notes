@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { SWATCHES } from '@/constants';
-import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Sparkles, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut, Grid, MousePointer } from 'lucide-react';
+import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Sparkles, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut, Grid, MousePointer, Type } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { ResultSkeleton } from '@/components/ResultSkeleton';
 import { useMathCanvas } from './useMathCanvas';
@@ -63,6 +63,7 @@ const WIDTH_RANGES: Record<string, { min: number; max: number; default: number }
     marker: { min: 8, max: 40, default: 18 },
     highlighter: { min: 10, max: 36, default: 16 },
     eraser: { min: 4, max: 40, default: 12 },
+    text: { min: 12, max: 72, default: 24 }
 };
 
 export default function Home() {
@@ -99,6 +100,8 @@ export default function Home() {
             return next;
         });
     }, [hasSeenFocusHint]);
+
+
 
     const selectionSolveRef = useRef<((selection: any) => void) | null>(null);
     const handleSelectionSolve = useCallback((selection: { type: 'rect' | 'lasso'; points: { x: number; y: number }[]; bounds: { minX: number; minY: number; maxX: number; maxY: number } }) => {
@@ -155,8 +158,122 @@ export default function Home() {
         strokeOpacity,
         setStrokeOpacity,
         showGrid,
-        setShowGrid
+        setShowGrid,
+        getWordCoords,
+        saveState,
+        activeTextEdit,
+        setActiveTextEdit
     } = useMathCanvas(handleSelectionSolve);
+
+    const generateUUID = useCallback(() => {
+        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+            return crypto.randomUUID();
+        }
+        return Math.random().toString(36).substring(2, 9) + '-' + Date.now().toString(36);
+    }, []);
+
+    const commitTextEdit = useCallback(() => {
+        if (!activeTextEdit) return;
+        const trimmed = activeTextEdit.text.trim();
+        if (trimmed) {
+            saveState();
+            if (activeTextEdit.isNew) {
+                elementsRef.current.push({
+                    kind: 'text',
+                    id: activeTextEdit.id,
+                    x: activeTextEdit.x,
+                    y: activeTextEdit.y,
+                    text: trimmed,
+                    fontSize: activeTextEdit.fontSize,
+                    color: activeTextEdit.color
+                });
+            } else {
+                elementsRef.current = elementsRef.current.map(el => 
+                    el.id === activeTextEdit.id
+                        ? { ...el, text: trimmed }
+                        : el
+                );
+            }
+            setIsCanvasEmpty(false);
+        } else {
+            if (!activeTextEdit.isNew) {
+                saveState();
+                elementsRef.current = elementsRef.current.filter(el => el.id !== activeTextEdit.id);
+                setIsCanvasEmpty(elementsRef.current.length === 0);
+            }
+        }
+        setActiveTextEdit(null);
+        setTimeout(() => redrawViewCanvas(), 0);
+    }, [activeTextEdit, elementsRef, saveState, setIsCanvasEmpty, setActiveTextEdit, redrawViewCanvas]);
+
+    const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+        console.log("handleMouseDown called, activeTool:", activeTool);
+        if (activeTool === 'text') {
+            e.preventDefault();
+            const rect = canvasRef.current?.getBoundingClientRect();
+            console.log("canvas rect:", rect);
+            if (rect) {
+                const screenX = e.clientX - rect.left;
+                const screenY = e.clientY - rect.top;
+                const worldPos = getWordCoords(screenX, screenY);
+                console.log("screen coords:", { screenX, screenY }, "worldPos:", worldPos);
+                
+                if (activeTextEdit) {
+                    console.log("committing existing text edit first");
+                    commitTextEdit();
+                }
+                
+                const newEdit = {
+                    id: generateUUID(),
+                    x: worldPos.x,
+                    y: worldPos.y,
+                    text: '',
+                    fontSize: strokeWidth,
+                    color: color,
+                    isNew: true
+                };
+                console.log("setting activeTextEdit to:", newEdit);
+                setActiveTextEdit(newEdit);
+            }
+            return;
+        }
+        startDrawing(e);
+    }, [activeTool, canvasRef, getWordCoords, activeTextEdit, commitTextEdit, strokeWidth, color, startDrawing, setActiveTextEdit, generateUUID]);
+
+    const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+        console.log("handleTouchStart called, activeTool:", activeTool);
+        if (activeTool === 'text') {
+            e.preventDefault();
+            const rect = canvasRef.current?.getBoundingClientRect();
+            console.log("canvas rect (touch):", rect);
+            if (rect) {
+                const touch = e.touches[0];
+                const screenX = touch.clientX - rect.left;
+                const screenY = touch.clientY - rect.top;
+                const worldPos = getWordCoords(screenX, screenY);
+                console.log("screen coords (touch):", { screenX, screenY }, "worldPos:", worldPos);
+                
+                if (activeTextEdit) {
+                    console.log("committing existing text edit first (touch)");
+                    commitTextEdit();
+                }
+                
+                const newEdit = {
+                    id: generateUUID(),
+                    x: worldPos.x,
+                    y: worldPos.y,
+                    text: '',
+                    fontSize: strokeWidth,
+                    color: color,
+                    isNew: true
+                };
+                console.log("setting activeTextEdit (touch) to:", newEdit);
+                setActiveTextEdit(newEdit);
+            }
+            return;
+        }
+        startDrawingTouch(e);
+    }, [activeTool, canvasRef, getWordCoords, activeTextEdit, commitTextEdit, strokeWidth, color, startDrawingTouch, setActiveTextEdit, generateUUID]);
 
     const [savedInkColor, setSavedInkColor] = useState('rgb(255, 255, 255)');
     const [savedHighlighterColor, setSavedHighlighterColor] = useState('#FEF08A');
@@ -179,6 +296,7 @@ export default function Home() {
             marker: 18,
             highlighter: 16,
             eraser: 12,
+            text: 24
         };
     });
 
@@ -218,7 +336,7 @@ export default function Home() {
     useEffect(() => {
         // Save the previous tool's width and opacity first before updating
         const prevTool = prevToolRef.current;
-        if (['pen', 'fountain', 'marker', 'highlighter', 'eraser'].includes(prevTool)) {
+        if (['pen', 'fountain', 'marker', 'highlighter', 'eraser', 'text'].includes(prevTool)) {
             const currentWidth = prevTool === 'eraser' ? eraserWidth : strokeWidth;
             setToolWidths(prev => ({ ...prev, [prevTool]: currentWidth }));
             if (prevTool !== 'eraser') {
@@ -241,7 +359,7 @@ export default function Home() {
                 setSavedInkColor(color);
             }
             setColor(savedHighlighterColor);
-        } else if (['pen', 'fountain', 'marker'].includes(activeTool)) {
+        } else if (['pen', 'fountain', 'marker', 'text'].includes(activeTool)) {
             if (HIGHLIGHTER_SWATCHES.includes(color)) {
                 setSavedHighlighterColor(color);
             }
@@ -600,14 +718,34 @@ export default function Home() {
             if (cmdOrCtrl && !e.shiftKey && e.key.toLowerCase() === 'z') {
                 e.preventDefault();
                 undo();
+                return;
             }
             // Redo: cmd/ctrl + shift + z
             else if (cmdOrCtrl && e.shiftKey && e.key.toLowerCase() === 'z') {
                 e.preventDefault();
                 redo();
+                return;
             }
+            // Escape to clear selection
+            else if (e.key === 'Escape') {
+                e.preventDefault();
+                setSelectedElementIds([]);
+                return;
+            }
+            // Help: ? (shift + /)
+            else if (e.key === '?') {
+                e.preventDefault();
+                setIsShortcutsOpen(true);
+                return;
+            }
+
+            // Disable single-key shortcuts if the Text Tool is active to prevent accidental shape switching
+            if (activeTool === 'text') {
+                return;
+            }
+
             // Pen: P
-            else if (!cmdOrCtrl && !e.altKey && e.key.toLowerCase() === 'p') {
+            if (!cmdOrCtrl && !e.altKey && e.key.toLowerCase() === 'p') {
                 setActiveTool('pen');
                 setSelectedShape('freehand');
             }
@@ -644,21 +782,11 @@ export default function Home() {
                 e.preventDefault();
                 toggleFocusMode();
             }
-            // Escape to clear selection
-            else if (e.key === 'Escape') {
-                e.preventDefault();
-                setSelectedElementIds([]);
-            }
-            // Help: ? (shift + /)
-            else if (e.key === '?') {
-                e.preventDefault();
-                setIsShortcutsOpen(true);
-            }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [undo, redo, setIsEraser, setSelectedShape, toggleFocusMode, setSelectedElementIds]);
+    }, [undo, redo, setIsEraser, setSelectedShape, toggleFocusMode, setSelectedElementIds, activeTool, setActiveTool]);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -710,10 +838,11 @@ export default function Home() {
                         { id: 'eraser' as const, label: 'Eraser', icon: <Eraser size={14} /> },
                         { id: 'hand' as const, label: 'Hand Tool', icon: <Hand size={14} /> },
                         { id: 'select' as const, label: 'Select Element', icon: <MousePointer size={14} /> },
+                        { id: 'text' as const, label: 'Text Tool', icon: <Type size={14} /> },
                         { id: 'select-lasso' as const, label: 'Lasso Solve', icon: <Scissors size={14} /> },
                         { id: 'select-rect' as const, label: 'Rect Solve', icon: <Crop size={14} /> },
                     ].map((t) => {
-                        const isConfigurable = ['pen', 'fountain', 'marker', 'highlighter', 'eraser', 'select'].includes(t.id);
+                        const isConfigurable = ['pen', 'fountain', 'marker', 'highlighter', 'eraser', 'select', 'text'].includes(t.id);
                         const isActive = activeTool === t.id;
 
                         const buttonElement = (
@@ -825,7 +954,7 @@ export default function Home() {
                                                 {/* Width slider inside popover */}
                                                 <div className="flex flex-col gap-1">
                                                     <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 dark:text-gray-500 select-none">
-                                                        Thickness
+                                                        {t.id === 'text' ? 'Font Size' : 'Thickness'}
                                                     </span>
                                                     <div className="flex items-center gap-3 min-w-[150px] select-none">
                                                         <Slider
@@ -1102,14 +1231,59 @@ export default function Home() {
                 style={{ cursor: canvasCursor }}
                 width={windowSize.width}
                 height={windowSize.height}
-                onMouseDown={startDrawing}
+                onMouseDown={handleMouseDown}
                 onMouseMove={draw}
                 onMouseUp={stopDrawing}
                 onMouseOut={stopDrawing}
-                onTouchStart={startDrawingTouch}
+                onTouchStart={handleTouchStart}
                 onTouchMove={drawTouch}
                 onTouchEnd={stopDrawingTouch}
             />
+            {activeTextEdit && (
+                <textarea
+                    className={`absolute bg-transparent border-none outline-none resize-none p-0 m-0 overflow-hidden font-sans z-50 focus:ring-0 focus:border-none focus:outline-none select-text ${
+                        colorScheme === 'light' ? 'invert-[0.93] hue-rotate-180' : ''
+                    }`}
+                    style={{
+                        left: activeTextEdit.x * camera.scale + camera.offsetX,
+                        top: (activeTextEdit.y - activeTextEdit.fontSize) * camera.scale + camera.offsetY,
+                        fontSize: `${activeTextEdit.fontSize * camera.scale}px`,
+                        lineHeight: '1.2',
+                        color: activeTextEdit.color,
+                        width: `${300 * camera.scale}px`,
+                        minHeight: `${activeTextEdit.fontSize * camera.scale * 1.4}px`,
+                        caretColor: activeTextEdit.color,
+                        border: 'none',
+                        outline: 'none',
+                        boxShadow: 'none'
+                    }}
+                    autoFocus
+                    placeholder="Type here..."
+                    value={activeTextEdit.text}
+                    onBlur={commitTextEdit}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            e.currentTarget.blur();
+                        } else if (e.key === 'Escape') {
+                            e.preventDefault();
+                            setActiveTextEdit(null);
+                            setTimeout(() => redrawViewCanvas(), 0);
+                        }
+                    }}
+                    onChange={(e) => {
+                        e.target.style.height = 'auto';
+                        e.target.style.height = `${e.target.scrollHeight}px`;
+                        setActiveTextEdit(prev => prev ? { ...prev, text: e.target.value } : null);
+                    }}
+                    ref={(ref) => {
+                        if (ref) {
+                            ref.style.height = 'auto';
+                            ref.style.height = `${ref.scrollHeight}px`;
+                        }
+                    }}
+                />
+            )}
             {activeSolveBox && activeSolveRegion && (
                 <div 
                     className={`absolute inset-0 z-canvas-overlay pointer-events-none transition-opacity duration-200 ${

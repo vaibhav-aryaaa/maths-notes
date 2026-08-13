@@ -183,13 +183,15 @@ const getElementsInSelection = (
     return selectedIds;
 };
 
-export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'lasso'; points: { x: number; y: number }[]; bounds: { minX: number; minY: number; maxX: number; maxY: number } }) => void) => {
+export const useMathCanvas = (
+    onSelectionSolve?: (selection: { type: 'rect' | 'lasso'; points: { x: number; y: number }[]; bounds: { minX: number; minY: number; maxX: number; maxY: number } }) => void
+) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const masterCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
     const [isDrawing, setIsDrawing] = useState(false);
     const [isCanvasEmpty, setIsCanvasEmpty] = useState(true);
-    const [activeTool, setActiveTool] = useState<'pen' | 'fountain' | 'marker' | 'highlighter' | 'eraser' | 'select-rect' | 'select-lasso' | 'hand' | 'select'>('pen');
+    const [activeTool, setActiveTool] = useState<'pen' | 'fountain' | 'marker' | 'highlighter' | 'eraser' | 'select-rect' | 'select-lasso' | 'hand' | 'select' | 'text'>('pen');
     const [color, setColor] = useState(() => {
         if (typeof window !== 'undefined') {
             return localStorage.getItem('solvelq_color') || 'rgb(255, 255, 255)';
@@ -256,6 +258,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
     const touchStartCameraRef = useRef({ offsetX: 0, offsetY: 0, scale: 1 });
 
     const [isSpacePressed, setIsSpacePressed] = useState(false);
+    const [canvasCursor, setCanvasCursor] = useState<string>('default');
 
     useEffect(() => {
         if (isSpacePressed || activeTool === 'hand') {
@@ -278,7 +281,16 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
     // Selected elements for the select tool
     const [selectedElementIds, setSelectedElementIds] = useState<string[]>([]);
     const [selectedSelectionShape, setSelectedSelectionShape] = useState<'rectangle' | 'lasso'>('rectangle');
-    const [canvasCursor, setCanvasCursor] = useState<string>('default');
+
+    const [activeTextEdit, setActiveTextEdit] = useState<{
+        id: string;
+        x: number;
+        y: number;
+        text: string;
+        fontSize: number;
+        color: string;
+        isNew: boolean;
+    } | null>(null);
 
     // Selection tool refs
     const isDraggingSelectionRef = useRef(false);
@@ -453,6 +465,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
 
         // 4. Render static non-highlighter strokes/elements
         for (const el of elementsRef.current) {
+            if (activeTextEdit && el.id === activeTextEdit.id) continue;
             if (el.kind === 'text' || el.kind === 'image' || el.tool !== 'highlighter') {
                 const bounds = getElementBounds(el);
                 const isVisible = !(
@@ -823,6 +836,10 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         const canvas = canvasRef.current;
         if (!canvas) return;
 
+        if (activeTool === 'text') {
+            return;
+        }
+
         if (isSpacePressed || e.button === 1 || activeTool === 'hand') {
             isPanningRef.current = true;
             setIsPanning(true);
@@ -1076,6 +1093,26 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                 isDraggingSelectionRef.current = false;
                 if (hasDraggedRef.current) {
                     saveState();
+                } else {
+                    const canvas = canvasRef.current;
+                    if (canvas) {
+                        const rect = canvas.getBoundingClientRect();
+                        const screenX = e.clientX - rect.left;
+                        const screenY = e.clientY - rect.top;
+                        const worldPos = getWordCoords(screenX, screenY);
+                        const clickedEl = getElementAtPosition(worldPos.x, worldPos.y, elementsRef.current);
+                        if (clickedEl && clickedEl.kind === 'text') {
+                            setActiveTextEdit({
+                                id: clickedEl.id,
+                                x: clickedEl.x,
+                                y: clickedEl.y,
+                                text: clickedEl.text,
+                                fontSize: clickedEl.fontSize,
+                                color: clickedEl.color,
+                                isNew: false
+                            });
+                        }
+                    }
                 }
             } else if (isMarqueeSelectingRef.current) {
                 isMarqueeSelectingRef.current = false;
@@ -1086,7 +1123,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                     const screenY = e.clientY - rect.top;
                     const worldPos = getWordCoords(screenX, screenY);
 
-                    let boundary: any = null;
+                    let boundary: any;
                     if (selectedSelectionShape === 'rectangle') {
                         boundary = {
                             minX: Math.min(startPosRef.current.x, worldPos.x),
@@ -1209,6 +1246,10 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
     const startDrawingTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
+
+        if (activeTool === 'text') {
+            return;
+        }
 
         if (e.touches.length === 2) {
             isPanningRef.current = true;
@@ -1475,6 +1516,24 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                 isDraggingSelectionRef.current = false;
                 if (hasDraggedRef.current) {
                     saveState();
+                } else {
+                    const canvas = canvasRef.current;
+                    if (canvas) {
+                        const pos = getTouchPos(e);
+                        const worldPos = getWordCoords(pos.x, pos.y);
+                        const clickedEl = getElementAtPosition(worldPos.x, worldPos.y, elementsRef.current);
+                        if (clickedEl && clickedEl.kind === 'text') {
+                            setActiveTextEdit({
+                                id: clickedEl.id,
+                                x: clickedEl.x,
+                                y: clickedEl.y,
+                                text: clickedEl.text,
+                                fontSize: clickedEl.fontSize,
+                                color: clickedEl.color,
+                                isNew: false
+                            });
+                        }
+                    }
                 }
             } else if (isMarqueeSelectingRef.current) {
                 isMarqueeSelectingRef.current = false;
@@ -1483,7 +1542,7 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
                     const pos = getTouchPos(e);
                     const worldPos = getWordCoords(pos.x, pos.y);
 
-                    let boundary: any = null;
+                    let boundary: any;
                     if (selectedSelectionShape === 'rectangle') {
                         boundary = {
                             minX: Math.min(startPosRef.current.x, worldPos.x),
@@ -1900,6 +1959,11 @@ export const useMathCanvas = (onSelectionSolve?: (selection: { type: 'rect' | 'l
         strokeOpacity,
         setStrokeOpacity,
         showGrid,
-        setShowGrid
+        setShowGrid,
+        getWordCoords,
+        saveState,
+        cloneCanvasElement,
+        activeTextEdit,
+        setActiveTextEdit
     };
 };
