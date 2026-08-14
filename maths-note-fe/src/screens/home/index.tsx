@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { SWATCHES } from '@/constants';
-import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Sparkles, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut, Grid, MousePointer, Type } from 'lucide-react';
+import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Sparkles, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut, Grid, MousePointer, Type, Image as ImageIcon } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { ResultSkeleton } from '@/components/ResultSkeleton';
 import { useMathCanvas } from './useMathCanvas';
@@ -162,8 +162,47 @@ export default function Home() {
         getWordCoords,
         saveState,
         activeTextEdit,
-        setActiveTextEdit
+        setActiveTextEdit,
+        insertImageFile
     } = useMathCanvas(handleSelectionSolve);
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            insertImageFile(file);
+        }
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    }, [insertImageFile]);
+
+    useEffect(() => {
+        const handlePaste = (e: ClipboardEvent) => {
+            const activeTag = document.activeElement?.tagName.toLowerCase();
+            if (activeTag === 'input' || activeTag === 'textarea' || document.activeElement?.getAttribute('contenteditable') === 'true') {
+                return;
+            }
+
+            const items = e.clipboardData?.items;
+            if (!items) return;
+
+            for (const item of Array.from(items)) {
+                if (item.type.startsWith('image/')) {
+                    const file = item.getAsFile();
+                    if (file) {
+                        e.preventDefault();
+                        insertImageFile(file);
+                        break;
+                    }
+                }
+            }
+        };
+
+        window.addEventListener('paste', handlePaste);
+        return () => window.removeEventListener('paste', handlePaste);
+    }, [insertImageFile]);
 
     const generateUUID = useCallback(() => {
         if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -1010,6 +1049,26 @@ export default function Home() {
 
                         return buttonElement;
                     })}
+
+                    {/* Divider */}
+                    <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
+
+                    {/* Insert Image Button */}
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="cursor-pointer transition-all w-9 h-9 flex items-center justify-center rounded-lg hover:bg-stone-100 dark:hover:bg-white/5 text-stone-600 dark:text-gray-300 relative"
+                        title="Insert Image"
+                        aria-label="Insert Image"
+                    >
+                        <ImageIcon size={14} />
+                    </button>
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        accept="image/*"
+                        className="hidden"
+                    />
                 </div>
 
                 {/* Divider */}

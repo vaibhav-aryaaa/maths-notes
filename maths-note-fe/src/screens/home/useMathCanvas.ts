@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import type { Stroke, CanvasElement } from '@/types';
+import type { Stroke, CanvasElement, ImageElement } from '@/types';
 import { getStrokeOutline, getElementBounds, getElementCenter, drawElement, getStrokeBounds } from './canvasUtils';
 
 const generateUUID = () => {
@@ -298,6 +298,13 @@ export const useMathCanvas = (
     const isMarqueeSelectingRef = useRef(false);
     const hasDraggedRef = useRef(false);
 
+    // Resizing refs for image elements
+    const isResizingRef = useRef(false);
+    const activeResizeHandleRef = useRef<'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | null>(null);
+    const resizeStartPosRef = useRef({ x: 0, y: 0 });
+    const resizeInitialElementRef = useRef<ImageElement | null>(null);
+    const resizeAnchorRef = useRef({ x: 0, y: 0 });
+
     interface HistoryState {
         elements: CanvasElement[];
         bounds: { minX: number; minY: number; maxX: number; maxY: number };
@@ -369,6 +376,7 @@ export const useMathCanvas = (
         const viewCtx = viewCanvas.getContext('2d');
         if (!viewCtx) return;
 
+        const isInverted = viewCanvas.classList.contains('invert-[0.93]');
         const { offsetX, offsetY, scale } = cameraRef.current;
 
         // Reset transform to identity
@@ -418,7 +426,7 @@ export const useMathCanvas = (
                     bounds.minY > visibleMaxY
                 );
                 if (isVisible) {
-                    drawElement(viewCtx, el);
+                    drawElement(viewCtx, el, isInverted);
                 }
             }
         }
@@ -475,7 +483,7 @@ export const useMathCanvas = (
                     bounds.minY > visibleMaxY
                 );
                 if (isVisible) {
-                    drawElement(viewCtx, el);
+                    drawElement(viewCtx, el, isInverted);
                 }
             }
         }
@@ -596,14 +604,43 @@ export const useMathCanvas = (
 
             if (foundAny) {
                 const pad = 6 / scale;
+                const rectX = minX - pad;
+                const rectY = minY - pad;
+                const rectW = (maxX - minX) + 2 * pad;
+                const rectH = (maxY - minY) + 2 * pad;
+
                 viewCtx.beginPath();
-                viewCtx.rect(
-                    minX - pad,
-                    minY - pad,
-                    (maxX - minX) + 2 * pad,
-                    (maxY - minY) + 2 * pad
-                );
+                viewCtx.rect(rectX, rectY, rectW, rectH);
                 viewCtx.stroke();
+
+                // Draw resize handles specifically if it's a single image element
+                if (selectedElementIds.length === 1) {
+                    const singleEl = elementsRef.current.find(e => e.id === selectedElementIds[0]);
+                    if (singleEl && singleEl.kind === 'image') {
+                        viewCtx.restore(); // Restore dash style to solid for handles
+                        viewCtx.save();
+                        viewCtx.fillStyle = '#ffffff';
+                        viewCtx.strokeStyle = '#3b82f6';
+                        viewCtx.lineWidth = 1.5 / scale;
+
+                        const handleSize = 8 / scale;
+                        const halfSize = handleSize / 2;
+
+                        const corners = [
+                            { x: rectX, y: rectY }, // Top-Left
+                            { x: rectX + rectW, y: rectY }, // Top-Right
+                            { x: rectX, y: rectY + rectH }, // Bottom-Left
+                            { x: rectX + rectW, y: rectY + rectH } // Bottom-Right
+                        ];
+
+                        corners.forEach(c => {
+                            viewCtx.beginPath();
+                            viewCtx.rect(c.x - halfSize, c.y - halfSize, handleSize, handleSize);
+                            viewCtx.fill();
+                            viewCtx.stroke();
+                        });
+                    }
+                }
             }
             viewCtx.restore();
         }
@@ -651,15 +688,15 @@ export const useMathCanvas = (
         redrawViewCanvas();
     }, [showGrid, redrawViewCanvas]);
 
-    const getWordCoords = (screenX: number, screenY: number) => {
+    const getWordCoords = useCallback((screenX: number, screenY: number) => {
         const { offsetX, offsetY, scale } = cameraRef.current;
         return {
             x: (screenX - offsetX) / scale,
             y: (screenY - offsetY) / scale
         };
-    };
+    }, []);
 
-    const saveState = () => {
+    const saveState = useCallback(() => {
         const state: HistoryState = {
             elements: elementsRef.current.map(cloneCanvasElement),
             bounds: { ...drawBoundsRef.current }
@@ -673,7 +710,7 @@ export const useMathCanvas = (
         redoStackRef.current = [];
         setCanUndo(true);
         setCanRedo(false);
-    };
+    }, []);
 
     const updateBounds = (x: number, y: number) => {
         if (x < drawBoundsRef.current.minX) drawBoundsRef.current.minX = x;
@@ -832,6 +869,130 @@ export const useMathCanvas = (
         redrawViewCanvas();
     };
 
+    const getActiveResizeHandle = (worldX: number, worldY: number, scale: number) => {
+        if (selectedElementIds.length !== 1) return null;
+        const el = elementsRef.current.find(e => e.id === selectedElementIds[0]);
+        if (!el || el.kind !== 'image') return null;
+
+        const pad = 6 / scale;
+        const x = el.x - pad;
+        const y = el.y - pad;
+        const w = el.width + 2 * pad;
+        const h = el.height + 2 * pad;
+
+        const corners = {
+            topLeft: { x: x, y: y },
+            topRight: { x: x + w, y: y },
+            bottomLeft: { x: x, y: y + h },
+            bottomRight: { x: x + w, y: y + h }
+        };
+
+        const threshold = 12 / scale; // 24px hit area
+        for (const [name, pt] of Object.entries(corners)) {
+            if (Math.abs(worldX - pt.x) <= threshold && Math.abs(worldY - pt.y) <= threshold) {
+                return name as 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
+            }
+        }
+        return null;
+    };
+
+    const performResize = (worldX: number, worldY: number, shiftKey: boolean) => {
+        if (!isResizingRef.current || !resizeInitialElementRef.current || !activeResizeHandleRef.current) return;
+        const el = resizeInitialElementRef.current;
+        const handle = activeResizeHandleRef.current;
+        const anchor = resizeAnchorRef.current;
+
+        // Opposite corner vector
+        let cx0 = el.x;
+        let cy0 = el.y;
+        if (handle === 'topLeft') {
+            cx0 = el.x;
+            cy0 = el.y;
+        } else if (handle === 'topRight') {
+            cx0 = el.x + el.width;
+            cy0 = el.y;
+        } else if (handle === 'bottomLeft') {
+            cx0 = el.x;
+            cy0 = el.y + el.height;
+        } else if (handle === 'bottomRight') {
+            cx0 = el.x + el.width;
+            cy0 = el.y + el.height;
+        }
+
+        const D = { x: cx0 - anchor.x, y: cy0 - anchor.y };
+        const lenSq = D.x * D.x + D.y * D.y;
+
+        let w = el.width;
+        let h = el.height;
+        let newX = el.x;
+        let newY = el.y;
+
+        const minDim = 20;
+
+        if (lenSq > 0) {
+            if (shiftKey) {
+                // Free distortion
+                if (handle === 'bottomRight') {
+                    w = Math.max(minDim, worldX - anchor.x);
+                    h = Math.max(minDim, worldY - anchor.y);
+                    newX = anchor.x;
+                    newY = anchor.y;
+                } else if (handle === 'bottomLeft') {
+                    w = Math.max(minDim, anchor.x - worldX);
+                    h = Math.max(minDim, worldY - anchor.y);
+                    newX = anchor.x - w;
+                    newY = anchor.y;
+                } else if (handle === 'topRight') {
+                    w = Math.max(minDim, worldX - anchor.x);
+                    h = Math.max(minDim, anchor.y - worldY);
+                    newX = anchor.x;
+                    newY = anchor.y - h;
+                } else if (handle === 'topLeft') {
+                    w = Math.max(minDim, anchor.x - worldX);
+                    h = Math.max(minDim, anchor.y - worldY);
+                    newX = anchor.x - w;
+                    newY = anchor.y - h;
+                }
+            } else {
+                // Lock aspect ratio
+                const V = { x: worldX - anchor.x, y: worldY - anchor.y };
+                const scaleFactor = (V.x * D.x + V.y * D.y) / lenSq;
+                const minScale = Math.max(minDim / el.width, minDim / el.height);
+                const finalScale = Math.max(minScale, scaleFactor);
+
+                w = el.width * finalScale;
+                h = el.height * finalScale;
+
+                if (handle === 'bottomRight') {
+                    newX = anchor.x;
+                    newY = anchor.y;
+                } else if (handle === 'topLeft') {
+                    newX = anchor.x - w;
+                    newY = anchor.y - h;
+                } else if (handle === 'topRight') {
+                    newX = anchor.x;
+                    newY = anchor.y - h;
+                } else if (handle === 'bottomLeft') {
+                    newX = anchor.x - w;
+                    newY = anchor.y;
+                }
+            }
+
+            elementsRef.current = elementsRef.current.map(item => {
+                if (item.id === el.id) {
+                    return {
+                        ...item,
+                        x: newX,
+                        y: newY,
+                        width: w,
+                        height: h
+                    } as CanvasElement;
+                }
+                return item;
+            });
+        }
+    };
+
     const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -854,6 +1015,35 @@ export const useMathCanvas = (
         const worldPos = getWordCoords(screenX, screenY);
 
         if (activeTool === 'select') {
+            const handle = getActiveResizeHandle(worldPos.x, worldPos.y, cameraRef.current.scale);
+            if (handle) {
+                const el = elementsRef.current.find(item => item.id === selectedElementIds[0]) as ImageElement;
+                isResizingRef.current = true;
+                activeResizeHandleRef.current = handle;
+                resizeInitialElementRef.current = cloneCanvasElement(el) as ImageElement;
+                resizeStartPosRef.current = { x: worldPos.x, y: worldPos.y };
+
+                let anchorX = el.x;
+                let anchorY = el.y;
+                if (handle === 'topLeft') {
+                    anchorX = el.x + el.width;
+                    anchorY = el.y + el.height;
+                } else if (handle === 'topRight') {
+                    anchorX = el.x;
+                    anchorY = el.y + el.height;
+                } else if (handle === 'bottomLeft') {
+                    anchorX = el.x + el.width;
+                    anchorY = el.y;
+                } else if (handle === 'bottomRight') {
+                    anchorX = el.x;
+                    anchorY = el.y;
+                }
+                resizeAnchorRef.current = { x: anchorX, y: anchorY };
+                setIsDrawing(true);
+                redrawViewCanvas();
+                return;
+            }
+
             // Calculate consolidated bounding box of currently selected elements
             let selectedBounds: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
             if (selectedElementIds.length > 0) {
@@ -981,8 +1171,20 @@ export const useMathCanvas = (
         }
 
         if (activeTool === 'select') {
+            if (isResizingRef.current) {
+                if (!hasDraggedRef.current) {
+                    saveState();
+                    hasDraggedRef.current = true;
+                }
+                performResize(worldPos.x, worldPos.y, e.shiftKey);
+                redrawViewCanvas();
+                return;
+            }
             if (isDraggingSelectionRef.current) {
-                hasDraggedRef.current = true;
+                if (!hasDraggedRef.current) {
+                    saveState();
+                    hasDraggedRef.current = true;
+                }
                 const dx = worldPos.x - startPosRef.current.x;
                 const dy = worldPos.y - startPosRef.current.y;
 
@@ -1014,6 +1216,18 @@ export const useMathCanvas = (
                 }
                 setCanvasCursor('default');
             } else {
+                // Check if hovering over selection resize handles of a selected image
+                const handle = getActiveResizeHandle(worldPos.x, worldPos.y, cameraRef.current.scale);
+                if (handle === 'topLeft' || handle === 'bottomRight') {
+                    setCanvasCursor('nwse-resize');
+                    redrawViewCanvas();
+                    return;
+                } else if (handle === 'topRight' || handle === 'bottomLeft') {
+                    setCanvasCursor('nesw-resize');
+                    redrawViewCanvas();
+                    return;
+                }
+
                 // Just hovering - change cursor to 4-arrow move cursor if hovering inside selection box or over any element
                 let selectedBounds: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
                 if (selectedElementIds.length > 0) {
@@ -1089,10 +1303,15 @@ export const useMathCanvas = (
         }
 
         if (activeTool === 'select') {
-            if (isDraggingSelectionRef.current) {
+            if (isResizingRef.current) {
+                isResizingRef.current = false;
+                activeResizeHandleRef.current = null;
+                resizeInitialElementRef.current = null;
+                setIsDrawing(false);
+            } else if (isDraggingSelectionRef.current) {
                 isDraggingSelectionRef.current = false;
                 if (hasDraggedRef.current) {
-                    saveState();
+                    // State already saved on first move
                 } else {
                     const canvas = canvasRef.current;
                     if (canvas) {
@@ -1282,6 +1501,35 @@ export const useMathCanvas = (
         const worldPos = getWordCoords(pos.x, pos.y);
 
         if (activeTool === 'select') {
+            const handle = getActiveResizeHandle(worldPos.x, worldPos.y, cameraRef.current.scale);
+            if (handle) {
+                const el = elementsRef.current.find(item => item.id === selectedElementIds[0]) as ImageElement;
+                isResizingRef.current = true;
+                activeResizeHandleRef.current = handle;
+                resizeInitialElementRef.current = cloneCanvasElement(el) as ImageElement;
+                resizeStartPosRef.current = { x: worldPos.x, y: worldPos.y };
+
+                let anchorX = el.x;
+                let anchorY = el.y;
+                if (handle === 'topLeft') {
+                    anchorX = el.x + el.width;
+                    anchorY = el.y + el.height;
+                } else if (handle === 'topRight') {
+                    anchorX = el.x;
+                    anchorY = el.y + el.height;
+                } else if (handle === 'bottomLeft') {
+                    anchorX = el.x + el.width;
+                    anchorY = el.y;
+                } else if (handle === 'bottomRight') {
+                    anchorX = el.x;
+                    anchorY = el.y;
+                }
+                resizeAnchorRef.current = { x: anchorX, y: anchorY };
+                setIsDrawing(true);
+                redrawViewCanvas();
+                return;
+            }
+
             // Calculate consolidated bounding box of currently selected elements
             let selectedBounds: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
             if (selectedElementIds.length > 0) {
@@ -1431,8 +1679,20 @@ export const useMathCanvas = (
         }
 
         if (activeTool === 'select') {
+            if (isResizingRef.current) {
+                if (!hasDraggedRef.current) {
+                    saveState();
+                    hasDraggedRef.current = true;
+                }
+                performResize(worldPos.x, worldPos.y, (e as any).shiftKey);
+                redrawViewCanvas();
+                return;
+            }
             if (isDraggingSelectionRef.current) {
-                hasDraggedRef.current = true;
+                if (!hasDraggedRef.current) {
+                    saveState();
+                    hasDraggedRef.current = true;
+                }
                 const dx = worldPos.x - startPosRef.current.x;
                 const dy = worldPos.y - startPosRef.current.y;
 
@@ -1512,10 +1772,15 @@ export const useMathCanvas = (
         }
 
         if (activeTool === 'select') {
-            if (isDraggingSelectionRef.current) {
+            if (isResizingRef.current) {
+                isResizingRef.current = false;
+                activeResizeHandleRef.current = null;
+                resizeInitialElementRef.current = null;
+                setIsDrawing(false);
+            } else if (isDraggingSelectionRef.current) {
                 isDraggingSelectionRef.current = false;
                 if (hasDraggedRef.current) {
-                    saveState();
+                    // State already saved on first move
                 } else {
                     const canvas = canvasRef.current;
                     if (canvas) {
@@ -1873,7 +2138,115 @@ export const useMathCanvas = (
 
 
 
+    const insertImageFile = useCallback(async (file: File) => {
+        console.log("insertImageFile started. File properties:", {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            lastModified: file.lastModified
+        });
+
+        let targetFile: Blob | File = file;
+        const isHeic = file.type === 'image/heic' || file.type === 'image/heif' || 
+                       file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
+
+        if (isHeic) {
+            console.log("HEIC image detected. Converting using heic2any...");
+            try {
+                // Dynamically import heic2any to avoid bundling the massive 2MB WASM decoder in the main entry chunk
+                const heic2anyModule = await import('heic2any');
+                const heic2any = heic2anyModule.default;
+
+                const converted = await heic2any({
+                    blob: file,
+                    toType: 'image/jpeg',
+                    quality: 0.8
+                });
+                
+                const resultBlob = Array.isArray(converted) ? converted[0] : converted;
+                targetFile = new File([resultBlob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
+                    type: 'image/jpeg'
+                });
+                console.log("HEIC conversion successful. Converted file properties:", {
+                    name: (targetFile as File).name,
+                    type: targetFile.type,
+                    size: targetFile.size
+                });
+            } catch (err) {
+                console.error("HEIC conversion failed:", err);
+                return;
+            }
+        }
+
+        const objectUrl = URL.createObjectURL(targetFile);
+        console.log("Created object URL:", objectUrl);
+
+        const img = new Image();
+        img.onload = () => {
+            console.log("img.onload fired successfully. Natural size:", img.width, "x", img.height);
+            // Cap to max 600px on the longer side
+            let w = img.width;
+            let h = img.height;
+            const maxDim = 600;
+            if (w > maxDim || h > maxDim) {
+                if (w > h) {
+                    h = (h * maxDim) / w;
+                    w = maxDim;
+                } else {
+                    w = (w * maxDim) / h;
+                    h = maxDim;
+                }
+            }
+            
+            const screenX = windowSize.width / 2;
+            const screenY = windowSize.height / 2;
+            const worldCenter = getWordCoords(screenX, screenY);
+            
+            const imageEl: CanvasElement = {
+                kind: 'image',
+                id: generateUUID(),
+                x: worldCenter.x - w / 2,
+                y: worldCenter.y - h / 2,
+                width: w,
+                height: h,
+                src: '', // Will be populated in background
+                bitmap: img
+            };
+            
+            saveState();
+            elementsRef.current.push(imageEl);
+            
+            // Update bounds
+            updateBounds(imageEl.x, imageEl.y);
+            updateBounds(imageEl.x + w, imageEl.y + h);
+            
+            setIsCanvasEmpty(false);
+            redrawViewCanvas();
+
+            // Background read file to base64 for persistence
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                if (reader.result) {
+                    imageEl.src = reader.result as string;
+                    console.log("FileReader background base64 conversion completed successfully. Length:", imageEl.src.length);
+                }
+                URL.revokeObjectURL(objectUrl);
+            };
+            reader.onerror = (err) => {
+                console.error("FileReader background read error:", err);
+                URL.revokeObjectURL(objectUrl);
+            };
+            reader.readAsDataURL(targetFile);
+        };
+        img.onerror = (err) => {
+            console.error("img.onerror triggered loading image from object URL. Error object/event:", err);
+            URL.revokeObjectURL(objectUrl);
+        };
+        img.src = objectUrl;
+    }, [windowSize, getWordCoords, saveState, redrawViewCanvas, setIsCanvasEmpty]);
+
     return {
+        insertImageFile,
         canvasRef,
         masterCanvasRef,
         drawBoundsRef,

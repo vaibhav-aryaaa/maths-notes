@@ -236,7 +236,7 @@ export const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
     if (ctx.restore) ctx.restore();
 };
 
-export const drawElement = (ctx: CanvasRenderingContext2D, element: CanvasElement) => {
+export const drawElement = (ctx: CanvasRenderingContext2D, element: CanvasElement, isInverted: boolean = false) => {
     if (element.kind === 'text') {
         if (ctx.save) ctx.save();
         ctx.fillStyle = element.color;
@@ -251,6 +251,9 @@ export const drawElement = (ctx: CanvasRenderingContext2D, element: CanvasElemen
     } else if (element.kind === 'image') {
         if (element.bitmap) {
             if (ctx.save) ctx.save();
+            if (isInverted) {
+                ctx.filter = 'invert(0.93) hue-rotate(180deg)';
+            }
             ctx.drawImage(element.bitmap, element.x, element.y, element.width, element.height);
             if (ctx.restore) ctx.restore();
         } else {
