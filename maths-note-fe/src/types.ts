@@ -72,7 +72,7 @@ export interface Stroke {
 }
 
 export interface StrokeElement extends Stroke {
-    kind?: 'stroke';
+    kind: 'stroke';
 }
 
 export interface TextElement {

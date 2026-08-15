@@ -658,6 +658,7 @@ export default function Home() {
                     if (el.kind === 'text') return { ...el };
                     if (el.kind === 'image') return { ...el };
                     return {
+                        kind: el.kind ?? 'stroke',
                         ...el,
                         points: el.points.map((pt: any) => ({ ...pt }))
                     };

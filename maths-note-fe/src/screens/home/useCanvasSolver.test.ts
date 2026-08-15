@@ -2,7 +2,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useCanvasSolver } from './useCanvasSolver';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import axios from 'axios';
-import type { Stroke } from '@/types';
+import type { CanvasElement } from '@/types';
 
 vi.mock('axios');
 vi.mock('@mantine/notifications', () => ({
@@ -13,7 +13,7 @@ vi.mock('@mantine/notifications', () => ({
 
 describe('useCanvasSolver', () => {
     let canvasRef: React.RefObject<HTMLCanvasElement | null>;
-    let strokesRef: React.RefObject<Stroke[]>;
+    let strokesRef: React.RefObject<CanvasElement[]>;
     let drawBoundsRef: React.RefObject<{ minX: number; minY: number; maxX: number; maxY: number }>;
 
     beforeEach(() => {
@@ -49,6 +49,7 @@ describe('useCanvasSolver', () => {
         strokesRef = {
             current: [
                 {
+                    kind: 'stroke',
                     id: '1',
                     tool: 'pen',
                     color: 'white',
