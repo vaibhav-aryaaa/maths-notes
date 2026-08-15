@@ -191,7 +191,7 @@ export const useMathCanvas = (
 
     const [isDrawing, setIsDrawing] = useState(false);
     const [isCanvasEmpty, setIsCanvasEmpty] = useState(true);
-    const [activeTool, setActiveTool] = useState<'pen' | 'fountain' | 'marker' | 'highlighter' | 'eraser' | 'select-rect' | 'select-lasso' | 'hand' | 'select' | 'text'>('pen');
+    const [activeTool, setActiveTool] = useState<'pen' | 'fountain' | 'marker' | 'highlighter' | 'eraser' | 'hand' | 'select' | 'text' | 'solve'>('pen');
     const [color, setColor] = useState(() => {
         if (typeof window !== 'undefined') {
             return localStorage.getItem('solvelq_color') || 'rgb(255, 255, 255)';
@@ -647,8 +647,7 @@ export const useMathCanvas = (
 
         // Draw selection outline preview if drawing selection
         if (isDrawing && (
-            activeTool === 'select-rect' || 
-            activeTool === 'select-lasso' || 
+            activeTool === 'solve' || 
             (activeTool === 'select' && isMarqueeSelectingRef.current)
         )) {
             viewCtx.beginPath();
@@ -657,7 +656,7 @@ export const useMathCanvas = (
             viewCtx.setLineDash([5 / scale, 5 / scale]);
             viewCtx.globalCompositeOperation = 'source-over';
 
-            const currentShape = activeTool === 'select' ? selectedSelectionShape : (activeTool === 'select-rect' ? 'rectangle' : 'lasso');
+            const currentShape = activeTool === 'select' ? selectedSelectionShape : 'lasso';
 
             if (currentShape === 'rectangle') {
                 const sx = startPosRef.current.x;
@@ -1111,7 +1110,7 @@ export const useMathCanvas = (
             return;
         }
 
-        if (activeTool === 'select-rect' || activeTool === 'select-lasso') {
+        if (activeTool === 'solve') {
             setIsDrawing(true);
             lastActivePosRef.current = { x: worldPos.x, y: worldPos.y };
             startPosRef.current = { x: worldPos.x, y: worldPos.y };
@@ -1272,10 +1271,8 @@ export const useMathCanvas = (
 
         if (!isDrawing) return;
 
-        if (activeTool === 'select-rect' || activeTool === 'select-lasso') {
-            if (activeTool === 'select-lasso') {
-                activeStrokePointsRef.current.push({ x: worldPos.x, y: worldPos.y, timestamp: Date.now() });
-            }
+        if (activeTool === 'solve') {
+            activeStrokePointsRef.current.push({ x: worldPos.x, y: worldPos.y, timestamp: Date.now() });
             redrawViewCanvas();
             return;
         }
@@ -1374,26 +1371,9 @@ export const useMathCanvas = (
 
         const canvas = canvasRef.current;
 
-        if (activeTool === 'select-rect' || activeTool === 'select-lasso') {
+        if (activeTool === 'solve') {
             if (canvas) {
-                const rect = canvas.getBoundingClientRect();
-                const screenX = e.clientX - rect.left;
-                const screenY = e.clientY - rect.top;
-                const worldPos = getWordCoords(screenX, screenY);
-
-                const x = worldPos.x;
-                const y = worldPos.y;
-                const sx = startPosRef.current.x;
-                const sy = startPosRef.current.y;
-
-                const points = activeTool === 'select-lasso'
-                    ? [...activeStrokePointsRef.current]
-                    : [
-                        { x: sx, y: sy },
-                        { x, y: sy },
-                        { x, y },
-                        { x: sx, y }
-                      ];
+                const points = [...activeStrokePointsRef.current];
 
                 let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
                 points.forEach(pt => {
@@ -1405,7 +1385,7 @@ export const useMathCanvas = (
 
                 if (points.length > 0 && maxX - minX > 5 && maxY - minY > 5) {
                     onSelectionSolve?.({
-                        type: activeTool === 'select-lasso' ? 'lasso' : 'rect',
+                        type: 'lasso',
                         points,
                         bounds: { minX, minY, maxX, maxY }
                     });
@@ -1600,7 +1580,7 @@ export const useMathCanvas = (
             return;
         }
 
-        if (activeTool === 'select-rect' || activeTool === 'select-lasso') {
+        if (activeTool === 'solve') {
             setIsDrawing(true);
             lastActivePosRef.current = { x: worldPos.x, y: worldPos.y };
             startPosRef.current = { x: worldPos.x, y: worldPos.y };
@@ -1728,10 +1708,8 @@ export const useMathCanvas = (
 
         if (!isDrawing) return;
 
-        if (activeTool === 'select-rect' || activeTool === 'select-lasso') {
-            if (activeTool === 'select-lasso') {
-                activeStrokePointsRef.current.push({ x: worldPos.x, y: worldPos.y, timestamp: Date.now() });
-            }
+        if (activeTool === 'solve') {
+            activeStrokePointsRef.current.push({ x: worldPos.x, y: worldPos.y, timestamp: Date.now() });
             redrawViewCanvas();
             return;
         }
@@ -1839,24 +1817,9 @@ export const useMathCanvas = (
 
         const canvas = canvasRef.current;
 
-        if (activeTool === 'select-rect' || activeTool === 'select-lasso') {
+        if (activeTool === 'solve') {
             if (canvas) {
-                const pos = getTouchPos(e);
-                const worldPos = getWordCoords(pos.x, pos.y);
-
-                const x = worldPos.x;
-                const y = worldPos.y;
-                const sx = startPosRef.current.x;
-                const sy = startPosRef.current.y;
-
-                const points = activeTool === 'select-lasso'
-                    ? [...activeStrokePointsRef.current]
-                    : [
-                        { x: sx, y: sy },
-                        { x, y: sy },
-                        { x, y },
-                        { x: sx, y }
-                      ];
+                const points = [...activeStrokePointsRef.current];
 
                 let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
                 points.forEach(pt => {
@@ -1868,7 +1831,7 @@ export const useMathCanvas = (
 
                 if (points.length > 0 && maxX - minX > 5 && maxY - minY > 5) {
                     onSelectionSolve?.({
-                        type: activeTool === 'select-lasso' ? 'lasso' : 'rect',
+                        type: 'lasso',
                         points,
                         bounds: { minX, minY, maxX, maxY }
                     });

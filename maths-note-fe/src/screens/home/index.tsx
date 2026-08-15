@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { SWATCHES } from '@/constants';
-import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Sparkles, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Crop, Scissors, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut, Grid, MousePointer, Type, Image as ImageIcon } from 'lucide-react';
+import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Sparkles, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Scissors, LassoSelect, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut, Grid, MousePointer, Type, Image as ImageIcon } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { ResultSkeleton } from '@/components/ResultSkeleton';
 import { useMathCanvas } from './useMathCanvas';
@@ -878,8 +878,7 @@ export default function Home() {
                         { id: 'hand' as const, label: 'Hand Tool', icon: <Hand size={14} /> },
                         { id: 'select' as const, label: 'Select Element', icon: <MousePointer size={14} /> },
                         { id: 'text' as const, label: 'Text Tool', icon: <Type size={14} /> },
-                        { id: 'select-lasso' as const, label: 'Lasso Solve', icon: <Scissors size={14} /> },
-                        { id: 'select-rect' as const, label: 'Rect Solve', icon: <Crop size={14} /> },
+                        { id: 'solve' as const, label: 'Solve', icon: <Scissors size={14} /> },
                     ].map((t) => {
                         const isConfigurable = ['pen', 'fountain', 'marker', 'highlighter', 'eraser', 'select', 'text'].includes(t.id);
                         const isActive = activeTool === t.id;
@@ -963,7 +962,7 @@ export default function Home() {
                                                         }`}
                                                         onClick={() => setSelectedSelectionShape('lasso')}
                                                     >
-                                                        <Scissors size={13} />
+                                                        <LassoSelect size={13} />
                                                         Lasso
                                                     </Button>
                                                 </div>
