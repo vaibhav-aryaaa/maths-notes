@@ -28,6 +28,24 @@ const HIGHLIGHTER_SWATCHES = [
     '#E9D5FF'  // pastel purple
 ];
 
+const measureTextWidth = (text: string, fontSize: number): number => {
+    if (typeof window === 'undefined') return 120;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return 120;
+    ctx.font = `${fontSize}px sans-serif`;
+    const lines = text.split('\n');
+    let maxWidth = 0;
+    for (const line of lines) {
+        const lineToMeasure = line.endsWith(' ') ? line + '\u200B' : line;
+        const width = ctx.measureText(lineToMeasure).width;
+        if (width > maxWidth) {
+            maxWidth = width;
+        }
+    }
+    return Math.max(120, maxWidth);
+};
+
 const copyToClipboard = async (text: string): Promise<boolean> => {
     try {
         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1298,51 +1316,65 @@ export default function Home() {
                 onTouchMove={drawTouch}
                 onTouchEnd={stopDrawingTouch}
             />
-            {activeTextEdit && (
-                <textarea
-                    className={`absolute bg-transparent border-none outline-none resize-none p-0 m-0 overflow-hidden font-sans z-50 focus:ring-0 focus:border-none focus:outline-none select-text ${
-                        colorScheme === 'light' ? 'invert-[0.93] hue-rotate-180' : ''
-                    }`}
-                    style={{
-                        left: activeTextEdit.x * camera.scale + camera.offsetX,
-                        top: (activeTextEdit.y - activeTextEdit.fontSize) * camera.scale + camera.offsetY,
-                        fontSize: `${activeTextEdit.fontSize * camera.scale}px`,
-                        lineHeight: '1.2',
-                        color: activeTextEdit.color,
-                        width: `${300 * camera.scale}px`,
-                        minHeight: `${activeTextEdit.fontSize * camera.scale * 1.4}px`,
-                        caretColor: activeTextEdit.color,
-                        border: 'none',
-                        outline: 'none',
-                        boxShadow: 'none'
-                    }}
-                    autoFocus
-                    placeholder="Type here..."
-                    value={activeTextEdit.text}
-                    onBlur={commitTextEdit}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            e.currentTarget.blur();
-                        } else if (e.key === 'Escape') {
-                            e.preventDefault();
-                            setActiveTextEdit(null);
-                            setTimeout(() => redrawViewCanvas(), 0);
-                        }
-                    }}
-                    onChange={(e) => {
-                        e.target.style.height = 'auto';
-                        e.target.style.height = `${e.target.scrollHeight}px`;
-                        setActiveTextEdit(prev => prev ? { ...prev, text: e.target.value } : null);
-                    }}
-                    ref={(ref) => {
-                        if (ref) {
-                            ref.style.height = 'auto';
-                            ref.style.height = `${ref.scrollHeight}px`;
-                        }
-                    }}
-                />
-            )}
+            {activeTextEdit && (() => {
+                const measuredWidth = measureTextWidth(activeTextEdit.text || '', activeTextEdit.fontSize);
+                const textareaWidth = (measuredWidth + 24) * camera.scale;
+                const lineCount = activeTextEdit.text.split('\n').length;
+                const textareaHeight = (lineCount * activeTextEdit.fontSize * 1.2 + 8) * camera.scale;
+
+                return (
+                    <>
+                        <style>{`
+                            textarea.select-text-editor,
+                            textarea.select-text-editor:focus,
+                            textarea.select-text-editor:focus-visible,
+                            textarea.select-text-editor:active {
+                                outline: none !important;
+                                outline-width: 0 !important;
+                                box-shadow: none !important;
+                            }
+                        `}</style>
+                        <textarea
+                            className={`select-text-editor absolute bg-transparent !outline-none focus:!outline-none focus-visible:!outline-none resize-none p-0 m-0 overflow-hidden font-sans z-50 focus:ring-0 select-text ${
+                                colorScheme === 'light' ? 'invert-[0.93] hue-rotate-180' : ''
+                            }`}
+                            style={{
+                                left: activeTextEdit.x * camera.scale + camera.offsetX,
+                                top: (activeTextEdit.y - activeTextEdit.fontSize) * camera.scale + camera.offsetY,
+                                fontSize: `${activeTextEdit.fontSize * camera.scale}px`,
+                                lineHeight: '1.2',
+                                color: activeTextEdit.color,
+                                width: `${textareaWidth}px`,
+                                height: `${textareaHeight}px`,
+                                minHeight: `${activeTextEdit.fontSize * camera.scale * 1.4}px`,
+                                caretColor: activeTextEdit.color,
+                                border: activeTool === 'select' ? 'none' : '1.5px dotted rgba(255, 255, 255, 0.5)',
+                                outline: 'none',
+                                boxShadow: 'none',
+                                fontFamily: 'sans-serif',
+                                backgroundColor: 'transparent'
+                            }}
+                            autoFocus
+                            placeholder="Type here..."
+                            value={activeTextEdit.text}
+                            onBlur={commitTextEdit}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    e.currentTarget.blur();
+                                } else if (e.key === 'Escape') {
+                                    e.preventDefault();
+                                    setActiveTextEdit(null);
+                                    setTimeout(() => redrawViewCanvas(), 0);
+                                }
+                            }}
+                            onChange={(e) => {
+                                setActiveTextEdit((prev: any) => prev ? { ...prev, text: e.target.value } : null);
+                            }}
+                        />
+                    </>
+                );
+            })()}
             {activeSolveBox && activeSolveRegion && (
                 <div 
                     className={`absolute inset-0 z-canvas-overlay pointer-events-none transition-opacity duration-200 ${

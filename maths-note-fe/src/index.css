@@ -260,3 +260,11 @@
         opacity: 1;
     }
 }
+
+textarea:focus-visible,
+textarea:focus,
+textarea.select-text:focus-visible,
+textarea.select-text:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}

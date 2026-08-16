@@ -282,7 +282,7 @@ export const useMathCanvas = (
     const [selectedElementIds, setSelectedElementIds] = useState<string[]>([]);
     const [selectedSelectionShape, setSelectedSelectionShape] = useState<'rectangle' | 'lasso'>('rectangle');
 
-    const [activeTextEdit, setActiveTextEdit] = useState<{
+    const [activeTextEdit, setActiveTextEditState] = useState<{
         id: string;
         x: number;
         y: number;
@@ -291,6 +291,21 @@ export const useMathCanvas = (
         color: string;
         isNew: boolean;
     } | null>(null);
+
+    const activeTextEditRef = useRef<any>(null);
+
+    const setActiveTextEdit = useCallback((val: any) => {
+        if (typeof val === 'function') {
+            setActiveTextEditState(prev => {
+                const next = val(prev);
+                activeTextEditRef.current = next;
+                return next;
+            });
+        } else {
+            activeTextEditRef.current = val;
+            setActiveTextEditState(val);
+        }
+    }, []);
 
     // Selection tool refs
     const isDraggingSelectionRef = useRef(false);
@@ -473,7 +488,7 @@ export const useMathCanvas = (
 
         // 4. Render static non-highlighter strokes/elements
         for (const el of elementsRef.current) {
-            if (activeTextEdit && el.id === activeTextEdit.id) continue;
+            if (activeTextEditRef.current && el.id === activeTextEditRef.current.id) continue;
             if (el.kind === 'text' || el.kind === 'image' || el.tool !== 'highlighter') {
                 const bounds = getElementBounds(el);
                 const isVisible = !(
@@ -593,7 +608,9 @@ export const useMathCanvas = (
             for (const id of selectedElementIds) {
                 const el = elementsRef.current.find(e => e.id === id);
                 if (el) {
-                    const bounds = getElementBounds(el);
+                    const activeEdit = activeTextEditRef.current;
+                    const elToMeasure = (activeEdit && activeEdit.id === el.id) ? { ...el, text: activeEdit.text } : el;
+                    const bounds = getElementBounds(elToMeasure);
                     if (bounds.minX < minX) minX = bounds.minX;
                     if (bounds.minY < minY) minY = bounds.minY;
                     if (bounds.maxX > maxX) maxX = bounds.maxX;
@@ -678,7 +695,7 @@ export const useMathCanvas = (
 
         // Reset transform back to identity
         viewCtx.setTransform(1, 0, 0, 1, 0, 0);
-    }, [isDrawing, selectedShape, activeTool, showGrid, selectedElementIds, selectedSelectionShape]);
+    }, [isDrawing, selectedShape, activeTool, showGrid, selectedElementIds, selectedSelectionShape, activeTextEdit]);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -686,6 +703,10 @@ export const useMathCanvas = (
         }
         redrawViewCanvas();
     }, [showGrid, redrawViewCanvas]);
+
+    useEffect(() => {
+        redrawViewCanvas();
+    }, [activeTextEdit, redrawViewCanvas]);
 
     const getWordCoords = useCallback((screenX: number, screenY: number) => {
         const { offsetX, offsetY, scale } = cameraRef.current;
