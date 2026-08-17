@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { SWATCHES, CANVAS_BACKGROUND_COLOR } from '@/constants';
+import { SWATCHES } from '@/constants';
 import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Sparkles, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Scissors, LassoSelect, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut, Grid, MousePointer, Type, Image as ImageIcon } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { ResultSkeleton } from '@/components/ResultSkeleton';
@@ -166,6 +166,7 @@ export default function Home() {
         resetView,
         redrawViewCanvas,
         elementsRef,
+        selectedElementIds,
         setSelectedElementIds,
         selectedSelectionShape,
         setSelectedSelectionShape,
@@ -1337,11 +1338,11 @@ export default function Home() {
                             height: `${textareaHeight}px`,
                             minHeight: `${activeTextEdit.fontSize * camera.scale * 1.4}px`,
                             caretColor: activeTextEdit.color,
-                            border: '1.5px dashed rgba(156, 163, 175, 0.5)',
+                            border: selectedElementIds.includes(activeTextEdit.id) ? 'none' : '1.5px dashed rgba(156, 163, 175, 0.5)',
                             outline: 'none',
                             boxShadow: 'none',
                             fontFamily: 'sans-serif',
-                            backgroundColor: CANVAS_BACKGROUND_COLOR
+                            backgroundColor: 'transparent'
                         }}
                         autoFocus
                         placeholder="Type here..."
