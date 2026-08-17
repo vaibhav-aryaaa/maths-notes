@@ -17,6 +17,7 @@ import { trackEvent } from '@/lib/analytics';
 import { HistorySidebar } from '@/components/HistorySidebar';
 import { AuthManager } from '@/components/AuthManager';
 import { CopilotPanel } from '@/components/CopilotPanel';
+import type { GeneratedResult } from '@/types';
 
 import { EXAMPLE_PROBLEMS } from '@/data/exampleProblems';
 
@@ -477,6 +478,10 @@ export default function Home() {
     useEffect(() => {
         selectionSolveRef.current = runRoute;
     }, [runRoute]);
+
+    const handleUpdateResult = useCallback((id: string, updates: Partial<GeneratedResult>) => {
+        setResults(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+    }, [setResults]);
 
     const [cardOffsets, setCardOffsets] = useState<Record<string, { x: number; y: number }>>({});
 
@@ -1410,6 +1415,7 @@ export default function Home() {
                     setPosition={(newPos) => handleCardPositionChange(result, newPos)}
                     onShare={handleShareResult}
                     zoomScale={camera.scale}
+                    onUpdateResult={handleUpdateResult}
                 />
             ))}
 

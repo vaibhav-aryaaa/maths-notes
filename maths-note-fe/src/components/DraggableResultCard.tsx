@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Share2 } from 'lucide-react';
 import { RingProgress, Tooltip } from '@mantine/core';
+import axios from 'axios';
+import { notifications } from '@mantine/notifications';
 
 import type { GeneratedResult, SolutionStep } from '@/types';
 
@@ -41,6 +43,7 @@ interface DraggableResultCardProps {
     readOnly?: boolean;
     onShare?: (result: GeneratedResult) => void;
     zoomScale?: number;
+    onUpdateResult?: (id: string, updates: Partial<GeneratedResult>) => void;
 }
 
 export const DraggableResultCard = ({ 
@@ -49,7 +52,8 @@ export const DraggableResultCard = ({
     setPosition: setPositionProp,
     readOnly = false,
     onShare,
-    zoomScale = 1
+    zoomScale = 1,
+    onUpdateResult
 }: DraggableResultCardProps) => {
     const [isDragging, setIsDragging] = useState(false);
     const [position, setPosition] = useState(defaultPosition);
@@ -72,7 +76,55 @@ export const DraggableResultCard = ({
     const [currentStepIndex, setCurrentStepIndex] = useState(0);
     const [showAllSteps, setShowAllSteps] = useState(false);
 
+    const [isFetchingExplanation, setIsFetchingExplanation] = useState(false);
+
     const steps = result.steps;
+    const localThoughtProcess = result.thought_process;
+
+    const handleToggleThoughtProcess = async () => {
+        const nextShow = !showThoughtProcess;
+        setShowThoughtProcess(nextShow);
+
+        if (nextShow && localThoughtProcess === undefined && steps === undefined) {
+            setIsFetchingExplanation(true);
+            try {
+                const response = await axios({
+                    method: 'post',
+                    url: `${import.meta.env.VITE_API_URL}/calculate/explain`,
+                    data: {
+                        image: result.image,
+                        dict_of_vars: result.dictOfVars || {},
+                        expr: result.solutions.map(s => s.expression).join(', '),
+                        result: result.solutions.map(s => s.answer).join(', ')
+                    },
+                    headers: {
+                        'X-App-Key': import.meta.env.VITE_APP_KEY || ''
+                    }
+                });
+
+                const data = response.data;
+                const fetchedThoughtProcess = data.thought_process ?? null;
+                const fetchedSteps = data.steps && data.steps.length > 0 ? data.steps : null;
+
+                onUpdateResult?.(result.id, {
+                    thought_process: fetchedThoughtProcess,
+                    steps: fetchedSteps
+                });
+            } catch (error) {
+                console.error("Failed to fetch detailed explanation:", error);
+                notifications.show({
+                    title: 'Error',
+                    message: 'Failed to load thought process. Please check your connection and try again.',
+                    color: 'red',
+                    autoClose: 5000
+                });
+                // Revert toggle
+                setShowThoughtProcess(false);
+            } finally {
+                setIsFetchingExplanation(false);
+            }
+        }
+    };
 
     const dragStart = useRef({ x: 0, y: 0 });
     const cardStart = useRef({ x: 0, y: 0 });
@@ -481,10 +533,10 @@ export const DraggableResultCard = ({
                             )}
                         </div>
                     ) : (
-                        result.thought_process && (
+                        localThoughtProcess !== null && (
                             <div className="flex-1 flex flex-col overflow-hidden border-t border-stone-200 dark:border-white/10 pt-2 min-h-0">
                                 <button
-                                    onClick={() => setShowThoughtProcess(!showThoughtProcess)}
+                                    onClick={handleToggleThoughtProcess}
                                     className="flex justify-between items-center text-sm text-stone-600 dark:text-gray-300 hover:text-stone-800 dark:hover:text-white py-1 shrink-0 cursor-pointer"
                                     aria-label={showThoughtProcess ? "Hide AI step-by-step reasoning thought process" : "Show AI step-by-step reasoning thought process"}
                                 >
@@ -493,7 +545,35 @@ export const DraggableResultCard = ({
                                 </button>
                                 {showThoughtProcess && (
                                     <div className="text-stone-500 dark:text-gray-400 text-sm leading-relaxed whitespace-pre-wrap flex-1 overflow-y-auto pr-1 mt-1 min-h-0">
-                                        {formatMathText(result.thought_process)}
+                                        {isFetchingExplanation ? (
+                                            <div className="flex items-center gap-2 py-2 select-none pointer-events-none">
+                                                <svg
+                                                    className="animate-spin h-4 w-4 text-stone-500 dark:text-gray-400"
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <circle
+                                                        className="opacity-25"
+                                                        cx="12"
+                                                        cy="12"
+                                                        r="10"
+                                                        stroke="currentColor"
+                                                        strokeWidth="4"
+                                                    />
+                                                    <path
+                                                        className="opacity-75"
+                                                        fill="currentColor"
+                                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                                    />
+                                                </svg>
+                                                <span className="text-xs text-stone-500 dark:text-gray-400 font-sans">Loading explanation...</span>
+                                            </div>
+                                        ) : localThoughtProcess ? (
+                                            formatMathText(localThoughtProcess)
+                                        ) : (
+                                            <span className="text-xs text-stone-400 dark:text-gray-500">No explanation available for this result.</span>
+                                        )}
                                     </div>
                                 )}
                             </div>

@@ -109,7 +109,9 @@ export const useCanvasSolver = (
                     latency: maxLatency > 0 ? maxLatency : undefined,
                     steps: steps && steps.length > 0 ? steps : undefined,
                     bounds: bounds ? { ...bounds } : undefined,
-                    isSelection: !!selection
+                    isSelection: !!selection,
+                    image: croppedImageBase64,
+                    dictOfVars: { ...dictOfVars }
                 };
 
                 const updatedResults = [...results, newResult];

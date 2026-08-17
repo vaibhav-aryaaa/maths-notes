@@ -50,3 +50,35 @@ class CalculationResponse(BaseModel):
     message: str
     type: str
     data: list[CalculationResult]
+
+
+class ExplainRequest(BaseModel):
+    image: str
+    dict_of_vars: dict
+    expr: str
+    result: Any
+
+    @field_validator('image')
+    @classmethod
+    def validate_image_string(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError('Image string cannot be empty')
+
+        raw = v.strip()
+        if ',' in raw:
+            parts = raw.split(',', 1)
+            if not parts[0].startswith('data:image/'):
+                raise ValueError('Image prefix must start with data:image/')
+            raw = parts[1]
+
+        try:
+            base64.b64decode(raw)
+        except Exception:
+            raise ValueError('Invalid base64 encoding')
+
+        return v
+
+
+class ExplainResponse(BaseModel):
+    thought_process: str | None = None
+    steps: list[SolutionStep] | None = None

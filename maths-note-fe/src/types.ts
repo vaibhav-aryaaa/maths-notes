@@ -19,6 +19,8 @@ export interface GeneratedResult {
     steps?: SolutionStep[];
     bounds?: { minX: number; minY: number; maxX: number; maxY: number };
     isSelection?: boolean;
+    image?: string;
+    dictOfVars?: DictOfVars;
 }
 
 export type DictOfVars = Record<string, string | number>;
