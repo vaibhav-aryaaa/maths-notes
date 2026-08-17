@@ -1,5 +1,6 @@
 import type { Stroke, CanvasElement } from '@/types';
 import { getStroke } from 'perfect-freehand';
+import { CANVAS_BACKGROUND_COLOR } from '@/constants';
 
 export const getElementBounds = (element: CanvasElement): { minX: number; minY: number; maxX: number; maxY: number } => {
     if (element.kind === 'text') {
@@ -280,7 +281,7 @@ export function rasterizeRegion(
     const ctx = canvas.getContext('2d');
     if (!ctx) return canvas;
 
-    ctx.fillStyle = 'black';
+    ctx.fillStyle = CANVAS_BACKGROUND_COLOR;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();

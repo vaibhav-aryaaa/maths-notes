@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { SWATCHES } from '@/constants';
+import { SWATCHES, CANVAS_BACKGROUND_COLOR } from '@/constants';
 import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Sparkles, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Scissors, LassoSelect, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut, Grid, MousePointer, Type, Image as ImageIcon } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { ResultSkeleton } from '@/components/ResultSkeleton';
@@ -1323,56 +1323,44 @@ export default function Home() {
                 const textareaHeight = (lineCount * activeTextEdit.fontSize * 1.2 + 8) * camera.scale;
 
                 return (
-                    <>
-                        <style>{`
-                            textarea.select-text-editor,
-                            textarea.select-text-editor:focus,
-                            textarea.select-text-editor:focus-visible,
-                            textarea.select-text-editor:active {
-                                outline: none !important;
-                                outline-width: 0 !important;
-                                box-shadow: none !important;
+                    <textarea
+                        className={`select-text-editor absolute !outline-none focus:!outline-none focus-visible:!outline-none resize-none p-0 m-0 overflow-hidden font-sans z-50 focus:ring-0 select-text ${
+                            colorScheme === 'light' ? 'invert-[0.93] hue-rotate-180' : ''
+                        }`}
+                        style={{
+                            left: activeTextEdit.x * camera.scale + camera.offsetX,
+                            top: (activeTextEdit.y - activeTextEdit.fontSize) * camera.scale + camera.offsetY,
+                            fontSize: `${activeTextEdit.fontSize * camera.scale}px`,
+                            lineHeight: '1.2',
+                            color: activeTextEdit.color,
+                            width: `${textareaWidth}px`,
+                            height: `${textareaHeight}px`,
+                            minHeight: `${activeTextEdit.fontSize * camera.scale * 1.4}px`,
+                            caretColor: activeTextEdit.color,
+                            border: '1.5px dashed rgba(156, 163, 175, 0.5)',
+                            outline: 'none',
+                            boxShadow: 'none',
+                            fontFamily: 'sans-serif',
+                            backgroundColor: CANVAS_BACKGROUND_COLOR
+                        }}
+                        autoFocus
+                        placeholder="Type here..."
+                        value={activeTextEdit.text}
+                        onBlur={commitTextEdit}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                e.currentTarget.blur();
+                            } else if (e.key === 'Escape') {
+                                e.preventDefault();
+                                setActiveTextEdit(null);
+                                setTimeout(() => redrawViewCanvas(), 0);
                             }
-                        `}</style>
-                        <textarea
-                            className={`select-text-editor absolute bg-transparent !outline-none focus:!outline-none focus-visible:!outline-none resize-none p-0 m-0 overflow-hidden font-sans z-50 focus:ring-0 select-text ${
-                                colorScheme === 'light' ? 'invert-[0.93] hue-rotate-180' : ''
-                            }`}
-                            style={{
-                                left: activeTextEdit.x * camera.scale + camera.offsetX,
-                                top: (activeTextEdit.y - activeTextEdit.fontSize) * camera.scale + camera.offsetY,
-                                fontSize: `${activeTextEdit.fontSize * camera.scale}px`,
-                                lineHeight: '1.2',
-                                color: activeTextEdit.color,
-                                width: `${textareaWidth}px`,
-                                height: `${textareaHeight}px`,
-                                minHeight: `${activeTextEdit.fontSize * camera.scale * 1.4}px`,
-                                caretColor: activeTextEdit.color,
-                                border: activeTool === 'select' ? 'none' : '1.5px dotted rgba(255, 255, 255, 0.5)',
-                                outline: 'none',
-                                boxShadow: 'none',
-                                fontFamily: 'sans-serif',
-                                backgroundColor: 'transparent'
-                            }}
-                            autoFocus
-                            placeholder="Type here..."
-                            value={activeTextEdit.text}
-                            onBlur={commitTextEdit}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    e.currentTarget.blur();
-                                } else if (e.key === 'Escape') {
-                                    e.preventDefault();
-                                    setActiveTextEdit(null);
-                                    setTimeout(() => redrawViewCanvas(), 0);
-                                }
-                            }}
-                            onChange={(e) => {
-                                setActiveTextEdit((prev: any) => prev ? { ...prev, text: e.target.value } : null);
-                            }}
-                        />
-                    </>
+                        }}
+                        onChange={(e) => {
+                            setActiveTextEdit((prev: any) => prev ? { ...prev, text: e.target.value } : null);
+                        }}
+                    />
                 );
             })()}
             {activeSolveBox && activeSolveRegion && (

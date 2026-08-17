@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Stroke, CanvasElement, ImageElement } from '@/types';
 import { getStrokeOutline, getElementBounds, getElementCenter, drawElement, getStrokeBounds } from './canvasUtils';
+import { CANVAS_BACKGROUND_COLOR } from '@/constants';
 
 const generateUUID = () => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -397,8 +398,8 @@ export const useMathCanvas = (
         // Reset transform to identity
         viewCtx.setTransform(1, 0, 0, 1, 0, 0);
         
-        // Fill view canvas with black background
-        viewCtx.fillStyle = 'black';
+        // Fill view canvas with background color
+        viewCtx.fillStyle = CANVAS_BACKGROUND_COLOR;
         viewCtx.fillRect(0, 0, viewCanvas.width, viewCanvas.height);
         
         // Calculate visible region in world space

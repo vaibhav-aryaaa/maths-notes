@@ -8,4 +8,6 @@ const SWATCHES = [
     "rgb(249, 115, 22)"    // Orange
 ];
 
-export { SWATCHES };
+const CANVAS_BACKGROUND_COLOR = 'black';
+
+export { SWATCHES, CANVAS_BACKGROUND_COLOR };

@@ -139,6 +139,13 @@
     outline: 2px solid #d97706 !important;
     outline-offset: 2px !important;
   }
+  textarea.select-text-editor:focus-visible,
+  textarea.select-text-editor:focus,
+  textarea:focus-visible,
+  textarea:focus {
+    outline: none !important;
+    box-shadow: none !important;
+  }
   body {
     @apply bg-background text-foreground;
     }
@@ -259,12 +266,4 @@
     to {
         opacity: 1;
     }
-}
-
-textarea:focus-visible,
-textarea:focus,
-textarea.select-text:focus-visible,
-textarea.select-text:focus {
-    outline: none !important;
-    box-shadow: none !important;
 }
