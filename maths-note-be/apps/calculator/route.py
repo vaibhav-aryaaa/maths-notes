@@ -13,7 +13,7 @@ from PIL import Image
 from apps.calculator.utils import AIParsingError, analyze_image
 from auth import verify_app_key
 from rate_limiter import limiter
-from schema import ImageData, ExplainRequest, ExplainResponse
+from schema import ExplainRequest, ExplainResponse, ImageData
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -177,7 +177,7 @@ async def explain(request: Request, data: ExplainRequest):
             result=data.result
         )
         return explanation
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to generate explanation")
         raise HTTPException(
             status_code=502,
