@@ -1286,23 +1286,7 @@ export default function Home() {
                 </Button>
             </div>
 
-            {/* Top Right Run Button */}
-            <div className={`absolute z-controls top-[calc(1rem+env(safe-area-inset-top))] right-[calc(1rem+env(safe-area-inset-right))] pointer-events-auto transition-opacity duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-                <Button
-                    onClick={() => runRoute(undefined, (bounds) => {
-                        setActiveSolveRegion({ bounds, status: 'scanning' });
-                        setSkeletonRegion({ bounds });
-                        setSkeletonVisible(true);
-                    })}
-                    className="bg-white dark:bg-[#1e1e1e] hover:bg-slate-50 dark:hover:bg-[#2e2e2e] text-stone-700 dark:text-white border border-stone-200 dark:border-[#333] transition-all shadow-lg p-2.5 h-10 flex items-center justify-center gap-1.5 rounded-lg"
-                    variant="default"
-                    title="Run Analysis"
-                    aria-label="Run AI calculation solver on canvas whiteboard content"
-                >
-                    <Sparkles size={16} className="text-stone-900 dark:text-stone-100 animate-pulse" />
-                    <span className="text-xs font-semibold select-none font-sans">Run</span>
-                </Button>
-            </div>
+
 
             {/* Main Interactive Canvas */}
             <canvas
