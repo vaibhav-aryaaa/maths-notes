@@ -1112,89 +1112,7 @@ export default function Home() {
                     <Trash2 size={14} className="text-red-500 dark:text-red-400" />
                 </Button>
 
-                {/* Undo Button */}
-                <Button
-                    onClick={undo}
-                    disabled={!canUndo}
-                    className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
-                    variant="default"
-                    title="Undo (Ctrl+Z / ⌘+Z)"
-                    aria-label="Undo last canvas stroke"
-                >
-                    <Undo2 size={14} className="text-stone-500 dark:text-gray-300" />
-                </Button>
 
-                {/* Redo Button */}
-                <Button
-                    onClick={redo}
-                    disabled={!canRedo}
-                    className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
-                    variant="default"
-                    title="Redo (Ctrl+Shift+Z / ⌘+Shift+Z)"
-                    aria-label="Redo last undone canvas stroke"
-                >
-                    <Redo2 size={14} className="text-stone-500 dark:text-gray-300" />
-                </Button>
-
-                {/* Zoom Controller Menu */}
-                <MantineMenu shadow="md" width={160} position="bottom-end">
-                    <MantineMenu.Target>
-                        <button
-                            className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 px-2 flex items-center justify-center rounded-lg cursor-pointer text-xs font-mono font-bold select-none"
-                            title="Zoom Controls"
-                            aria-label={`Zoom controls (current zoom: ${Math.round(camera.scale * 100)}%)`}
-                        >
-                            {Math.round(camera.scale * 100)}%
-                        </button>
-                    </MantineMenu.Target>
-
-                    <MantineMenu.Dropdown className="bg-white dark:bg-[#18181c] border border-stone-200 dark:border-[#2d2d30] p-1 rounded-xl shadow-2xl z-50">
-                        <MantineMenu.Item
-                            onClick={zoomIn}
-                            leftSection={<ZoomIn size={14} className="text-stone-500" />}
-                            className="hover:bg-stone-100 dark:hover:bg-white/5 text-xs text-stone-700 dark:text-white rounded-lg transition-colors p-2"
-                        >
-                            Zoom In
-                        </MantineMenu.Item>
-                        <MantineMenu.Item
-                            onClick={zoomOut}
-                            leftSection={<ZoomOut size={14} className="text-stone-500" />}
-                            className="hover:bg-stone-100 dark:hover:bg-white/5 text-xs text-stone-700 dark:text-white rounded-lg transition-colors p-2"
-                        >
-                            Zoom Out
-                        </MantineMenu.Item>
-                        <MantineMenu.Item
-                            onClick={zoomToContent}
-                            leftSection={<Target size={14} className="text-stone-500" />}
-                            className="hover:bg-stone-100 dark:hover:bg-white/5 text-xs text-stone-700 dark:text-white rounded-lg transition-colors p-2"
-                        >
-                            Zoom to Fit
-                        </MantineMenu.Item>
-                        <MantineMenu.Item
-                            onClick={resetView}
-                            leftSection={<Maximize size={14} className="text-stone-500" />}
-                            className="hover:bg-stone-100 dark:hover:bg-white/5 text-xs text-stone-700 dark:text-white rounded-lg transition-colors p-2"
-                        >
-                            Reset to 100%
-                        </MantineMenu.Item>
-
-                        <MantineMenu.Divider className="border-stone-100 dark:border-stone-800/60 my-1" />
-
-                        <MantineMenu.Item
-                            onClick={() => setShowGrid(!showGrid)}
-                            closeMenuOnClick={false}
-                            leftSection={<Grid size={14} className="text-stone-500" />}
-                            rightSection={
-                                <div className={`w-3.5 h-3.5 rounded border border-stone-300 dark:border-stone-600 flex items-center justify-center transition-colors ${showGrid ? 'bg-stone-900 dark:bg-stone-100 border-none' : ''}`}>
-                                    {showGrid && <span className="text-[9px] text-white dark:text-stone-900 font-bold">✓</span>}
-                                </div>
-                            }
-                            className="hover:bg-stone-100 dark:hover:bg-white/5 text-xs text-stone-700 dark:text-white rounded-lg transition-colors p-2"
-                        >
-                            Grid Background
-                        </MantineMenu.Item>
-                    </MantineMenu.Dropdown>
-                </MantineMenu>
 
                 {/* Shape Tool Selector Button */}
                 {activeTool === 'pen' && (
@@ -1404,6 +1322,106 @@ export default function Home() {
             ))}
 
             {isScanning && <div className="scanning-laser" />}
+
+            {/* Bottom Left Zoom and Undo/Redo Controls */}
+            <div className={`absolute bottom-6 left-6 z-controls pointer-events-auto flex items-center gap-3 transition-opacity duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                {/* Zoom Pill */}
+                <div className="flex items-center bg-white dark:bg-[#1e1e1e] border border-stone-200 dark:border-[#333] shadow-lg rounded-xl px-1.5 py-1 gap-1">
+                    <button
+                        onClick={zoomOut}
+                        className="w-8 h-8 rounded-lg hover:bg-stone-100 dark:hover:bg-white/5 flex items-center justify-center text-stone-700 dark:text-stone-300 font-extrabold text-sm select-none cursor-pointer"
+                        title="Zoom Out"
+                        aria-label="Zoom out from canvas"
+                    >
+                        —
+                    </button>
+                    <MantineMenu shadow="md" width={160} position="top-start">
+                        <MantineMenu.Target>
+                            <button
+                                className="px-2.5 h-8 hover:bg-stone-100 dark:hover:bg-white/5 rounded-lg text-xs font-mono font-bold text-stone-700 dark:text-stone-300 select-none cursor-pointer"
+                                title="Zoom Menu"
+                                aria-label={`Zoom controls (current zoom: ${Math.round(camera.scale * 100)}%)`}
+                            >
+                                {Math.round(camera.scale * 100)}%
+                            </button>
+                        </MantineMenu.Target>
+                        <MantineMenu.Dropdown className="bg-white dark:bg-[#18181c] border border-stone-200 dark:border-[#2d2d30] p-1 rounded-xl shadow-2xl z-50">
+                            <MantineMenu.Item
+                                onClick={zoomIn}
+                                leftSection={<ZoomIn size={14} className="text-stone-500" />}
+                                className="hover:bg-stone-100 dark:hover:bg-white/5 text-xs text-stone-700 dark:text-white rounded-lg transition-colors p-2"
+                            >
+                                Zoom In
+                            </MantineMenu.Item>
+                            <MantineMenu.Item
+                                onClick={zoomOut}
+                                leftSection={<ZoomOut size={14} className="text-stone-500" />}
+                                className="hover:bg-stone-100 dark:hover:bg-white/5 text-xs text-stone-700 dark:text-white rounded-lg transition-colors p-2"
+                            >
+                                Zoom Out
+                            </MantineMenu.Item>
+                            <MantineMenu.Item
+                                onClick={zoomToContent}
+                                leftSection={<Target size={14} className="text-stone-500" />}
+                                className="hover:bg-stone-100 dark:hover:bg-white/5 text-xs text-stone-700 dark:text-white rounded-lg transition-colors p-2"
+                            >
+                                Zoom to Fit
+                            </MantineMenu.Item>
+                            <MantineMenu.Item
+                                onClick={resetView}
+                                leftSection={<Maximize size={14} className="text-stone-500" />}
+                                className="hover:bg-stone-100 dark:hover:bg-white/5 text-xs text-stone-700 dark:text-white rounded-lg transition-colors p-2"
+                            >
+                                Reset to 100%
+                            </MantineMenu.Item>
+                            <MantineMenu.Divider className="border-stone-100 dark:border-stone-800/60 my-1" />
+                            <MantineMenu.Item
+                                onClick={() => setShowGrid(!showGrid)}
+                                closeMenuOnClick={false}
+                                leftSection={<Grid size={14} className="text-stone-500" />}
+                                rightSection={
+                                    <div className={`w-3.5 h-3.5 rounded border border-stone-300 dark:border-stone-600 flex items-center justify-center transition-colors ${showGrid ? 'bg-stone-900 dark:bg-stone-100 border-none' : ''}`}>
+                                        {showGrid && <span className="text-[9px] text-white dark:text-stone-900 font-bold">✓</span>}
+                                    </div>
+                                }
+                                className="hover:bg-stone-100 dark:hover:bg-white/5 text-xs text-stone-700 dark:text-white rounded-lg transition-colors p-2"
+                            >
+                                Grid Background
+                            </MantineMenu.Item>
+                        </MantineMenu.Dropdown>
+                    </MantineMenu>
+                    <button
+                        onClick={zoomIn}
+                        className="w-8 h-8 rounded-lg hover:bg-stone-100 dark:hover:bg-white/5 flex items-center justify-center text-stone-700 dark:text-stone-300 font-bold text-sm select-none cursor-pointer"
+                        title="Zoom In"
+                        aria-label="Zoom in on canvas"
+                    >
+                        +
+                    </button>
+                </div>
+
+                {/* Undo/Redo Pill */}
+                <div className="flex items-center bg-white dark:bg-[#1e1e1e] border border-stone-200 dark:border-[#333] shadow-lg rounded-xl px-1.5 py-1 gap-1">
+                    <button
+                        onClick={undo}
+                        disabled={!canUndo}
+                        className="w-8 h-8 rounded-lg hover:bg-stone-100 dark:hover:bg-white/5 flex items-center justify-center text-stone-700 dark:text-stone-300 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer transition-colors"
+                        title="Undo (Ctrl+Z / ⌘+Z)"
+                        aria-label="Undo last canvas stroke"
+                    >
+                        <Undo2 size={15} />
+                    </button>
+                    <button
+                        onClick={redo}
+                        disabled={!canRedo}
+                        className="w-8 h-8 rounded-lg hover:bg-stone-100 dark:hover:bg-white/5 flex items-center justify-center text-stone-700 dark:text-stone-300 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer transition-colors"
+                        title="Redo (Ctrl+Shift+Z / ⌘+Shift+Z)"
+                        aria-label="Redo last undone canvas stroke"
+                    >
+                        <Redo2 size={15} />
+                    </button>
+                </div>
+            </div>
 
             {showExamples && (
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-canvas-placeholder flex flex-col items-center gap-6 max-w-lg w-full px-6 text-center select-none pointer-events-none">
