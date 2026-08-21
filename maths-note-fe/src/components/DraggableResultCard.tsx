@@ -295,6 +295,7 @@ export const DraggableResultCard = ({
     }, [isResizing, zoomScale]);
 
     const serializedSolutions = JSON.stringify(result.solutions);
+    const serializedSteps = JSON.stringify(result.steps);
 
     useEffect(() => {
         if (!isMinimized && window.MathJax && cardRef.current) {
@@ -307,7 +308,7 @@ export const DraggableResultCard = ({
                 }
             }, 50);
         }
-    }, [isMinimized, serializedSolutions, currentStepIndex, showAllSteps]);
+    }, [isMinimized, serializedSolutions, currentStepIndex, showAllSteps, result.thought_process, serializedSteps]);
 
     const renderStep = (step: SolutionStep) => {
         const formattedDesc = formatMathText(step.description);
@@ -407,7 +408,7 @@ export const DraggableResultCard = ({
             tabIndex={0}
             onKeyDown={handleKeyDown}
             aria-label={`AI Result Card. Solution: ${summaryText}. Press arrow keys to move card around viewport.`}
-            className="absolute top-0 left-0 z-controls glassmorphic-card p-4 rounded-xl shadow-2xl cursor-move select-none flex flex-col overflow-hidden animate-[fadeIn_0.5s_ease-out_forwards] focus-visible:outline-none"
+            className="absolute top-0 left-0 z-draggable-card glassmorphic-card p-4 rounded-xl shadow-2xl cursor-move select-none flex flex-col overflow-hidden animate-[fadeIn_0.5s_ease-out_forwards] focus-visible:outline-none"
             style={{ 
                 transform: `translate3d(${finalPosition.x}px, ${finalPosition.y}px, 0) scale(${zoomScale})`,
                 transformOrigin: 'top left',

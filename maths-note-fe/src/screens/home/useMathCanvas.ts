@@ -822,10 +822,34 @@ export const useMathCanvas = (
 
     // Attach wheel zoom listener with passive: false option to prevent browser default scroll/zoom
     useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-
         const handleWheel = (e: WheelEvent) => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+
+            const targetEl = e.target as HTMLElement;
+            const isOnCanvas = targetEl.id === 'canvas';
+            const draggableCard = targetEl.closest('.z-draggable-card');
+
+            if (!isOnCanvas && !draggableCard) {
+                return; // Do not intercept wheel events on toolbars, sidebars, settings etc.
+            }
+
+            // Helper to find if target is scrollable
+            const isScrollableElement = (el: HTMLElement | null): boolean => {
+                if (!el || el === document.body || el === document.documentElement) return false;
+                const style = window.getComputedStyle(el);
+                const overflowY = style.overflowY;
+                const isScrollableY = overflowY === 'auto' || overflowY === 'scroll';
+                if (isScrollableY && el.scrollHeight > el.clientHeight) {
+                    return true;
+                }
+                return isScrollableElement(el.parentElement);
+            };
+
+            if (isScrollableElement(targetEl)) {
+                return; // Let scrollable areas inside the card scroll normally
+            }
+
             e.preventDefault();
 
             if (e.ctrlKey) {
@@ -866,9 +890,9 @@ export const useMathCanvas = (
             redrawViewCanvas();
         };
 
-        canvas.addEventListener('wheel', handleWheel, { passive: false });
+        window.addEventListener('wheel', handleWheel, { passive: false });
         return () => {
-            canvas.removeEventListener('wheel', handleWheel);
+            window.removeEventListener('wheel', handleWheel);
         };
     }, [redrawViewCanvas]);
 

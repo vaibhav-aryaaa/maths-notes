@@ -56,6 +56,7 @@
     --z-index-canvas-overlay: 10;
     --z-index-canvas-placeholder: 20;
     --z-index-sidebar-backdrop: 30;
+    --z-index-draggable-card: 35;
     --z-index-sidebar: 40;
     --z-index-controls: 50;
     --z-index-resize-handle: 60;
