@@ -95,7 +95,8 @@ export const DraggableResultCard = ({
                         image: result.image,
                         dict_of_vars: result.dictOfVars || {},
                         expr: result.solutions.map(s => s.expression).join(', '),
-                        result: result.solutions.map(s => s.answer).join(', ')
+                        result: result.solutions.map(s => s.answer).join(', '),
+                        type: result.solutions[0]?.type || 'math'
                     },
                     headers: {
                         'X-App-Key': import.meta.env.VITE_APP_KEY || ''

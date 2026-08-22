@@ -174,7 +174,8 @@ async def explain(request: Request, data: ExplainRequest):
             image,
             dict_of_vars=data.dict_of_vars,
             expr=data.expr,
-            result=data.result
+            result=data.result,
+            type=data.type
         )
         return explanation
     except Exception:

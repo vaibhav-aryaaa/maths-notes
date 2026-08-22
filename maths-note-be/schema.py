@@ -57,6 +57,7 @@ class ExplainRequest(BaseModel):
     dict_of_vars: dict
     expr: str
     result: Any
+    type: str | None = None
 
     @field_validator('image')
     @classmethod

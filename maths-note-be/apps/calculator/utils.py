@@ -111,23 +111,31 @@ def analyze_image(img: Image, dict_of_vars: dict, is_retry: bool = False):
     return answers
 
 
-def explain_result(img: Image, dict_of_vars: dict, expr: str, result: Any, is_retry: bool = False):
+def explain_result(img: Image, dict_of_vars: dict, expr: str, result: Any, type: str | None = None, is_retry: bool = False):
     dict_of_vars_str = json.dumps(dict_of_vars, ensure_ascii=False)
     prompt = (
-        f"You are given an image with mathematical expressions, equations, or graphical problems, "
+        f"You are given an image with mathematical expressions, equations, graphical problems, or abstract concepts, "
         f"along with user-defined variables: {dict_of_vars_str}.\n"
-        f"The expression in the image has already been calculated:\n"
+        f"The expression/content in the image has already been calculated/identified:\n"
         f"Expression: {expr}\n"
         f"Result: {result}\n\n"
         f"Your task is to generate the detailed explanation and step-by-step breakdown for this result.\n"
         f"You MUST return a JSON object (not a list!) with exactly two keys:\n"
-        f"1. 'thought_process': A detailed, step-by-step explanation of how the problem is solved (string).\n"
-        f"2. 'steps': A list of discrete solution steps representing the transformation/reasoning moves. "
-        f"Break the solution into 2-6 discrete steps representing one meaningful transformation/reasoning move. "
-        f"Return each step as a dict: {{'order': int, 'description': str, 'expression': Optional[str]}} where 'expression' holds any LaTeX/math for that specific step (or null if no equation applies).\n\n"
+        f"1. 'thought_process': A detailed explanation of the solution, reasoning, or visual elements (string).\n"
+        f"2. 'steps': ONLY populate this for problems that are mathematical, procedural, or have a genuine "
+        f"multi-stage solution process (equations, word problems, geometry, calculations). For anything else — "
+        f"general image description, abstract concept detection, single-fact answers — return 'steps' as null "
+        f"and rely on 'thought_process' alone. Do not invent artificial steps for content that doesn't have a "
+        f"real step-by-step solving process. If populated, it must be a list of dicts: {{'order': int, 'description': str, 'expression': Optional[str]}} where 'expression' holds any LaTeX/math for that specific step (or null if no equation applies).\n\n"
         f"DO NOT USE BACKTICKS OR MARKDOWN FORMATTING.\n"
         f"RETURN ONLY THE JSON OBJECT."
     )
+    if type == 'text':
+        prompt += (
+            "\n\nCRITICAL: The problem classification is 'text' (non-mathematical/abstract). "
+            "Therefore, you MUST return 'steps' as null and rely on 'thought_process' alone."
+        )
+
     if is_retry:
         prompt += "\n\nIMPORTANT: Your last response was not valid JSON. Return ONLY valid JSON, no other text."
 
@@ -138,7 +146,7 @@ def explain_result(img: Image, dict_of_vars: dict, expr: str, result: Any, is_re
     except Exception as e:
         logger.warning("Error in parsing explanation response: %s", e)
         if not is_retry:
-            return explain_result(img, dict_of_vars, expr, result, is_retry=True)
+            return explain_result(img, dict_of_vars, expr, result, type=type, is_retry=True)
         else:
             raise AIParsingError("The AI provider returned a response that could not be parsed as JSON.", response.text)
 

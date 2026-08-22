@@ -82,3 +82,45 @@ def test_copilot_chat_endpoint(mock_chat_stream):
 
     assert response.status_code == 200
     assert "text/event-stream" in response.headers["content-type"]
+
+
+@patch("apps.calculator.utils.explain_result")
+def test_explain_endpoint(mock_explain):
+    mock_explain.return_value = {
+        "thought_process": "Meme explanation text.",
+        "steps": None
+    }
+
+    import base64
+    from io import BytesIO
+
+    from PIL import Image
+    img = Image.new("RGBA", (10, 10), (0, 0, 0, 0))
+    buffered = BytesIO()
+    img.save(buffered, format="PNG")
+    fake_image_b64 = "data:image/png;base64," + base64.b64encode(buffered.getvalue()).decode()
+
+    headers = {"X-App-Key": "test-secret"}
+    response = client.post(
+        "/calculate/explain",
+        json={
+            "image": fake_image_b64,
+            "dict_of_vars": {},
+            "expr": "some expression",
+            "result": "some result",
+            "type": "text"
+        },
+        headers=headers
+    )
+
+    assert response.status_code == 200
+    res_data = response.json()
+    assert res_data["thought_process"] == "Meme explanation text."
+    assert res_data["steps"] is None
+    mock_explain.assert_called_once_with(
+        mock_explain.call_args[0][0], # PIL Image object
+        dict_of_vars={},
+        expr="some expression",
+        result="some result",
+        type="text"
+    )
