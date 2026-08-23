@@ -11,7 +11,7 @@ from google.genai.errors import APIError, ServerError
 from PIL import Image
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
-from constants import GEMINI_API_KEY
+from constants import GEMINI_API_KEY, GEMINI_MODEL_EXPLAIN, GEMINI_MODEL_FAST
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 logger = logging.getLogger(__name__)
@@ -29,11 +29,11 @@ def is_transient_gemini_error(exception):
     retry=retry_if_exception(is_transient_gemini_error),
     reraise=True
 )
-def _generate_content_with_retry(prompt, img):
+def _generate_content_with_retry(prompt, img, model: str):
     start_time = time.time()
     try:
         res = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model=model,
             contents=[prompt, img],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -80,7 +80,7 @@ def analyze_image(img: Image, dict_of_vars: dict, is_retry: bool = False):
     if is_retry:
         prompt += "\n\nIMPORTANT: Your last response was not valid JSON. Return ONLY valid JSON, no other text."
 
-    response = _generate_content_with_retry(prompt, img)
+    response = _generate_content_with_retry(prompt, img, model=GEMINI_MODEL_FAST)
     logger.debug("Gemini response text: %s", response.text)
     answers = []
     try:
@@ -139,7 +139,7 @@ def explain_result(img: Image, dict_of_vars: dict, expr: str, result: Any, type:
     if is_retry:
         prompt += "\n\nIMPORTANT: Your last response was not valid JSON. Return ONLY valid JSON, no other text."
 
-    response = _generate_content_with_retry(prompt, img)
+    response = _generate_content_with_retry(prompt, img, model=GEMINI_MODEL_EXPLAIN)
     logger.debug("Gemini explanation response text: %s", response.text)
     try:
         explanation = json.loads(response.text)
