@@ -17,22 +17,11 @@ interface HistorySidebarProps {
 
 export function HistorySidebar(props: HistorySidebarProps) {
     return (
-        <>
-            {/* Backdrop for mobile */}
-            {props.isOpen && (
-                <div 
-                    className="absolute inset-0 bg-black/60 z-sidebar-backdrop lg:hidden pointer-events-auto"
-                    onClick={props.onClose}
-                />
-            )}
-
-            {/* Sidebar main panel */}
-            <div className={`absolute top-0 left-0 w-72 h-full bg-white/95 dark:bg-black/90 backdrop-blur-md border-r border-stone-200 dark:border-white/10 p-5 z-sidebar text-stone-800 dark:text-white shadow-2xl transition-transform duration-300 ease-in-out pt-[calc(1.25rem+env(safe-area-inset-top))] pl-[calc(1.25rem+env(safe-area-inset-left))] flex flex-col ${props.isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                <ErrorBoundary name="History Sidebar" onReset={props.onClose}>
-                    <HistorySidebarInner {...props} />
-                </ErrorBoundary>
-            </div>
-        </>
+        <div className={`absolute top-[calc(4.5rem+env(safe-area-inset-top))] left-[calc(1.25rem+env(safe-area-inset-left))] w-80 max-h-[calc(100vh-10.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] bg-white/95 dark:bg-[#1c1c1f]/95 border border-stone-200/85 dark:border-stone-850 p-4 z-sidebar text-stone-800 dark:text-white shadow-2xl backdrop-blur-md rounded-2xl flex flex-col transition-all duration-300 origin-top-left ${props.isOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}`}>
+            <ErrorBoundary name="History Sidebar" onReset={props.onClose}>
+                <HistorySidebarInner {...props} />
+            </ErrorBoundary>
+        </div>
     );
 }
 
@@ -43,15 +32,18 @@ function HistorySidebarInner({
     onClearHistory,
     onDeleteEntry,
     getHistoryEntryImage
-}: Omit<HistorySidebarProps, 'isOpen'>) {
+}: Omit<HistorySidebarProps, 'isOpen' | 'onClose'>) {
     const [confirmClear, setConfirmClear] = useState(false);
 
     return (
         <>
-            {/* Logo Branding (shifted right to make room for toggle button) */}
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-stone-200 dark:border-white/10 shrink-0 pl-14 h-10">
+            {/* Logo Branding */}
+            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-stone-200 dark:border-white/10 shrink-0 h-10 select-none">
                 <span className="text-xl font-extrabold tracking-tight font-sans">
                     solve<span className="text-stone-900 dark:text-white">IQ</span>
+                </span>
+                <span className="text-[10px] uppercase font-bold tracking-widest text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-900/50 px-2 py-0.5 rounded-md border border-stone-200/50 dark:border-stone-800/40">
+                    History
                 </span>
             </div>
 
@@ -113,7 +105,7 @@ function HistorySidebarInner({
                                             <div className="w-full h-full bg-stone-100 dark:bg-stone-900" />
                                         )}
                                     </div>
-                                    <div className="flex-1 min-w-0">
+                                    <div className="flex-1 min-w-0 pr-6">
                                         <p className="text-xs font-bold text-stone-800 dark:text-stone-200 truncate">
                                             {entry.results[0]?.solutions[0]?.expression || 'Equation'}
                                         </p>
@@ -128,7 +120,7 @@ function HistorySidebarInner({
                                             e.stopPropagation();
                                             onDeleteEntry(entry.id);
                                         }}
-                                        className="absolute right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 text-stone-400 hover:text-red-500 dark:text-stone-600 dark:hover:text-red-400 cursor-pointer"
+                                        className="absolute right-2 opacity-30 group-hover:opacity-100 transition-opacity p-1 text-stone-400 hover:text-red-500 dark:text-stone-600 dark:hover:text-red-400 cursor-pointer"
                                         title="Delete Entry"
                                         aria-label="Delete history entry"
                                     >
