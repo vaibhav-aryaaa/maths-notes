@@ -868,6 +868,11 @@ export default function Home() {
                 getHistoryEntryImage={getHistoryEntryImage}
             />
 
+            {/* Cloud Sync / Authentication Manager (Top-Right) */}
+            <div className="absolute z-controls top-[calc(1.25rem+env(safe-area-inset-top))] right-[calc(1.25rem+env(safe-area-inset-right))]">
+                <AuthManager user={user} clearHistory={clearHistory} isFocusMode={isFocusMode} />
+            </div>
+
             {/* Sidebar Toggle & Standalone Logo Button (Top-Left) */}
             <div className={`absolute z-controls top-[calc(1.25rem+env(safe-area-inset-top))] left-[calc(1.25rem+env(safe-area-inset-left))] flex items-center gap-3 pointer-events-auto transition-opacity duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                 <Button
@@ -1163,11 +1168,7 @@ export default function Home() {
                     </>
                 )}
 
-                {/* Divider */}
-                <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
 
-                {/* Cloud Sync Manager */}
-                <AuthManager user={user} clearHistory={clearHistory} />
 
                 {/* Keyboard Shortcuts Button */}
                 <Button
