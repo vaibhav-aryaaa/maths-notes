@@ -15,6 +15,7 @@ interface AuthManagerProps {
 export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthManagerProps) {
     const [opened, setOpened] = useState(false);
     const [isSignUp, setIsSignUp] = useState(false);
+    const [regDisplayName, setRegDisplayName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
@@ -26,8 +27,36 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
         return null;
     }
 
+    const mapAuthError = (message: string): string => {
+        const msg = message.toLowerCase();
+        if (msg.includes("already registered") || msg.includes("email_exists") || msg.includes("user already exists") || msg.includes("already exists")) {
+            return "That email's already registered — try signing in instead.";
+        }
+        if (msg.includes("invalid login credentials") || msg.includes("invalid credentials") || msg.includes("email not confirmed")) {
+            return "Incorrect email or password.";
+        }
+        if (msg.includes("password should be") || msg.includes("password is too weak") || msg.includes("weak_password") || msg.includes("signup_password_too_short")) {
+            return "Password is too weak. Please use at least 6 characters with letters and numbers.";
+        }
+        if (msg.includes("rate limit") || msg.includes("too many requests")) {
+            return "Too many requests. Please try again in a few minutes.";
+        }
+        return "Something went wrong — please try again.";
+    };
+
     const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        // Client-side validations
+        if (isSignUp && !regDisplayName.trim()) {
+            setErrorMsg("Display name is required.");
+            return;
+        }
+        if (password.length < 6) {
+            setErrorMsg("Password must be at least 6 characters.");
+            return;
+        }
+
         setLoading(true);
         setErrorMsg(null);
 
@@ -36,17 +65,29 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
                 const { data, error } = await supabase!.auth.signUp({
                     email,
                     password,
+                    options: {
+                        data: {
+                            full_name: regDisplayName,
+                            display_name: regDisplayName
+                        }
+                    }
                 });
                 if (error) throw error;
                 
-                notifications.show({
-                    title: 'Account Created!',
-                    message: data.session 
-                        ? 'You have been registered and signed in automatically.' 
-                        : 'Registration successful! Please check your email for verification if required.',
-                    color: 'green',
-                });
                 if (data.session) {
+                    notifications.show({
+                        title: 'Account Created!',
+                        message: `Welcome, ${regDisplayName} — your history is now syncing!`,
+                        color: 'green',
+                    });
+                    setOpened(false);
+                } else {
+                    notifications.show({
+                        title: 'Verification Email Sent',
+                        message: `Check your inbox at ${email} to verify your account and activate sync.`,
+                        color: 'blue',
+                        autoClose: 10000,
+                    });
                     setOpened(false);
                 }
             } else {
@@ -66,8 +107,9 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
             // Clear input fields
             setEmail('');
             setPassword('');
+            setRegDisplayName('');
         } catch (err: any) {
-            setErrorMsg(err.message || 'An error occurred during authentication.');
+            setErrorMsg(mapAuthError(err.message || ''));
         } finally {
             setLoading(false);
         }
@@ -300,6 +342,20 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
                                     </Alert>
                                 )}
 
+                                {isSignUp && (
+                                    <TextInput
+                                        label="Display Name"
+                                        placeholder="Alex Mercer"
+                                        value={regDisplayName}
+                                        onChange={(e) => setRegDisplayName(e.target.value)}
+                                        required
+                                        classNames={{
+                                            input: "bg-stone-50 dark:bg-stone-900 text-stone-900 dark:text-white border border-stone-200 dark:border-stone-850 rounded-xl focus:border-teal-500 h-10 px-3",
+                                            label: "text-stone-700 dark:text-stone-300 text-xs font-bold mb-1"
+                                        }}
+                                    />
+                                )}
+
                                 <TextInput
                                     label="Email Address"
                                     placeholder="name@example.com"
@@ -323,6 +379,11 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
                                         label: "text-stone-700 dark:text-stone-300 text-xs font-bold mb-1 font-sans"
                                     }}
                                 />
+                                {password && password.length < 6 && (
+                                    <Text size="10px" c="red" className="font-semibold -mt-2 pl-1 select-none">
+                                        Password must be at least 6 characters.
+                                    </Text>
+                                )}
 
                                 <Button 
                                     type="submit" 
