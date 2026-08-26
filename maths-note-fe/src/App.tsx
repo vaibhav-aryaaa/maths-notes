@@ -8,6 +8,7 @@ import '@mantine/notifications/styles.css';
 import Home from '@/screens/home';
 import Landing from '@/screens/landing';
 import ShareView from '@/screens/share';
+import ResetPassword from '@/screens/reset-password/ResetPassword';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
@@ -59,6 +60,7 @@ const App = () => {
                     <Routes>
                         <Route path="/" element={<ErrorBoundary name="Home Screen"><AppContent /></ErrorBoundary>} />
                         <Route path="/share/:shareId" element={<ErrorBoundary name="Share View"><ShareView /></ErrorBoundary>} />
+                        <Route path="/reset-password" element={<ErrorBoundary name="Reset Password"><ResetPassword /></ErrorBoundary>} />
                     </Routes>
                 </BrowserRouter>
             </ThemeSync>

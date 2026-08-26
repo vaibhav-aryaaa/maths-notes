@@ -15,6 +15,7 @@ interface AuthManagerProps {
 export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthManagerProps) {
     const [opened, setOpened] = useState(false);
     const [isSignUp, setIsSignUp] = useState(false);
+    const [isForgotPassword, setIsForgotPassword] = useState(false);
     const [regDisplayName, setRegDisplayName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -132,6 +133,31 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
         }
     };
 
+    const handleResetPasswordRequest = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        setErrorMsg(null);
+        try {
+            const { error } = await supabase!.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/reset-password`
+            });
+            if (error) throw error;
+        } catch {
+            // Securely mask any errors (e.g. user not found) with identical success confirmation
+        } finally {
+            notifications.show({
+                title: 'Reset Link Sent',
+                message: 'If an account exists for that email, a password reset link has been sent to it.',
+                color: 'teal',
+                autoClose: 8000,
+            });
+            setIsForgotPassword(false);
+            setEmail('');
+            setLoading(false);
+            setOpened(false);
+        }
+    };
+
     const handleSignOut = async () => {
         setLoading(true);
         try {
@@ -245,6 +271,7 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
                             onClick={() => {
                                 setErrorMsg(null);
                                 setConfirmPurge(false);
+                                setIsForgotPassword(false);
                                 setOpened(true);
                             }}
                             leftSection={<Cloud size={14} className="text-stone-500 dark:text-gray-400" />}
@@ -267,6 +294,7 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
                             onClick={() => {
                                 setErrorMsg(null);
                                 setConfirmPurge(true);
+                                setIsForgotPassword(false);
                                 setOpened(true);
                             }}
                             color="red"
@@ -283,6 +311,7 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
                     onClick={() => {
                         setErrorMsg(null);
                         setConfirmPurge(false);
+                        setIsForgotPassword(false);
                         setOpened(true);
                     }}
                     className="bg-teal-600 hover:bg-teal-700 text-white font-bold h-9 px-4 rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5 border-none outline-none"
@@ -359,6 +388,46 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
                                 </Text>
                             )}
                         </Stack>
+                    ) : isForgotPassword ? (
+                        /* Forgot Password View */
+                        <form onSubmit={handleResetPasswordRequest} className="w-full">
+                            <Stack gap="sm">
+                                <Text size="xs" c="dimmed" className="text-center mb-1 font-medium">
+                                    Enter your email address below and we'll send you a secure link to reset your account password.
+                                </Text>
+
+                                <TextInput
+                                    label="Email Address"
+                                    placeholder="name@example.com"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    required
+                                    classNames={{
+                                        input: "bg-stone-50 dark:bg-stone-900 text-stone-900 dark:text-white border border-stone-200 dark:border-stone-850 rounded-xl focus:border-teal-500 h-10 px-3",
+                                        label: "text-stone-700 dark:text-stone-300 text-xs font-bold mb-1"
+                                    }}
+                                />
+
+                                <Button 
+                                    type="submit" 
+                                    className="bg-teal-600 hover:bg-teal-700 text-white font-bold h-10 mt-2 rounded-xl border-none"
+                                >
+                                    Send Reset Link
+                                </Button>
+
+                                <Text 
+                                    size="xs" 
+                                    c="teal" 
+                                    className="text-center cursor-pointer hover:underline mt-2 font-extrabold"
+                                    onClick={() => {
+                                        setIsForgotPassword(false);
+                                        setErrorMsg(null);
+                                    }}
+                                >
+                                    Back to Sign In
+                                </Text>
+                            </Stack>
+                        </form>
                     ) : (
                         /* Auth / Login View */
                         <Stack gap="sm">
@@ -431,6 +500,20 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
                                 {password && password.length < 6 && (
                                     <Text size="10px" c="red" className="font-semibold -mt-2 pl-1 select-none">
                                         Password must be at least 6 characters.
+                                    </Text>
+                                )}
+
+                                {!isSignUp && (
+                                    <Text
+                                        size="xs"
+                                        c="teal"
+                                        className="cursor-pointer hover:underline text-right -mt-2 pr-1 font-bold select-none"
+                                        onClick={() => {
+                                            setIsForgotPassword(true);
+                                            setErrorMsg(null);
+                                        }}
+                                    >
+                                        Forgot password?
                                     </Text>
                                 )}
 
