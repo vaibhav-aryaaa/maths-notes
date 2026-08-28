@@ -143,7 +143,9 @@
   textarea.select-text-editor:focus-visible,
   textarea.select-text-editor:focus,
   textarea:focus-visible,
-  textarea:focus {
+  textarea:focus,
+  .no-focus-outline:focus-visible,
+  .no-focus-outline:focus {
     outline: none !important;
     box-shadow: none !important;
   }

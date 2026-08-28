@@ -151,7 +151,7 @@ function CopilotPanelInner({
                             }
                         }}
                         placeholder="Ask about your canvas..."
-                        className="flex-1 bg-transparent text-sm text-stone-800 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-500 outline-none font-sans"
+                        className="flex-1 bg-transparent text-sm text-stone-800 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-500 outline-none font-sans no-focus-outline"
                         aria-label="Ask a question about the canvas workspace"
                     />
                     <button
