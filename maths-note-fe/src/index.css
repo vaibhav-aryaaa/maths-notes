@@ -136,10 +136,7 @@
   * {
     @apply border-border outline-ring/50;
     }
-  *:focus-visible {
-    outline: 2px solid #d97706 !important;
-    outline-offset: 2px !important;
-  }
+
   textarea.select-text-editor:focus-visible,
   textarea.select-text-editor:focus,
   textarea:focus-visible,

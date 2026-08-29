@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Modal, TextInput, PasswordInput, Button, Text, Group, Stack, Alert, LoadingOverlay, Menu } from '@mantine/core';
 import { supabase } from '@/lib/supabase';
 import { notifications } from '@mantine/notifications';
-import { LogOut, Trash2, Cloud } from 'lucide-react';
+import { LogOut, Trash2, Cloud, Mail, Lock, User as UserIcon, X } from 'lucide-react';
 
 import type { User } from '@supabase/supabase-js';
 
@@ -230,22 +230,24 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
                 <Menu shadow="md" width={220} position="bottom-end" transitionProps={{ transition: 'fade', duration: 150 }}>
                     <Menu.Target>
                         <button
-                            className="bg-amber-500 hover:bg-amber-600 text-white font-bold h-9 w-9 rounded-full flex items-center justify-center cursor-pointer shadow-md select-none hover:scale-105 active:scale-95 transition-all font-sans text-sm border-none outline-none relative overflow-hidden"
+                            className="bg-amber-500 hover:bg-amber-600 text-white font-bold h-9 w-9 rounded-full flex items-center justify-center cursor-pointer shadow-md select-none hover:scale-105 active:scale-95 transition-all font-sans text-sm border-none outline-none relative"
                             title={`Signed in as ${user.email}`}
                             aria-label={`Signed in as ${user.email}`}
                         >
-                            {user.user_metadata?.avatar_url ? (
-                                <img 
-                                    src={user.user_metadata.avatar_url} 
-                                    alt="Profile" 
-                                    className="w-full h-full object-cover rounded-full" 
-                                    referrerPolicy="no-referrer"
-                                />
-                            ) : (
-                                getInitials()
-                            )}
-                            <span className="absolute bottom-0 right-0 flex h-2 w-2">
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-400 border border-amber-500"></span>
+                            <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-amber-500">
+                                {user.user_metadata?.avatar_url ? (
+                                    <img 
+                                        src={user.user_metadata.avatar_url} 
+                                        alt="Profile" 
+                                        className="w-full h-full object-cover" 
+                                        referrerPolicy="no-referrer"
+                                    />
+                                ) : (
+                                    getInitials()
+                                )}
+                            </div>
+                            <span className="absolute bottom-0 right-0 flex h-2.5 w-2.5 translate-x-0.5 translate-y-0.5">
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-teal-400 border-2 border-slate-50 dark:border-black"></span>
                             </span>
                         </button>
                     </Menu.Target>
@@ -327,13 +329,14 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
             <Modal
                 opened={opened}
                 onClose={() => setOpened(false)}
-                title={user ? "Account & Synchronization Settings" : "Enable Cross-Device Sync"}
+                title={user ? "Account Settings" : ""}
+                withCloseButton={!!user}
                 centered
                 size="sm"
                 classNames={{
                     content: "bg-white dark:bg-[#18181c] text-stone-800 dark:text-white border border-stone-200 dark:border-stone-800/80 rounded-2xl shadow-2xl p-4 flex flex-col font-sans",
                     header: "bg-white dark:bg-[#18181c] text-stone-800 dark:text-white border-b border-stone-100 dark:border-stone-800/60 pb-3",
-                    title: "font-bold font-sans text-sm"
+                    title: "font-black font-sans text-base tracking-tight text-stone-900 dark:text-white"
                 }}
             >
                 <div className="relative p-1">
@@ -356,7 +359,8 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
                                 <Button 
                                     onClick={handleSignOut} 
                                     variant="outline" 
-                                    className="border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800/40 rounded-xl"
+                                    size="xs"
+                                    className="border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800/40 rounded-xl px-2"
                                     leftSection={<LogOut size={14} />}
                                 >
                                     Sign Out
@@ -366,7 +370,8 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
                                     <Button 
                                         onClick={handlePurgeData} 
                                         color="red"
-                                        className="bg-red-600 hover:bg-red-700 text-white font-bold border-none rounded-xl"
+                                        size="xs"
+                                        className="bg-red-600 hover:bg-red-700 text-white font-bold border-none rounded-xl px-2"
                                         leftSection={<Trash2 size={14} />}
                                     >
                                         Confirm Delete?
@@ -375,7 +380,8 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
                                     <Button 
                                         onClick={() => setConfirmPurge(true)} 
                                         variant="outline"
-                                        className="border-red-200 dark:border-red-900/40 text-red-650 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-xl"
+                                        size="xs"
+                                        className="border-red-200 dark:border-red-900/40 text-red-650 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-xl px-2"
                                         leftSection={<Trash2 size={14} />}
                                     >
                                         Delete My Data
@@ -390,7 +396,20 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
                         </Stack>
                     ) : isForgotPassword ? (
                         /* Forgot Password View */
-                        <form onSubmit={handleResetPasswordRequest} className="w-full">
+                        <form 
+                            key="forgot-password"
+                            onSubmit={handleResetPasswordRequest} 
+                            className="w-full relative animate-in fade-in slide-in-from-bottom-2 duration-300"
+                        >
+                            {/* Absolute close button */}
+                            <button
+                                type="button"
+                                onClick={() => setOpened(false)}
+                                className="absolute top-0 right-0 p-1 rounded-full text-stone-400 hover:text-stone-700 dark:text-stone-500 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800/40 transition-colors cursor-pointer z-50"
+                                aria-label="Close"
+                            >
+                                <X size={16} />
+                            </button>
                             <Stack gap="sm">
                                 <Text size="xs" c="dimmed" className="text-center mb-1 font-medium">
                                     Enter your email address below and we'll send you a secure link to reset your account password.
@@ -417,8 +436,7 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
 
                                 <Text 
                                     size="xs" 
-                                    c="teal" 
-                                    className="text-center cursor-pointer hover:underline mt-2 font-extrabold"
+                                    className="self-center cursor-pointer hover:underline mt-2 font-extrabold text-stone-800 dark:text-stone-250"
                                     onClick={() => {
                                         setIsForgotPassword(false);
                                         setErrorMsg(null);
@@ -430,28 +448,38 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
                         </form>
                     ) : (
                         /* Auth / Login View */
-                        <Stack gap="sm">
-                            <Text size="xs" c="dimmed" className="text-center mb-1 font-medium">
-                                Sign up or log in to automatically upload your local canvas calculations and sync them across all your browsers and devices.
-                            </Text>
-
-                            {/* Google OAuth Button */}
-                            <Button 
-                                type="button"
-                                onClick={handleGoogleSignIn}
-                                variant="outline"
-                                className="border-stone-250 dark:border-stone-800 text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-850/40 rounded-xl h-10 font-bold w-full transition-colors flex items-center justify-center gap-2"
-                                leftSection={<GoogleIcon />}
+                        <Stack 
+                            key={isSignUp ? 'signup' : 'signin'}
+                            gap="sm" 
+                            className="w-full relative animate-in fade-in slide-in-from-bottom-2 duration-300"
+                        >
+                            {/* Absolute close button */}
+                            <button
+                                onClick={() => setOpened(false)}
+                                className="absolute top-0 right-0 p-1 rounded-full text-stone-400 hover:text-stone-700 dark:text-stone-500 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800/40 transition-colors cursor-pointer z-50"
+                                aria-label="Close"
                             >
-                                Continue with Google
-                            </Button>
-
-                            <div className="flex items-center my-0.5 select-none">
-                                <div className="flex-grow border-t border-stone-200 dark:border-stone-800/40"></div>
-                                <span className="px-3 text-[10px] uppercase tracking-wider font-extrabold text-stone-400 dark:text-stone-500">or</span>
-                                <div className="flex-grow border-t border-stone-200 dark:border-stone-800/40"></div>
+                                <X size={16} />
+                            </button>
+                            {/* App Logo & Custom Centered Header */}
+                            <div className="flex flex-col items-center select-none mt-1">
+                                <div className="flex items-center gap-1.5 mb-2 select-none justify-center">
+                                    <span className="text-2xl font-black tracking-tight font-sans">
+                                        solve<span className="text-stone-900 dark:text-white">IQ</span>
+                                    </span>
+                                </div>
+                                <Text className="text-xl font-bold font-sans text-stone-900 dark:text-white tracking-tight text-center">
+                                    {isSignUp ? 'Sign up to continue' : 'Sign in to continue'}
+                                </Text>
+                                <Text size="xs" className="text-center mt-1.5 mb-4 font-medium text-stone-500 dark:text-stone-400 leading-relaxed px-2">
+                                    {isSignUp 
+                                        ? 'Please sign up to start your whiteboard synchronization.' 
+                                        : 'Please sign in to start your whiteboard synchronization.'
+                                    }
+                                </Text>
                             </div>
 
+                            {/* Email/Password Form */}
                             <form onSubmit={handleAuth} className="w-full">
                                 <Stack gap="sm">
                                     {errorMsg && (
@@ -460,83 +488,120 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
                                         </Alert>
                                     )}
 
-                                {isSignUp && (
+                                    {isSignUp && (
+                                        <TextInput
+                                            placeholder="Display Name"
+                                            value={regDisplayName}
+                                            onChange={(e) => setRegDisplayName(e.target.value)}
+                                            required
+                                            leftSection={<UserIcon size={16} className="text-stone-450 dark:text-stone-500" />}
+                                            classNames={{
+                                                input: "bg-stone-50 dark:bg-stone-900/50 text-stone-900 dark:text-white border border-stone-200 dark:border-stone-850 rounded-xl focus:border-stone-400 dark:focus:border-stone-600 h-10 px-3",
+                                            }}
+                                        />
+                                    )}
+
                                     <TextInput
-                                        label="Display Name"
-                                        placeholder="Alex Mercer"
-                                        value={regDisplayName}
-                                        onChange={(e) => setRegDisplayName(e.target.value)}
+                                        placeholder="Email Address"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
                                         required
+                                        leftSection={<Mail size={16} className="text-stone-450 dark:text-stone-500" />}
                                         classNames={{
-                                            input: "bg-stone-50 dark:bg-stone-900 text-stone-900 dark:text-white border border-stone-200 dark:border-stone-850 rounded-xl focus:border-teal-500 h-10 px-3",
-                                            label: "text-stone-700 dark:text-stone-300 text-xs font-bold mb-1"
+                                            input: "bg-stone-50 dark:bg-stone-900/50 text-stone-900 dark:text-white border border-stone-200 dark:border-stone-850 rounded-xl focus:border-stone-400 dark:focus:border-stone-600 h-10 px-3",
                                         }}
                                     />
-                                )}
 
-                                <TextInput
-                                    label="Email Address"
-                                    placeholder="name@example.com"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    required
-                                    classNames={{
-                                        input: "bg-stone-50 dark:bg-stone-900 text-stone-900 dark:text-white border border-stone-200 dark:border-stone-850 rounded-xl focus:border-teal-500 h-10 px-3",
-                                        label: "text-stone-700 dark:text-stone-300 text-xs font-bold mb-1"
-                                    }}
-                                />
-
-                                <PasswordInput
-                                    label="Password"
-                                    placeholder="••••••••"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    required
-                                    classNames={{
-                                        input: "bg-stone-50 dark:bg-stone-900 text-stone-900 dark:text-white border border-stone-200 dark:border-stone-850 rounded-xl focus:border-teal-500 h-10 px-3",
-                                        label: "text-stone-700 dark:text-stone-300 text-xs font-bold mb-1 font-sans"
-                                    }}
-                                />
-                                {password && password.length < 6 && (
-                                    <Text size="10px" c="red" className="font-semibold -mt-2 pl-1 select-none">
-                                        Password must be at least 6 characters.
-                                    </Text>
-                                )}
-
-                                {!isSignUp && (
-                                    <Text
-                                        size="xs"
-                                        c="teal"
-                                        className="cursor-pointer hover:underline text-right -mt-2 pr-1 font-bold select-none"
-                                        onClick={() => {
-                                            setIsForgotPassword(true);
-                                            setErrorMsg(null);
+                                    <PasswordInput
+                                        placeholder="Password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        required
+                                        leftSection={<Lock size={16} className="text-stone-450 dark:text-stone-500" />}
+                                        classNames={{
+                                            input: "bg-stone-50 dark:bg-stone-900/50 text-stone-900 dark:text-white border border-stone-200 dark:border-stone-850 rounded-xl focus:border-stone-400 dark:focus:border-stone-600 h-10 px-3",
                                         }}
+                                    />
+                                    {password && password.length < 6 && (
+                                        <Text size="10px" c="red" className="font-semibold -mt-2 pl-1 select-none">
+                                            Password must be at least 6 characters.
+                                        </Text>
+                                    )}
+
+                                    {!isSignUp && (
+                                        <Text
+                                            size="xs"
+                                            className="self-end cursor-pointer hover:underline -mt-2 pr-1 font-bold select-none text-stone-750 dark:text-stone-300"
+                                            onClick={() => {
+                                                setIsForgotPassword(true);
+                                                setErrorMsg(null);
+                                            }}
+                                        >
+                                            Forgot password?
+                                        </Text>
+                                    )}
+
+                                    <Button 
+                                        type="submit" 
+                                        className="bg-stone-950 hover:bg-stone-900 dark:bg-white dark:hover:bg-stone-50 text-white dark:text-stone-950 font-bold h-10 mt-2 rounded-xl border-none transition-colors w-full cursor-pointer"
                                     >
-                                        Forgot password?
-                                    </Text>
+                                        {isSignUp ? 'Sign Up' : 'Sign In'}
+                                    </Button>
+                                </Stack>
+                            </form>
+
+                            {/* Or continue with Divider */}
+                            <div className="flex items-center my-2 select-none w-full">
+                                <div className="flex-grow border-t border-stone-200/80 dark:border-stone-800/40"></div>
+                                <span className="px-3 text-[10px] uppercase tracking-wider font-extrabold text-stone-450 dark:text-stone-500">Or continue with</span>
+                                <div className="flex-grow border-t border-stone-200/80 dark:border-stone-800/40"></div>
+                            </div>
+
+                            {/* Google OAuth Button - Horizontal Bar Style */}
+                            <Button 
+                                type="button"
+                                onClick={handleGoogleSignIn}
+                                variant="outline"
+                                color="gray"
+                                className="border-stone-200 dark:border-stone-800 text-stone-750 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-850/40 rounded-xl h-10 font-bold w-full transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                                leftSection={<GoogleIcon className="w-4 h-4" />}
+                            >
+                                Continue with Google
+                            </Button>
+
+                            {/* Switch mode footer link */}
+                            <Text 
+                                size="xs" 
+                                className="text-center mt-4 font-semibold w-full text-stone-500 dark:text-stone-400 select-none"
+                            >
+                                {isSignUp ? (
+                                    <>
+                                        Already have an account?{' '}
+                                        <span 
+                                            onClick={() => {
+                                                setIsSignUp(false);
+                                                setErrorMsg(null);
+                                            }}
+                                            className="underline cursor-pointer font-bold text-stone-900 dark:text-white hover:text-stone-700 dark:hover:text-stone-200 transition-colors"
+                                        >
+                                            Log In
+                                        </span>
+                                    </>
+                                ) : (
+                                    <>
+                                        Don't have an account?{' '}
+                                        <span 
+                                            onClick={() => {
+                                                setIsSignUp(true);
+                                                setErrorMsg(null);
+                                            }}
+                                            className="underline cursor-pointer font-bold text-stone-900 dark:text-white hover:text-stone-700 dark:hover:text-stone-200 transition-colors"
+                                        >
+                                            Sign Up
+                                        </span>
+                                    </>
                                 )}
-
-                                <Button 
-                                    type="submit" 
-                                    className="bg-teal-600 hover:bg-teal-700 text-white font-bold h-10 mt-2 rounded-xl border-none"
-                                >
-                                    {isSignUp ? 'Create Sync Account' : 'Log In & Sync'}
-                                </Button>
-
-                                <Text 
-                                    size="xs" 
-                                    c="teal" 
-                                    className="text-center cursor-pointer hover:underline mt-2 font-extrabold"
-                                    onClick={() => {
-                                        setIsSignUp(!isSignUp);
-                                        setErrorMsg(null);
-                                    }}
-                                >
-                                    {isSignUp ? 'Already have an account? Log In' : "Don't have an account? Sign Up"}
-                                </Text>
-                            </Stack>
-                        </form>
+                            </Text>
                         </Stack>
                     )}
                 </div>
@@ -545,8 +610,8 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
     );
 }
 
-const GoogleIcon = () => (
-    <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
+const GoogleIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
         <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
         <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
