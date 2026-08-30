@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { SWATCHES } from '@/constants';
-import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Sparkles, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Scissors, LassoSelect, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut, Grid, MousePointer, Type, Image as ImageIcon, Plus, Minus } from 'lucide-react';
+import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Scissors, LassoSelect, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut, Grid, MousePointer, Type, Image as ImageIcon, Plus, Minus } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { ResultSkeleton } from '@/components/ResultSkeleton';
 import { useMathCanvas } from './useMathCanvas';
@@ -1341,12 +1341,11 @@ export default function Home() {
                                 <button
                                     key={problem.id}
                                     onClick={() => handleTryExample(problem)}
-                                    className={`cursor-pointer flex flex-col text-left p-3.5 rounded-xl border border-stone-200 dark:border-white/10 bg-white/80 dark:bg-white/5 hover:bg-stone-50 dark:hover:bg-white/10 hover:border-stone-300 dark:hover:border-white/20 active:scale-[0.98] transition-all text-stone-900 dark:text-white backdrop-blur-md shadow-lg group ${
+                                    className={`cursor-pointer flex flex-col items-center text-center p-3.5 rounded-xl border border-stone-200 dark:border-white/10 bg-white/80 dark:bg-white/5 hover:bg-stone-50 dark:hover:bg-white/10 hover:border-stone-300 dark:hover:border-white/20 active:scale-[0.98] transition-all text-stone-900 dark:text-white backdrop-blur-md shadow-lg group ${
                                         isLastOdd ? 'sm:col-span-2 sm:w-[calc(50%-6px)] sm:mx-auto' : ''
                                     }`}
                                 >
-                                    <span className="text-sm font-bold text-stone-900 dark:text-white group-hover:opacity-85 flex items-center gap-1.5">
-                                        <Sparkles size={13} className="text-stone-900 dark:text-stone-100 animate-pulse" />
+                                    <span className="text-sm font-bold text-stone-900 dark:text-white group-hover:opacity-85">
                                         {problem.name}
                                     </span>
                                     <span className="text-xs text-stone-500 dark:text-gray-400 mt-1 leading-normal line-clamp-2">
@@ -1476,11 +1475,11 @@ export default function Home() {
 
             <button
                 onClick={() => setIsCopilotOpen(!isCopilotOpen)}
-                className={`absolute bottom-6 right-6 z-controls w-14 h-14 rounded-full bg-stone-950 dark:bg-white hover:bg-stone-850 dark:hover:bg-stone-100 flex items-center justify-center shadow-lg shadow-stone-950/20 dark:shadow-white/5 hover:scale-110 active:scale-95 transition-all duration-300 border border-stone-800 dark:border-stone-200 cursor-pointer ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                className={`absolute bottom-6 right-6 z-controls w-14 h-14 sketch-circle border-3 border-stone-900 text-stone-900 bg-white hover:bg-stone-50/50 dark:border-white dark:text-white dark:bg-[#18181c] dark:hover:bg-white/5 flex items-center justify-center cursor-pointer shadow-lg outline-none ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
                 title="Vector"
                 aria-label={isCopilotOpen ? "Close AI Copilot chat" : "Open AI Copilot chat"}
             >
-                {isCopilotOpen ? <X size={22} className="text-white dark:text-stone-950" /> : <MessageSquare size={22} className="text-white dark:text-stone-950" />}
+                {isCopilotOpen ? <X size={22} strokeWidth={3} className="text-stone-900 dark:text-white" /> : <MessageSquare size={22} strokeWidth={3} className="text-stone-900 dark:text-white" />}
             </button>
 
             {/* Copilot Sidebar Panel */}

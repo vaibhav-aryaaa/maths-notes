@@ -267,3 +267,34 @@
         opacity: 1;
     }
 }
+
+/* Sketch-style Hand-Drawn Buttons */
+.sketch-button {
+  font-family: 'Caveat', cursive !important;
+  font-weight: 800 !important;
+  filter: url(#sketch-filter);
+  border: 3px solid currentColor !important;
+  border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px !important;
+  background: transparent;
+  transition: transform 0.2s ease, filter 0.2s ease, background-color 0.2s ease;
+}
+.sketch-button:hover {
+  transform: scale(1.05) rotate(-1.5deg);
+}
+.sketch-button:active {
+  transform: scale(0.95) rotate(1.5deg);
+}
+
+.sketch-circle {
+  filter: url(#sketch-filter);
+  border: 3px solid currentColor !important;
+  border-radius: 48% 52% 51% 49% / 55% 45% 54% 46% !important;
+  background: transparent;
+  transition: transform 0.2s ease, filter 0.2s ease, background-color 0.2s ease;
+}
+.sketch-circle:hover {
+  transform: scale(1.1) rotate(-4deg);
+}
+.sketch-circle:active {
+  transform: scale(0.95) rotate(4deg);
+}

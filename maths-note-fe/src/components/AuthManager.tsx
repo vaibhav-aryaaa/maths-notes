@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Modal, TextInput, PasswordInput, Button, Text, Group, Stack, Alert, LoadingOverlay, Menu } from '@mantine/core';
 import { supabase } from '@/lib/supabase';
 import { notifications } from '@mantine/notifications';
-import { LogOut, Trash2, Cloud, Mail, Lock, User as UserIcon, X } from 'lucide-react';
+import { LogOut, Trash2, Cloud, Mail, Lock, User as UserIcon, X, LogIn } from 'lucide-react';
 
 import type { User } from '@supabase/supabase-js';
 
@@ -309,20 +309,20 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
                 </Menu>
             ) : (
                 /* Signed Out: Clearly Labeled "Sign In" Button */
-                <Button
+                <button
                     onClick={() => {
                         setErrorMsg(null);
                         setConfirmPurge(false);
                         setIsForgotPassword(false);
                         setOpened(true);
                     }}
-                    className="bg-teal-600 hover:bg-teal-700 text-white font-bold h-9 px-4 rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5 border-none outline-none"
+                    className="sketch-button h-9 px-4 transition-all cursor-pointer flex items-center justify-center gap-1.5 border-3 border-stone-900 text-stone-900 bg-white hover:bg-stone-50/50 dark:border-white dark:text-white dark:bg-[#18181c] dark:hover:bg-white/5 font-bold text-base select-none outline-none"
                     title="Sign in to sync history across devices"
                     aria-label="Sign in to sync history across devices"
                 >
-                    <Cloud size={14} className="text-white shrink-0" />
-                    <span className="text-xs font-sans">Sign in</span>
-                </Button>
+                    <LogIn size={14} strokeWidth={3} className="shrink-0" />
+                    <span className="font-extrabold text-base tracking-wide">Sign In</span>
+                </button>
             )}
 
             {/* Auth / Account Management Modal */}
