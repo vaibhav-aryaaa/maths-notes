@@ -106,12 +106,30 @@ function HistorySidebarInner({
                                         )}
                                     </div>
                                     <div className="flex-1 min-w-0 pr-6">
-                                        <p className="text-xs font-bold text-stone-800 dark:text-stone-200 truncate">
-                                            {entry.results[0]?.solutions[0]?.expression || 'Equation'}
-                                        </p>
-                                        <p className="text-[10px] text-stone-600 dark:text-stone-400 font-mono mt-0.5 truncate">
-                                            = {entry.results[0]?.solutions[0]?.answer || '?'}
-                                        </p>
+                                        {entry.isDraft ? (
+                                            <>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300/50 dark:border-amber-700/50">
+                                                        Draft
+                                                    </span>
+                                                    <span className="text-xs font-bold text-stone-700 dark:text-stone-300 truncate">
+                                                        Unsaved Sketch
+                                                    </span>
+                                                </div>
+                                                <p className="text-[10px] text-stone-500 dark:text-stone-400 font-mono mt-0.5 truncate">
+                                                    {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </p>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <p className="text-xs font-bold text-stone-800 dark:text-stone-200 truncate">
+                                                    {entry.results[0]?.solutions[0]?.expression || 'Equation'}
+                                                </p>
+                                                <p className="text-[10px] text-stone-600 dark:text-stone-400 font-mono mt-0.5 truncate">
+                                                    = {entry.results[0]?.solutions[0]?.answer || '?'}
+                                                </p>
+                                            </>
+                                        )}
                                     </div>
                                     
                                     {/* Inline Delete Button */}

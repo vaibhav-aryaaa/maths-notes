@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { SWATCHES } from '@/constants';
-import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Scissors, LassoSelect, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut, Grid, MousePointer, Type, Image as ImageIcon, Plus, Minus } from 'lucide-react';
+import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, FilePlus, Scissors, LassoSelect, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut, Grid, MousePointer, Type, Image as ImageIcon, Plus, Minus } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { ResultSkeleton } from '@/components/ResultSkeleton';
 import { useMathCanvas } from './useMathCanvas';
@@ -12,12 +12,13 @@ import { Modal, useMantineColorScheme, Slider, Popover, Menu as MantineMenu } fr
 import { notifications } from '@mantine/notifications';
 import axios from 'axios';
 
+import { clearLiveCanvas } from '@/lib/liveCanvasPersistence';
 import { useSolveHistory } from '@/hooks/useSolveHistory';
 import { trackEvent } from '@/lib/analytics';
 import { HistorySidebar } from '@/components/HistorySidebar';
 import { AuthManager } from '@/components/AuthManager';
 import { CopilotPanel } from '@/components/CopilotPanel';
-import type { GeneratedResult } from '@/types';
+import type { GeneratedResult, DictOfVars } from '@/types';
 
 import { EXAMPLE_PROBLEMS } from '@/data/exampleProblems';
 
@@ -122,6 +123,36 @@ export default function Home() {
 
 
 
+    const dictOfVarsRef = useRef<DictOfVars>({});
+    const setDictOfVarsCallbackRef = useRef<((d: DictOfVars) => void) | null>(null);
+    const resultsRef = useRef<GeneratedResult[]>([]);
+    const setResultsCallbackRef = useRef<((r: GeneratedResult[]) => void) | null>(null);
+    const loadedHistoryEntryIdRef = useRef<string | null>(null);
+
+    const handleRestoreLiveCanvas = useCallback((data: any) => {
+        if (data.dictOfVars && setDictOfVarsCallbackRef.current) {
+            setDictOfVarsCallbackRef.current(data.dictOfVars);
+        }
+        if (data.results && data.results.length > 0 && setResultsCallbackRef.current) {
+            setResultsCallbackRef.current(data.results);
+        }
+        if (data.loadedHistoryEntryId) {
+            loadedHistoryEntryIdRef.current = data.loadedHistoryEntryId;
+        }
+    }, []);
+
+    const getDictOfVars = useCallback(() => {
+        return dictOfVarsRef.current;
+    }, []);
+
+    const getResults = useCallback(() => {
+        return resultsRef.current;
+    }, []);
+
+    const getLoadedHistoryEntryId = useCallback(() => {
+        return loadedHistoryEntryIdRef.current;
+    }, []);
+
     const selectionSolveRef = useRef<((selection: any) => void) | null>(null);
     const handleSelectionSolve = useCallback((selection: { type: 'rect' | 'lasso'; points: { x: number; y: number }[]; bounds: { minX: number; minY: number; maxX: number; maxY: number } }) => {
         setActiveSolveRegion({ bounds: selection.bounds, status: 'scanning' });
@@ -183,8 +214,13 @@ export default function Home() {
         saveState,
         activeTextEdit,
         setActiveTextEdit,
-        insertImageFile
-    } = useMathCanvas(handleSelectionSolve);
+        insertImageFile,
+        flushLiveCanvasSave,
+        scheduleAutosave,
+        isCanvasDirtyRef,
+        markCanvasClean,
+        markCanvasDirty
+    } = useMathCanvas(handleSelectionSolve, handleRestoreLiveCanvas, getDictOfVars, getResults, getLoadedHistoryEntryId);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -450,6 +486,7 @@ export default function Home() {
     const { 
         history, 
         saveHistoryEntry, 
+        saveDraftHistoryEntry,
         clearHistory, 
         deleteHistoryItem,
         getHistoryEntryImage,
@@ -471,9 +508,21 @@ export default function Home() {
         drawBoundsRef,
         (canvas, allResults, currentDict) => {
             saveHistoryEntry(canvas, allResults, currentDict, elementsRef.current);
+            markCanvasClean();
         },
         redrawViewCanvas
     );
+
+    useEffect(() => {
+        dictOfVarsRef.current = dictOfVars;
+        setDictOfVarsCallbackRef.current = setDictOfVars;
+        resultsRef.current = results;
+        setResultsCallbackRef.current = setResults;
+    }, [dictOfVars, setDictOfVars, results, setResults]);
+
+    useEffect(() => {
+        scheduleAutosave();
+    }, [results, scheduleAutosave]);
 
     useEffect(() => {
         selectionSolveRef.current = runRoute;
@@ -675,6 +724,14 @@ export default function Home() {
     const activeSolveBox = activeSolveRegion ? getSelectionBox(activeSolveRegion.bounds) : null;
 
     const handleSelectHistoryEntry = (entry: any) => {
+        // Only snapshot as a Draft if there is unsaved/dirty work currently on the canvas
+        if (elementsRef.current.length > 0 && isCanvasDirtyRef.current) {
+            saveDraftHistoryEntry(canvasRef.current, dictOfVarsRef.current, elementsRef.current);
+            saveState();
+        }
+        // Durably flush pending in-memory canvas state to IndexedDB before overwriting
+        flushLiveCanvasSave();
+
         setSelectedElementIds([]);
         if (entry.elements || entry.strokes) {
             if (entry.elements) {
@@ -732,12 +789,17 @@ export default function Home() {
                 drawBoundsRef.current.maxX = xOffset + img.width;
                 drawBoundsRef.current.maxY = yOffset + img.height;
                 resetView();
+                markCanvasClean();
+                scheduleAutosave();
             };
         }
 
-        setResults(entry.results);
-        setDictOfVars(entry.dictOfVars);
+        setResults(entry.results || []);
+        setDictOfVars(entry.dictOfVars || {});
+        loadedHistoryEntryIdRef.current = entry.id;
+        markCanvasClean();
         redrawViewCanvas();
+        scheduleAutosave();
     };
 
     const {
@@ -752,6 +814,11 @@ export default function Home() {
     } = useCopilotChat(dictOfVars, results);
 
     const handleTryExample = (problem: typeof EXAMPLE_PROBLEMS[number]) => {
+        if (elementsRef.current.length > 0 && isCanvasDirtyRef.current) {
+            saveDraftHistoryEntry(canvasRef.current, dictOfVarsRef.current, elementsRef.current);
+            saveState();
+        }
+        flushLiveCanvasSave();
         trackEvent('example_clicked', {
             example_id: problem.id,
             example_name: problem.name
@@ -759,10 +826,64 @@ export default function Home() {
         setResults([]);
         setDictOfVars({});
         drawStrokes(problem.strokes);
+        markCanvasDirty();
         setTimeout(() => {
             runRoute();
         }, 600);
     };
+
+    const handleNewCanvas = useCallback(() => {
+        // If there is active unsaved/modified work, auto-save it as a Draft in History first
+        if (elementsRef.current.length > 0 && isCanvasDirtyRef.current) {
+            saveDraftHistoryEntry(canvasRef.current, dictOfVarsRef.current, elementsRef.current);
+            saveState();
+        }
+
+        loadedHistoryEntryIdRef.current = null;
+
+        // Clear persisted live canvas from IndexedDB
+        clearLiveCanvas().catch(console.error);
+
+        // Reset canvas strokes, images, camera transform
+        resetCanvas();
+
+        // Clear all solved result cards, variables, and region skeletons
+        setResults([]);
+        setDictOfVars({});
+        setActiveSolveRegion(null);
+        setSkeletonVisible(false);
+        setSkeletonRegion(null);
+        markCanvasClean();
+    }, [saveDraftHistoryEntry, saveState, resetCanvas, setResults, setDictOfVars, markCanvasClean]);
+
+    const handleDeleteHistoryEntry = useCallback((id: string) => {
+        deleteHistoryItem(id);
+        // If the item currently loaded on screen is what got deleted, reset the canvas
+        if (loadedHistoryEntryIdRef.current === id) {
+            loadedHistoryEntryIdRef.current = null;
+            clearLiveCanvas().catch(console.error);
+            resetCanvas();
+            setResults([]);
+            setDictOfVars({});
+            setActiveSolveRegion(null);
+            setSkeletonVisible(false);
+            setSkeletonRegion(null);
+            markCanvasClean();
+        }
+    }, [deleteHistoryItem, resetCanvas, setResults, setDictOfVars, markCanvasClean]);
+
+    const handleClearHistory = useCallback(() => {
+        clearHistory();
+        loadedHistoryEntryIdRef.current = null;
+        clearLiveCanvas().catch(console.error);
+        resetCanvas();
+        setResults([]);
+        setDictOfVars({});
+        setActiveSolveRegion(null);
+        setSkeletonVisible(false);
+        setSkeletonRegion(null);
+        markCanvasClean();
+    }, [clearHistory, resetCanvas, setResults, setDictOfVars, markCanvasClean]);
 
     const showExamples = isCanvasEmpty && results.length === 0 && !isFocusMode;
 
@@ -863,8 +984,8 @@ export default function Home() {
                 dictOfVars={dictOfVars}
                 history={history}
                 onSelectEntry={handleSelectHistoryEntry}
-                onClearHistory={clearHistory}
-                onDeleteEntry={deleteHistoryItem}
+                onClearHistory={handleClearHistory}
+                onDeleteEntry={handleDeleteHistoryEntry}
                 getHistoryEntryImage={getHistoryEntryImage}
             />
 
@@ -1103,18 +1224,15 @@ export default function Home() {
                 {/* Divider */}
                 <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
 
-                {/* Clear Canvas Button */}
+                {/* New Canvas Button */}
                 <Button
-                    onClick={() => {
-                        setActiveSolveRegion(null);
-                        resetCanvas();
-                    }}
-                    className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg"
+                    onClick={handleNewCanvas}
+                    className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-stone-300 transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg"
                     variant="default"
-                    title="Clear Canvas (Destroy whiteboard content)"
-                    aria-label="Clear all content from whiteboard canvas"
+                    title="New Canvas (Archives current work to Draft and creates fresh whiteboard)"
+                    aria-label="Create a new blank canvas"
                 >
-                    <Trash2 size={14} className="text-red-500 dark:text-red-400" />
+                    <FilePlus size={16} className="text-stone-600 dark:text-stone-300" />
                 </Button>
 
 

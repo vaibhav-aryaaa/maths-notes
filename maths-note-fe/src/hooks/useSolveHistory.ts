@@ -13,11 +13,13 @@ export interface HistoryEntry {
     dictOfVars: DictOfVars;
     strokes?: any[];
     elements?: any[];
+    isDraft?: boolean;
 }
 
 const DB_NAME = 'SolveIQHistoryDB';
 const STORE_NAME = 'history';
-const DB_VERSION = 1;
+const LIVE_CANVAS_STORE = 'live_canvas';
+const DB_VERSION = 2;
 
 // Native IndexedDB Promise Wrapper
 function openDB(): Promise<IDBDatabase | null> {
@@ -32,6 +34,9 @@ function openDB(): Promise<IDBDatabase | null> {
             const db = request.result;
             if (!db.objectStoreNames.contains(STORE_NAME)) {
                 db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+            }
+            if (!db.objectStoreNames.contains(LIVE_CANVAS_STORE)) {
+                db.createObjectStore(LIVE_CANVAS_STORE);
             }
         };
         request.onsuccess = () => resolve(request.result);
@@ -289,6 +294,67 @@ export function useSolveHistory() {
         }
     }, [jwt, loadBackendHistory, loadLocalHistory]);
 
+    // 6.b Save draft history entry (unsolved scratch work)
+    const saveDraftHistoryEntry = useCallback(async (
+        canvas: HTMLCanvasElement | null,
+        dictOfVars: DictOfVars,
+        elements?: any[]
+    ) => {
+        if (!elements || elements.length === 0) return;
+
+        let canvasThumbnail = '';
+        let canvasImage = '';
+        if (canvas) {
+            canvasThumbnail = getCanvasThumbnail(canvas);
+            canvasImage = canvas.toDataURL('image/png');
+        }
+
+        const entryId = crypto.randomUUID();
+        const timestamp = Date.now();
+
+        const entry: HistoryEntry = {
+            id: entryId,
+            timestamp,
+            canvasThumbnail,
+            canvasImage,
+            results: [],
+            dictOfVars,
+            elements,
+            isDraft: true
+        };
+
+        // Try backend write first if authenticated
+        if (jwt) {
+            try {
+                const apiHost = getApiHost();
+                await axios.post(`${apiHost}/history`, { entry }, {
+                    headers: {
+                        'Authorization': `Bearer ${jwt}`
+                    }
+                });
+                await loadBackendHistory(jwt);
+            } catch (error) {
+                console.error('Failed to save draft history entry to backend, falling back to local only:', error);
+            }
+        }
+
+        // Save to IndexedDB
+        const db = await openDB();
+        if (!db) return;
+
+        try {
+            const transaction = db.transaction(STORE_NAME, 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            store.put(entry);
+
+            transaction.oncomplete = () => {
+                if (!jwt) loadLocalHistory();
+            };
+        } catch (error) {
+            console.error('Failed to save draft history entry locally:', error);
+        }
+    }, [jwt, loadBackendHistory, loadLocalHistory]);
+
     // 7. Delete single item
     const deleteHistoryItem = useCallback(async (id: string) => {
         if (jwt) {
@@ -374,6 +440,7 @@ export function useSolveHistory() {
         history,
         isDbReady,
         saveHistoryEntry,
+        saveDraftHistoryEntry,
         deleteHistoryItem,
         clearHistory,
         getHistoryEntryImage,
@@ -381,4 +448,4 @@ export function useSolveHistory() {
         jwt,
         supabase
     };
-}
+};

@@ -145,4 +145,10 @@ describe('useMathCanvas', () => {
         expect(result.current.strokesRef.current.length).toBe(2);
         expect(result.current.canRedo).toBe(false);
     });
+
+    it('should expose flushLiveCanvasSave and scheduleAutosave functions', () => {
+        const { result } = renderHook(() => useMathCanvas());
+        expect(typeof result.current.flushLiveCanvasSave).toBe('function');
+        expect(typeof result.current.scheduleAutosave).toBe('function');
+    });
 });

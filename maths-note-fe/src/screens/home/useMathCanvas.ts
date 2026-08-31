@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import type { Stroke, CanvasElement, ImageElement } from '@/types';
+import type { Stroke, CanvasElement, ImageElement, DictOfVars, GeneratedResult } from '@/types';
 import { getStrokeOutline, getElementBounds, getElementCenter, drawElement, getStrokeBounds } from './canvasUtils';
 import { CANVAS_BACKGROUND_COLOR } from '@/constants';
+import { saveLiveCanvas, loadLiveCanvas, clearLiveCanvas, type LiveCanvasData } from '@/lib/liveCanvasPersistence';
 
 const generateUUID = () => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -185,7 +186,11 @@ const getElementsInSelection = (
 };
 
 export const useMathCanvas = (
-    onSelectionSolve?: (selection: { type: 'rect' | 'lasso'; points: { x: number; y: number }[]; bounds: { minX: number; minY: number; maxX: number; maxY: number } }) => void
+    onSelectionSolve?: (selection: { type: 'rect' | 'lasso'; points: { x: number; y: number }[]; bounds: { minX: number; minY: number; maxX: number; maxY: number } }) => void,
+    onRestoreLiveCanvas?: (data: LiveCanvasData) => void,
+    getDictOfVars?: () => DictOfVars,
+    getResults?: () => GeneratedResult[],
+    getLoadedHistoryEntryId?: () => string | null
 ) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const masterCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -353,6 +358,51 @@ export const useMathCanvas = (
         offsetY: (typeof window !== 'undefined' ? window.innerHeight / 2 - 6000 : -5600),
         scale: 1
     }));
+
+    const isRestoredRef = useRef(false);
+    const isCanvasDirtyRef = useRef(false);
+    const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const markCanvasClean = useCallback(() => {
+        isCanvasDirtyRef.current = false;
+    }, []);
+
+    const markCanvasDirty = useCallback(() => {
+        isCanvasDirtyRef.current = true;
+    }, []);
+
+    const flushLiveCanvasSave = useCallback(async () => {
+        if (autosaveTimerRef.current) {
+            clearTimeout(autosaveTimerRef.current);
+            autosaveTimerRef.current = null;
+        }
+        if (!isRestoredRef.current) return;
+
+        const currentElements = elementsRef.current.map(cloneCanvasElement);
+        const currentCamera = { ...cameraRef.current };
+        const dictOfVars = getDictOfVars ? getDictOfVars() : undefined;
+        const results = getResults ? getResults() : undefined;
+        const loadedHistoryEntryId = getLoadedHistoryEntryId ? getLoadedHistoryEntryId() : undefined;
+
+        await saveLiveCanvas({
+            elements: currentElements,
+            camera: currentCamera,
+            dictOfVars,
+            results,
+            loadedHistoryEntryId,
+            updatedAt: Date.now()
+        });
+    }, [getDictOfVars, getResults, getLoadedHistoryEntryId]);
+
+    const scheduleAutosave = useCallback(() => {
+        if (!isRestoredRef.current) return;
+        if (autosaveTimerRef.current) {
+            clearTimeout(autosaveTimerRef.current);
+        }
+        autosaveTimerRef.current = setTimeout(() => {
+            flushLiveCanvasSave();
+        }, 800);
+    }, [flushLiveCanvasSave]);
 
     const colorRef = useRef(color);
     useEffect(() => {
@@ -731,7 +781,9 @@ export const useMathCanvas = (
         redoStackRef.current = [];
         setCanUndo(true);
         setCanRedo(false);
-    }, []);
+        isCanvasDirtyRef.current = true;
+        scheduleAutosave();
+    }, [scheduleAutosave]);
 
     const updateBounds = (x: number, y: number) => {
         if (x < drawBoundsRef.current.minX) drawBoundsRef.current.minX = x;
@@ -816,6 +868,85 @@ export const useMathCanvas = (
         }
     }, [windowSize, getCenteredCamera, redrawViewCanvas]);
 
+    const onRestoreLiveCanvasRef = useRef(onRestoreLiveCanvas);
+    useEffect(() => {
+        onRestoreLiveCanvasRef.current = onRestoreLiveCanvas;
+    }, [onRestoreLiveCanvas]);
+
+    const redrawViewCanvasRef = useRef(redrawViewCanvas);
+    useEffect(() => {
+        redrawViewCanvasRef.current = redrawViewCanvas;
+    }, [redrawViewCanvas]);
+
+    // Restore live canvas from IndexedDB on mount (strictly once)
+    useEffect(() => {
+        let isMounted = true;
+        loadLiveCanvas().then((savedData) => {
+            if (!isMounted) return;
+            if (savedData && (savedData.elements?.length > 0 || savedData.camera)) {
+                isFirstLayoutRef.current = false;
+                if (savedData.elements && savedData.elements.length > 0) {
+                    elementsRef.current = savedData.elements.map(cloneCanvasElement);
+                    setIsCanvasEmpty(false);
+                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                    elementsRef.current.forEach((el) => {
+                        const bounds = getElementBounds(el);
+                        if (bounds.minX < minX) minX = bounds.minX;
+                        if (bounds.maxX > maxX) maxX = bounds.maxX;
+                        if (bounds.minY < minY) minY = bounds.minY;
+                        if (bounds.maxY > maxY) maxY = bounds.maxY;
+                    });
+                    drawBoundsRef.current = { minX, minY, maxX, maxY };
+                }
+                if (savedData.camera) {
+                    cameraRef.current = savedData.camera;
+                    setCamera(savedData.camera);
+                }
+                redrawViewCanvasRef.current();
+                if (onRestoreLiveCanvasRef.current && savedData) {
+                    onRestoreLiveCanvasRef.current(savedData);
+                }
+            }
+            isRestoredRef.current = true;
+        }).catch((err) => {
+            console.error('Failed to restore live canvas from IndexedDB:', err);
+            isRestoredRef.current = true;
+        });
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
+    // Autosave camera pan/zoom changes
+    useEffect(() => {
+        if (!isRestoredRef.current) return;
+        scheduleAutosave();
+    }, [camera, scheduleAutosave]);
+
+    // Window beforeunload / visibilitychange persistence
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            flushLiveCanvasSave();
+        };
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') {
+                flushLiveCanvasSave();
+            }
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            if (autosaveTimerRef.current) {
+                clearTimeout(autosaveTimerRef.current);
+            }
+        };
+    }, [flushLiveCanvasSave]);
+
     useEffect(() => {
         redrawViewCanvas();
     }, [windowSize, redrawViewCanvas]);
@@ -896,7 +1027,14 @@ export const useMathCanvas = (
         };
     }, [redrawViewCanvas]);
 
-    const resetCanvas = () => {
+    const resetCanvas = useCallback(() => {
+        if (autosaveTimerRef.current) {
+            clearTimeout(autosaveTimerRef.current);
+            autosaveTimerRef.current = null;
+        }
+        clearLiveCanvas().catch(console.error);
+
+        isCanvasDirtyRef.current = false;
         elementsRef.current = [];
         setSelectedElementIds([]);
         drawBoundsRef.current = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
@@ -912,7 +1050,7 @@ export const useMathCanvas = (
         setCamera(target);
 
         redrawViewCanvas();
-    };
+    }, [getCenteredCamera, redrawViewCanvas]);
 
     const getActiveResizeHandle = (worldX: number, worldY: number, scale: number) => {
         if (selectedElementIds.length !== 1) return null;
@@ -1471,6 +1609,7 @@ export const useMathCanvas = (
                 elementsRef.current.push(newStroke);
                 newPoints.forEach(pt => updateBounds(pt.x, pt.y));
                 setIsCanvasEmpty(false);
+                scheduleAutosave();
             }
         }
         activeStrokePointsRef.current = [];
@@ -1915,6 +2054,7 @@ export const useMathCanvas = (
                 elementsRef.current.push(newStroke);
                 newPoints.forEach(pt => updateBounds(pt.x, pt.y));
                 setIsCanvasEmpty(false);
+                scheduleAutosave();
             }
         }
         activeStrokePointsRef.current = [];
@@ -2311,8 +2451,10 @@ export const useMathCanvas = (
             drawBoundsRef.current = { ...prevState.bounds };
             setIsCanvasEmpty(elementsRef.current.length === 0);
             setCanUndo(undoStackRef.current.length > 0);
+            isCanvasDirtyRef.current = true;
             
             redrawViewCanvas();
+            scheduleAutosave();
         },
         redo: () => {
             if (redoStackRef.current.length === 0) return;
@@ -2329,8 +2471,10 @@ export const useMathCanvas = (
             drawBoundsRef.current = { ...nextState.bounds };
             setIsCanvasEmpty(elementsRef.current.length === 0);
             setCanRedo(redoStackRef.current.length > 0);
+            isCanvasDirtyRef.current = true;
             
             redrawViewCanvas();
+            scheduleAutosave();
         },
         isSpacePressed,
         isPanning,
@@ -2346,6 +2490,11 @@ export const useMathCanvas = (
         saveState,
         cloneCanvasElement,
         activeTextEdit,
-        setActiveTextEdit
+        setActiveTextEdit,
+        flushLiveCanvasSave,
+        scheduleAutosave,
+        isCanvasDirtyRef,
+        markCanvasClean,
+        markCanvasDirty
     };
 };
