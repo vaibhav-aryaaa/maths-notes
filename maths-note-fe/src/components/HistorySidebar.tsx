@@ -80,7 +80,9 @@ function HistorySidebarInner({
                                     tabIndex={0}
                                     onClick={async () => {
                                         const fullEntry = { ...entry };
-                                        if (!entry.strokes && !entry.canvasImage) {
+                                        const hasElements = Array.isArray(entry.elements) && entry.elements.length > 0;
+                                        const hasStrokes = Array.isArray(entry.strokes) && entry.strokes.length > 0;
+                                        if (!hasElements && !hasStrokes && !entry.canvasImage) {
                                             fullEntry.canvasImage = await getHistoryEntryImage(entry.id);
                                         }
                                         onSelectEntry(fullEntry);
@@ -89,7 +91,9 @@ function HistorySidebarInner({
                                         if (e.key === 'Enter' || e.key === ' ') {
                                             e.preventDefault();
                                             const fullEntry = { ...entry };
-                                            if (!entry.strokes && !entry.canvasImage) {
+                                            const hasElements = Array.isArray(entry.elements) && entry.elements.length > 0;
+                                            const hasStrokes = Array.isArray(entry.strokes) && entry.strokes.length > 0;
+                                            if (!hasElements && !hasStrokes && !entry.canvasImage) {
                                                 fullEntry.canvasImage = await getHistoryEntryImage(entry.id);
                                             }
                                             onSelectEntry(fullEntry);

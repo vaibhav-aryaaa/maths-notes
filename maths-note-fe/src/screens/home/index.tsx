@@ -18,7 +18,7 @@ import { trackEvent } from '@/lib/analytics';
 import { HistorySidebar } from '@/components/HistorySidebar';
 import { AuthManager } from '@/components/AuthManager';
 import { CopilotPanel } from '@/components/CopilotPanel';
-import type { GeneratedResult, DictOfVars } from '@/types';
+import type { GeneratedResult, DictOfVars, ImageElement } from '@/types';
 
 import { EXAMPLE_PROBLEMS } from '@/data/exampleProblems';
 
@@ -733,24 +733,32 @@ export default function Home() {
         flushLiveCanvasSave();
 
         setSelectedElementIds([]);
-        if (entry.elements || entry.strokes) {
-            if (entry.elements) {
-                elementsRef.current = entry.elements.map((el: any) => {
-                    if (el.kind === 'text') return { ...el };
-                    if (el.kind === 'image') return { ...el };
-                    return {
-                        kind: el.kind ?? 'stroke',
-                        ...el,
-                        points: el.points.map((pt: any) => ({ ...pt }))
-                    };
-                });
-            } else {
-                elementsRef.current = entry.strokes.map((s: any) => ({
-                    kind: 'stroke',
-                    ...s,
-                    points: s.points.map((pt: any) => ({ ...pt }))
-                }));
-            }
+
+        const hasElements = Array.isArray(entry.elements) && entry.elements.length > 0;
+        const hasStrokes = Array.isArray(entry.strokes) && entry.strokes.length > 0;
+        const fallbackImage = entry.canvasImage || entry.canvasThumbnail;
+
+        if (hasElements) {
+            elementsRef.current = entry.elements.map((el: any) => {
+                if (el.kind === 'text') return { ...el };
+                if (el.kind === 'image') {
+                    const imgEl: ImageElement = { ...el };
+                    if (!imgEl.bitmap && imgEl.src) {
+                        const img = new Image();
+                        img.src = imgEl.src;
+                        img.onload = () => {
+                            imgEl.bitmap = img;
+                            redrawViewCanvas();
+                        };
+                    }
+                    return imgEl;
+                }
+                return {
+                    kind: el.kind ?? 'stroke',
+                    ...el,
+                    points: el.points.map((pt: any) => ({ ...pt }))
+                };
+            });
             setIsCanvasEmpty(elementsRef.current.length === 0);
             
             let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -762,36 +770,60 @@ export default function Home() {
                 if (bounds.maxY > maxY) maxY = bounds.maxY;
             });
             drawBoundsRef.current = { minX, minY, maxX, maxY };
-            resetView();
-        } else {
-            // Lazy-allocate masterCanvasRef.current for legacy loading fallback
-            if (!masterCanvasRef.current) {
-                masterCanvasRef.current = document.createElement('canvas');
-                masterCanvasRef.current.width = 12000;
-                masterCanvasRef.current.height = 12000;
-            }
-            const masterCanvas = masterCanvasRef.current;
-            const masterCtx = masterCanvas.getContext('2d');
-            if (!masterCtx) return;
+            zoomToContent();
+        } else if (hasStrokes) {
+            elementsRef.current = entry.strokes.map((s: any) => ({
+                kind: 'stroke',
+                ...s,
+                points: s.points.map((pt: any) => ({ ...pt }))
+            }));
+            setIsCanvasEmpty(elementsRef.current.length === 0);
+            
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            elementsRef.current.forEach((el: any) => {
+                const bounds = getElementBounds(el);
+                if (bounds.minX < minX) minX = bounds.minX;
+                if (bounds.maxX > maxX) maxX = bounds.maxX;
+                if (bounds.minY < minY) minY = bounds.minY;
+                if (bounds.maxY > maxY) maxY = bounds.maxY;
+            });
+            drawBoundsRef.current = { minX, minY, maxX, maxY };
+            zoomToContent();
+        } else if (fallbackImage) {
             const img = new Image();
-            img.src = entry.canvasImage;
+            img.src = fallbackImage;
             img.onload = () => {
-                masterCtx.fillStyle = 'black';
-                masterCtx.fillRect(0, 0, masterCanvas.width, masterCanvas.height);
-                const xOffset = 6000 - img.width / 2;
-                const yOffset = 6000 - img.height / 2;
-                masterCtx.drawImage(img, xOffset, yOffset);
+                const imgWidth = img.width || 800;
+                const imgHeight = img.height || 600;
+                const imgX = 6000 - imgWidth / 2;
+                const imgY = 6000 - imgHeight / 2;
+                const imgElement: ImageElement = {
+                    kind: 'image',
+                    id: crypto.randomUUID(),
+                    x: imgX,
+                    y: imgY,
+                    width: imgWidth,
+                    height: imgHeight,
+                    src: fallbackImage,
+                    bitmap: img
+                };
+                elementsRef.current = [imgElement];
                 setIsCanvasEmpty(false);
-                elementsRef.current = [];
-                
-                drawBoundsRef.current.minX = xOffset;
-                drawBoundsRef.current.minY = yOffset;
-                drawBoundsRef.current.maxX = xOffset + img.width;
-                drawBoundsRef.current.maxY = yOffset + img.height;
-                resetView();
+                drawBoundsRef.current = {
+                    minX: imgX,
+                    minY: imgY,
+                    maxX: imgX + imgWidth,
+                    maxY: imgY + imgHeight
+                };
+                zoomToContent();
                 markCanvasClean();
+                redrawViewCanvas();
                 scheduleAutosave();
             };
+        } else {
+            elementsRef.current = [];
+            setIsCanvasEmpty(true);
+            resetView();
         }
 
         setResults(entry.results || []);
