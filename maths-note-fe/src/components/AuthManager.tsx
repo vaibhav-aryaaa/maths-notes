@@ -316,12 +316,12 @@ export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthMan
                         setIsForgotPassword(false);
                         setOpened(true);
                     }}
-                    className="sketch-button h-9 px-4 transition-all cursor-pointer flex items-center justify-center gap-1.5 border-3 border-stone-900 text-stone-900 bg-white hover:bg-stone-50/50 dark:border-white dark:text-white dark:bg-[#18181c] dark:hover:bg-white/5 font-bold text-base select-none outline-none"
+                    className="sketch-button h-9 px-4.5 rounded-full transition-all cursor-pointer flex items-center justify-center gap-1.5 border-[1.5px] border-stone-800 text-stone-850 bg-white hover:bg-stone-50/50 dark:border-stone-300 dark:text-stone-100 dark:bg-[#18181c] dark:hover:bg-white/5 font-bold text-base select-none outline-none shadow-sm"
                     title="Sign in to sync history across devices"
                     aria-label="Sign in to sync history across devices"
                 >
-                    <LogIn size={14} strokeWidth={3} className="shrink-0" />
-                    <span className="font-extrabold text-base tracking-wide">Sign In</span>
+                    <LogIn size={14} strokeWidth={2} className="shrink-0" />
+                    <span className="font-bold text-base tracking-wide">Sign In</span>
                 </button>
             )}
 

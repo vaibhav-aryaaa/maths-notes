@@ -271,10 +271,10 @@
 /* Sketch-style Hand-Drawn Buttons */
 .sketch-button {
   font-family: 'Caveat', cursive !important;
-  font-weight: 800 !important;
+  font-weight: 700 !important;
   filter: url(#sketch-filter);
-  border: 3px solid currentColor !important;
-  border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px !important;
+  border: 1.5px solid currentColor !important;
+  border-radius: 9999px !important;
   background: transparent;
   transition: transform 0.2s ease, filter 0.2s ease, background-color 0.2s ease;
 }

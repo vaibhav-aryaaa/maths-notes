@@ -190,7 +190,12 @@ export const useMathCanvas = (
     onRestoreLiveCanvas?: (data: LiveCanvasData) => void,
     getDictOfVars?: () => DictOfVars,
     getResults?: () => GeneratedResult[],
-    getLoadedHistoryEntryId?: () => string | null
+    getLoadedHistoryEntryId?: () => string | null,
+    getCustomSelectableBounds?: () => { id: string; bounds: { minX: number; minY: number; maxX: number; maxY: number } }[],
+    onCustomSelectionMove?: (selectedCustomIds: string[], dx: number, dy: number, isFinal: boolean) => void,
+    onCustomSelectionStart?: (selectedCustomIds: string[]) => void,
+    getCustomOffsets?: () => Record<string, { x: number; y: number }>,
+    onRestoreCustomOffsets?: (offsets: Record<string, { x: number; y: number }>) => void
 ) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const masterCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -329,6 +334,7 @@ export const useMathCanvas = (
     interface HistoryState {
         elements: CanvasElement[];
         bounds: { minX: number; minY: number; maxX: number; maxY: number };
+        customOffsets?: Record<string, { x: number; y: number }>;
     }
 
     const undoStackRef = useRef<HistoryState[]>([]);
@@ -403,6 +409,46 @@ export const useMathCanvas = (
             flushLiveCanvasSave();
         }, 800);
     }, [flushLiveCanvasSave]);
+
+    const getCombinedSelectedBounds = useCallback((ids: string[], scale: number) => {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        let foundAny = false;
+        const customBounds = getCustomSelectableBounds ? getCustomSelectableBounds() : [];
+
+        for (const id of ids) {
+            const el = elementsRef.current.find(e => e.id === id);
+            if (el) {
+                const activeEdit = activeTextEditRef.current;
+                const elToMeasure = (activeEdit && activeEdit.id === el.id) ? { ...el, text: activeEdit.text } : el;
+                const bounds = getElementBounds(elToMeasure);
+                if (bounds.minX < minX) minX = bounds.minX;
+                if (bounds.minY < minY) minY = bounds.minY;
+                if (bounds.maxX > maxX) maxX = bounds.maxX;
+                if (bounds.maxY > maxY) maxY = bounds.maxY;
+                foundAny = true;
+            } else {
+                const custom = customBounds.find(c => c.id === id);
+                if (custom) {
+                    if (custom.bounds.minX < minX) minX = custom.bounds.minX;
+                    if (custom.bounds.minY < minY) minY = custom.bounds.minY;
+                    if (custom.bounds.maxX > maxX) maxX = custom.bounds.maxX;
+                    if (custom.bounds.maxY > maxY) maxY = custom.bounds.maxY;
+                    foundAny = true;
+                }
+            }
+        }
+
+        if (foundAny) {
+            const pad = 6 / scale;
+            return {
+                minX: minX - pad,
+                minY: minY - pad,
+                maxX: maxX + pad,
+                maxY: maxY + pad
+            };
+        }
+        return null;
+    }, [getCustomSelectableBounds]);
 
     const colorRef = useRef(color);
     useEffect(() => {
@@ -649,33 +695,17 @@ export const useMathCanvas = (
 
         // Draw selected elements outline/bounding box
         if (selectedElementIds.length > 0) {
-            viewCtx.save();
-            viewCtx.strokeStyle = '#3b82f6';
-            viewCtx.lineWidth = 1.5 / scale;
-            viewCtx.setLineDash([4 / scale, 4 / scale]);
-            
-            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-            let foundAny = false;
-            for (const id of selectedElementIds) {
-                const el = elementsRef.current.find(e => e.id === id);
-                if (el) {
-                    const activeEdit = activeTextEditRef.current;
-                    const elToMeasure = (activeEdit && activeEdit.id === el.id) ? { ...el, text: activeEdit.text } : el;
-                    const bounds = getElementBounds(elToMeasure);
-                    if (bounds.minX < minX) minX = bounds.minX;
-                    if (bounds.minY < minY) minY = bounds.minY;
-                    if (bounds.maxX > maxX) maxX = bounds.maxX;
-                    if (bounds.maxY > maxY) maxY = bounds.maxY;
-                    foundAny = true;
-                }
-            }
+            const selBounds = getCombinedSelectedBounds(selectedElementIds, scale);
+            if (selBounds) {
+                viewCtx.save();
+                viewCtx.strokeStyle = '#3b82f6';
+                viewCtx.lineWidth = 1.5 / scale;
+                viewCtx.setLineDash([4 / scale, 4 / scale]);
 
-            if (foundAny) {
-                const pad = 6 / scale;
-                const rectX = minX - pad;
-                const rectY = minY - pad;
-                const rectW = (maxX - minX) + 2 * pad;
-                const rectH = (maxY - minY) + 2 * pad;
+                const rectX = selBounds.minX;
+                const rectY = selBounds.minY;
+                const rectW = selBounds.maxX - selBounds.minX;
+                const rectH = selBounds.maxY - selBounds.minY;
 
                 viewCtx.beginPath();
                 viewCtx.rect(rectX, rectY, rectW, rectH);
@@ -709,8 +739,8 @@ export const useMathCanvas = (
                         });
                     }
                 }
+                viewCtx.restore();
             }
-            viewCtx.restore();
         }
 
         // Draw selection outline preview if drawing selection
@@ -746,7 +776,7 @@ export const useMathCanvas = (
 
         // Reset transform back to identity
         viewCtx.setTransform(1, 0, 0, 1, 0, 0);
-    }, [isDrawing, selectedShape, activeTool, showGrid, selectedElementIds, selectedSelectionShape, activeTextEdit]);
+    }, [isDrawing, selectedShape, activeTool, showGrid, selectedElementIds, selectedSelectionShape, activeTextEdit, getCombinedSelectedBounds]);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -770,7 +800,8 @@ export const useMathCanvas = (
     const saveState = useCallback(() => {
         const state: HistoryState = {
             elements: elementsRef.current.map(cloneCanvasElement),
-            bounds: { ...drawBoundsRef.current }
+            bounds: { ...drawBoundsRef.current },
+            customOffsets: getCustomOffsets ? { ...getCustomOffsets() } : undefined
         };
 
         undoStackRef.current.push(state);
@@ -783,7 +814,7 @@ export const useMathCanvas = (
         setCanRedo(false);
         isCanvasDirtyRef.current = true;
         scheduleAutosave();
-    }, [scheduleAutosave]);
+    }, [scheduleAutosave, getCustomOffsets]);
 
     const updateBounds = (x: number, y: number) => {
         if (x < drawBoundsRef.current.minX) drawBoundsRef.current.minX = x;
@@ -1228,45 +1259,27 @@ export const useMathCanvas = (
             }
 
             // Calculate consolidated bounding box of currently selected elements
-            let selectedBounds: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
-            if (selectedElementIds.length > 0) {
-                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                let foundAny = false;
-                for (const id of selectedElementIds) {
-                    const el = elementsRef.current.find(e => e.id === id);
-                    if (el) {
-                        const bounds = getElementBounds(el);
-                        if (bounds.minX < minX) minX = bounds.minX;
-                        if (bounds.minY < minY) minY = bounds.minY;
-                        if (bounds.maxX > maxX) maxX = bounds.maxX;
-                        if (bounds.maxY > maxY) maxY = bounds.maxY;
-                        foundAny = true;
-                    }
-                }
-                if (foundAny) {
-                    const pad = 6 / cameraRef.current.scale;
-                    selectedBounds = {
-                        minX: minX - pad,
-                        minY: minY - pad,
-                        maxX: maxX + pad,
-                        maxY: maxY + pad
-                    };
-                }
-            }
+            const selectedBounds = getCombinedSelectedBounds(selectedElementIds, cameraRef.current.scale);
 
             const clickInSelectionBox = selectedBounds && 
                 worldPos.x >= selectedBounds.minX && worldPos.x <= selectedBounds.maxX &&
                 worldPos.y >= selectedBounds.minY && worldPos.y <= selectedBounds.maxY;
 
             const clickedEl = getElementAtPosition(worldPos.x, worldPos.y, elementsRef.current);
+            const customBounds = getCustomSelectableBounds ? getCustomSelectableBounds() : [];
+            const clickedCustom = customBounds.find(c =>
+                worldPos.x >= c.bounds.minX && worldPos.x <= c.bounds.maxX &&
+                worldPos.y >= c.bounds.minY && worldPos.y <= c.bounds.maxY
+            );
 
-            if (clickInSelectionBox || clickedEl) {
+            if (clickInSelectionBox || clickedEl || clickedCustom) {
                 // If clicked an element that is NOT in the selection, and shift is not pressed, select only that element
                 let nextSelection = selectedElementIds;
-                if (clickedEl && !selectedElementIds.includes(clickedEl.id)) {
+                const targetId = clickedEl?.id || clickedCustom?.id;
+                if (targetId && !selectedElementIds.includes(targetId)) {
                     nextSelection = e.shiftKey
-                        ? [...selectedElementIds, clickedEl.id]
-                        : [clickedEl.id];
+                        ? [...selectedElementIds, targetId]
+                        : [targetId];
                 }
 
                 setSelectedElementIds(nextSelection);
@@ -1279,6 +1292,11 @@ export const useMathCanvas = (
                         .filter(el => nextSelection.includes(el.id))
                         .map(el => [el.id, cloneCanvasElement(el)])
                 );
+
+                const customIds = nextSelection.filter(id => !elementsRef.current.some(el => el.id === id));
+                if (customIds.length > 0) {
+                    onCustomSelectionStart?.(customIds);
+                }
             } else {
                 if (!e.shiftKey) {
                     setSelectedElementIds([]);
@@ -1391,6 +1409,12 @@ export const useMathCanvas = (
                     }
                     return el;
                 });
+
+                const customIds = selectedElementIds.filter(id => !elementsRef.current.some(el => el.id === id));
+                if (customIds.length > 0) {
+                    onCustomSelectionMove?.(customIds, dx, dy, false);
+                }
+
                 setCanvasCursor('move');
             } else if (isMarqueeSelectingRef.current) {
                 hasDraggedRef.current = true;
@@ -1412,38 +1436,20 @@ export const useMathCanvas = (
                 }
 
                 // Just hovering - change cursor to 4-arrow move cursor if hovering inside selection box or over any element
-                let selectedBounds: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
-                if (selectedElementIds.length > 0) {
-                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                    let foundAny = false;
-                    for (const id of selectedElementIds) {
-                        const el = elementsRef.current.find(e => e.id === id);
-                        if (el) {
-                            const bounds = getElementBounds(el);
-                            if (bounds.minX < minX) minX = bounds.minX;
-                            if (bounds.minY < minY) minY = bounds.minY;
-                            if (bounds.maxX > maxX) maxX = bounds.maxX;
-                            if (bounds.maxY > maxY) maxY = bounds.maxY;
-                            foundAny = true;
-                        }
-                    }
-                    if (foundAny) {
-                        const pad = 6 / cameraRef.current.scale;
-                        selectedBounds = {
-                            minX: minX - pad,
-                            minY: minY - pad,
-                            maxX: maxX + pad,
-                            maxY: maxY + pad
-                        };
-                    }
-                }
+                const selectedBounds = getCombinedSelectedBounds(selectedElementIds, cameraRef.current.scale);
 
                 const hoverInSelectionBox = selectedBounds && 
                     worldPos.x >= selectedBounds.minX && worldPos.x <= selectedBounds.maxX &&
                     worldPos.y >= selectedBounds.minY && worldPos.y <= selectedBounds.maxY;
 
                 const hoveredEl = getElementAtPosition(worldPos.x, worldPos.y, elementsRef.current);
-                if (hoverInSelectionBox || hoveredEl) {
+                const customBounds = getCustomSelectableBounds ? getCustomSelectableBounds() : [];
+                const hoveredCustom = customBounds.find(c =>
+                    worldPos.x >= c.bounds.minX && worldPos.x <= c.bounds.maxX &&
+                    worldPos.y >= c.bounds.minY && worldPos.y <= c.bounds.maxY
+                );
+
+                if (hoverInSelectionBox || hoveredEl || hoveredCustom) {
                     setCanvasCursor('move');
                 } else {
                     setCanvasCursor('default');
@@ -1492,7 +1498,20 @@ export const useMathCanvas = (
             } else if (isDraggingSelectionRef.current) {
                 isDraggingSelectionRef.current = false;
                 if (hasDraggedRef.current) {
-                    // State already saved on first move
+                    const canvas = canvasRef.current;
+                    if (canvas) {
+                        const rect = canvas.getBoundingClientRect();
+                        const screenX = e.clientX - rect.left;
+                        const screenY = e.clientY - rect.top;
+                        const worldPos = getWordCoords(screenX, screenY);
+                        const dx = worldPos.x - startPosRef.current.x;
+                        const dy = worldPos.y - startPosRef.current.y;
+                        const customIds = selectedElementIds.filter(id => !elementsRef.current.some(el => el.id === id));
+                        if (customIds.length > 0) {
+                            onCustomSelectionMove?.(customIds, dx, dy, true);
+                        }
+                    }
+                    scheduleAutosave();
                 } else {
                     const canvas = canvasRef.current;
                     if (canvas) {
@@ -1536,6 +1555,39 @@ export const useMathCanvas = (
                     }
 
                     const newlySelected = getElementsInSelection(elementsRef.current, boundary, selectedSelectionShape);
+                    const customBounds = getCustomSelectableBounds ? getCustomSelectableBounds() : [];
+                    for (const custom of customBounds) {
+                        const center = {
+                            x: (custom.bounds.minX + custom.bounds.maxX) / 2,
+                            y: (custom.bounds.minY + custom.bounds.maxY) / 2
+                        };
+                        if (selectedSelectionShape === 'rectangle') {
+                            const b = boundary as { minX: number; maxX: number; minY: number; maxY: number };
+                            const intersects = !(
+                                custom.bounds.maxX < b.minX ||
+                                custom.bounds.minX > b.maxX ||
+                                custom.bounds.maxY < b.minY ||
+                                custom.bounds.minY > b.maxY
+                            );
+                            if (intersects) {
+                                newlySelected.push(custom.id);
+                            }
+                        } else if (selectedSelectionShape === 'lasso') {
+                            const polygon = boundary as { x: number; y: number }[];
+                            if (polygon.length >= 3) {
+                                const pointsToCheck = [
+                                    center,
+                                    { x: custom.bounds.minX, y: custom.bounds.minY },
+                                    { x: custom.bounds.maxX, y: custom.bounds.minY },
+                                    { x: custom.bounds.maxX, y: custom.bounds.maxY },
+                                    { x: custom.bounds.minX, y: custom.bounds.maxY },
+                                ];
+                                if (pointsToCheck.some(pt => isPointInPolygon(pt.x, pt.y, polygon))) {
+                                    newlySelected.push(custom.id);
+                                }
+                            }
+                        }
+                    }
                     setSelectedElementIds(newlySelected);
                 }
                 activeStrokePointsRef.current = [];
@@ -1696,47 +1748,29 @@ export const useMathCanvas = (
             }
 
             // Calculate consolidated bounding box of currently selected elements
-            let selectedBounds: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
-            if (selectedElementIds.length > 0) {
-                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                let foundAny = false;
-                for (const id of selectedElementIds) {
-                    const el = elementsRef.current.find(e => e.id === id);
-                    if (el) {
-                        const bounds = getElementBounds(el);
-                        if (bounds.minX < minX) minX = bounds.minX;
-                        if (bounds.minY < minY) minY = bounds.minY;
-                        if (bounds.maxX > maxX) maxX = bounds.maxX;
-                        if (bounds.maxY > maxY) maxY = bounds.maxY;
-                        foundAny = true;
-                    }
-                }
-                if (foundAny) {
-                    const pad = 6 / cameraRef.current.scale;
-                    selectedBounds = {
-                        minX: minX - pad,
-                        minY: minY - pad,
-                        maxX: maxX + pad,
-                        maxY: maxY + pad
-                    };
-                }
-            }
+            const selectedBounds = getCombinedSelectedBounds(selectedElementIds, cameraRef.current.scale);
 
             const clickInSelectionBox = selectedBounds && 
                 worldPos.x >= selectedBounds.minX && worldPos.x <= selectedBounds.maxX &&
                 worldPos.y >= selectedBounds.minY && worldPos.y <= selectedBounds.maxY;
 
             const clickedEl = getElementAtPosition(worldPos.x, worldPos.y, elementsRef.current);
+            const customBounds = getCustomSelectableBounds ? getCustomSelectableBounds() : [];
+            const clickedCustom = customBounds.find(c =>
+                worldPos.x >= c.bounds.minX && worldPos.x <= c.bounds.maxX &&
+                worldPos.y >= c.bounds.minY && worldPos.y <= c.bounds.maxY
+            );
 
-            if (clickInSelectionBox || clickedEl) {
+            if (clickInSelectionBox || clickedEl || clickedCustom) {
                 // If clicked an element that is NOT in the selection, and shift is not pressed, select only that element
                 let nextSelection = selectedElementIds;
-                if (clickedEl && !selectedElementIds.includes(clickedEl.id)) {
+                const targetId = clickedEl?.id || clickedCustom?.id;
+                if (targetId && !selectedElementIds.includes(targetId)) {
                     // Touch events do not have shiftKey natively on the touch event, check if supported or fallback
                     const hasShift = (e as any).shiftKey;
                     nextSelection = hasShift
-                        ? [...selectedElementIds, clickedEl.id]
-                        : [clickedEl.id];
+                        ? [...selectedElementIds, targetId]
+                        : [targetId];
                 }
 
                 setSelectedElementIds(nextSelection);
@@ -1749,6 +1783,11 @@ export const useMathCanvas = (
                         .filter(el => nextSelection.includes(el.id))
                         .map(el => [el.id, cloneCanvasElement(el)])
                 );
+
+                const customIds = nextSelection.filter(id => !elementsRef.current.some(el => el.id === id));
+                if (customIds.length > 0) {
+                    onCustomSelectionStart?.(customIds);
+                }
             } else {
                 const hasShift = (e as any).shiftKey;
                 if (!hasShift) {
@@ -1881,6 +1920,11 @@ export const useMathCanvas = (
                     }
                     return el;
                 });
+
+                const customIds = selectedElementIds.filter(id => !elementsRef.current.some(el => el.id === id));
+                if (customIds.length > 0) {
+                    onCustomSelectionMove?.(customIds, dx, dy, false);
+                }
             } else if (isMarqueeSelectingRef.current) {
                 hasDraggedRef.current = true;
                 if (selectedSelectionShape === 'lasso') {
@@ -1943,7 +1987,18 @@ export const useMathCanvas = (
             } else if (isDraggingSelectionRef.current) {
                 isDraggingSelectionRef.current = false;
                 if (hasDraggedRef.current) {
-                    // State already saved on first move
+                    const canvas = canvasRef.current;
+                    if (canvas) {
+                        const pos = getTouchPos(e);
+                        const worldPos = getWordCoords(pos.x, pos.y);
+                        const dx = worldPos.x - startPosRef.current.x;
+                        const dy = worldPos.y - startPosRef.current.y;
+                        const customIds = selectedElementIds.filter(id => !elementsRef.current.some(el => el.id === id));
+                        if (customIds.length > 0) {
+                            onCustomSelectionMove?.(customIds, dx, dy, true);
+                        }
+                    }
+                    scheduleAutosave();
                 } else {
                     const canvas = canvasRef.current;
                     if (canvas) {
@@ -1983,6 +2038,39 @@ export const useMathCanvas = (
                     }
 
                     const newlySelected = getElementsInSelection(elementsRef.current, boundary, selectedSelectionShape);
+                    const customBounds = getCustomSelectableBounds ? getCustomSelectableBounds() : [];
+                    for (const custom of customBounds) {
+                        const center = {
+                            x: (custom.bounds.minX + custom.bounds.maxX) / 2,
+                            y: (custom.bounds.minY + custom.bounds.maxY) / 2
+                        };
+                        if (selectedSelectionShape === 'rectangle') {
+                            const b = boundary as { minX: number; maxX: number; minY: number; maxY: number };
+                            const intersects = !(
+                                custom.bounds.maxX < b.minX ||
+                                custom.bounds.minX > b.maxX ||
+                                custom.bounds.maxY < b.minY ||
+                                custom.bounds.minY > b.maxY
+                            );
+                            if (intersects) {
+                                newlySelected.push(custom.id);
+                            }
+                        } else if (selectedSelectionShape === 'lasso') {
+                            const polygon = boundary as { x: number; y: number }[];
+                            if (polygon.length >= 3) {
+                                const pointsToCheck = [
+                                    center,
+                                    { x: custom.bounds.minX, y: custom.bounds.minY },
+                                    { x: custom.bounds.maxX, y: custom.bounds.minY },
+                                    { x: custom.bounds.maxX, y: custom.bounds.maxY },
+                                    { x: custom.bounds.minX, y: custom.bounds.maxY },
+                                ];
+                                if (pointsToCheck.some(pt => isPointInPolygon(pt.x, pt.y, polygon))) {
+                                    newlySelected.push(custom.id);
+                                }
+                            }
+                        }
+                    }
                     setSelectedElementIds(newlySelected);
                 }
                 activeStrokePointsRef.current = [];
@@ -2441,7 +2529,8 @@ export const useMathCanvas = (
 
             const currentState: HistoryState = {
                 elements: elementsRef.current.map(cloneCanvasElement),
-                bounds: { ...drawBoundsRef.current }
+                bounds: { ...drawBoundsRef.current },
+                customOffsets: getCustomOffsets ? { ...getCustomOffsets() } : undefined
             };
             redoStackRef.current.push(currentState);
             setCanRedo(true);
@@ -2449,6 +2538,9 @@ export const useMathCanvas = (
             const prevState = undoStackRef.current.pop()!;
             elementsRef.current = prevState.elements.map(cloneCanvasElement);
             drawBoundsRef.current = { ...prevState.bounds };
+            if (prevState.customOffsets && onRestoreCustomOffsets) {
+                onRestoreCustomOffsets(prevState.customOffsets);
+            }
             setIsCanvasEmpty(elementsRef.current.length === 0);
             setCanUndo(undoStackRef.current.length > 0);
             isCanvasDirtyRef.current = true;
@@ -2461,7 +2553,8 @@ export const useMathCanvas = (
 
             const currentState: HistoryState = {
                 elements: elementsRef.current.map(cloneCanvasElement),
-                bounds: { ...drawBoundsRef.current }
+                bounds: { ...drawBoundsRef.current },
+                customOffsets: getCustomOffsets ? { ...getCustomOffsets() } : undefined
             };
             undoStackRef.current.push(currentState);
             setCanUndo(true);
@@ -2469,6 +2562,9 @@ export const useMathCanvas = (
             const nextState = redoStackRef.current.pop()!;
             elementsRef.current = nextState.elements.map(cloneCanvasElement);
             drawBoundsRef.current = { ...nextState.bounds };
+            if (nextState.customOffsets && onRestoreCustomOffsets) {
+                onRestoreCustomOffsets(nextState.customOffsets);
+            }
             setIsCanvasEmpty(elementsRef.current.length === 0);
             setCanRedo(redoStackRef.current.length > 0);
             isCanvasDirtyRef.current = true;

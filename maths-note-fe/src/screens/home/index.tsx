@@ -128,6 +128,7 @@ export default function Home() {
     const resultsRef = useRef<GeneratedResult[]>([]);
     const setResultsCallbackRef = useRef<((r: GeneratedResult[]) => void) | null>(null);
     const loadedHistoryEntryIdRef = useRef<string | null>(null);
+    const latexPositionRef = useRef({ x: 10, y: 200 });
 
     const handleRestoreLiveCanvas = useCallback((data: any) => {
         if (data.dictOfVars && setDictOfVarsCallbackRef.current) {
@@ -159,6 +160,80 @@ export default function Home() {
         setSkeletonRegion({ bounds: selection.bounds });
         setSkeletonVisible(true);
         selectionSolveRef.current?.(selection);
+    }, []);
+
+    const cardOffsetsRef = useRef<Record<string, { x: number; y: number }>>({});
+    const dragStartCardOffsetsRef = useRef<Record<string, { x: number; y: number }>>({});
+    const cameraRef = useRef({ scale: 1, offsetX: 0, offsetY: 0 });
+    const scheduleAutosaveCallbackRef = useRef<(() => void) | null>(null);
+    const setCardOffsetsCallbackRef = useRef<React.Dispatch<React.SetStateAction<Record<string, { x: number; y: number }>>> | null>(null);
+
+    const getCustomSelectableBounds = useCallback(() => {
+        const currentResults = resultsRef.current || [];
+        const currentOffsets = cardOffsetsRef.current || {};
+        const cam = cameraRef.current;
+        const latPos = latexPositionRef.current;
+        return currentResults.map((res, index) => {
+            let worldX: number;
+            let worldY: number;
+            if (res.bounds) {
+                const worldAnchorX = res.bounds.maxX + 20;
+                const worldAnchorY = res.bounds.minY;
+                const offset = currentOffsets[res.id] || { x: 0, y: 0 };
+                worldX = worldAnchorX + offset.x;
+                worldY = worldAnchorY + offset.y;
+            } else {
+                const screenPos = { x: latPos.x, y: latPos.y + index * 120 };
+                worldX = (screenPos.x - cam.offsetX) / cam.scale;
+                worldY = (screenPos.y - cam.offsetY) / cam.scale;
+            }
+            return {
+                id: res.id,
+                bounds: {
+                    minX: worldX,
+                    minY: worldY,
+                    maxX: worldX + 450,
+                    maxY: worldY + 280
+                }
+            };
+        });
+    }, []);
+
+    const onCustomSelectionStart = useCallback((selectedIds: string[]) => {
+        for (const id of selectedIds) {
+            dragStartCardOffsetsRef.current[id] = cardOffsetsRef.current[id] || { x: 0, y: 0 };
+        }
+    }, []);
+
+    const onCustomSelectionMove = useCallback((selectedIds: string[], dx: number, dy: number, isFinal: boolean) => {
+        if (setCardOffsetsCallbackRef.current) {
+            setCardOffsetsCallbackRef.current(prev => {
+                const next = { ...prev };
+                for (const id of selectedIds) {
+                    const initial = dragStartCardOffsetsRef.current[id] || prev[id] || { x: 0, y: 0 };
+                    next[id] = {
+                        x: initial.x + dx,
+                        y: initial.y + dy
+                    };
+                }
+                cardOffsetsRef.current = next;
+                return next;
+            });
+        }
+        if (isFinal) {
+            scheduleAutosaveCallbackRef.current?.();
+        }
+    }, []);
+
+    const getCustomOffsets = useCallback(() => {
+        return cardOffsetsRef.current || {};
+    }, []);
+
+    const onRestoreCustomOffsets = useCallback((offsets: Record<string, { x: number; y: number }>) => {
+        if (setCardOffsetsCallbackRef.current) {
+            setCardOffsetsCallbackRef.current(offsets);
+            cardOffsetsRef.current = offsets;
+        }
     }, []);
 
     const {
@@ -220,7 +295,18 @@ export default function Home() {
         isCanvasDirtyRef,
         markCanvasClean,
         markCanvasDirty
-    } = useMathCanvas(handleSelectionSolve, handleRestoreLiveCanvas, getDictOfVars, getResults, getLoadedHistoryEntryId);
+    } = useMathCanvas(
+        handleSelectionSolve,
+        handleRestoreLiveCanvas,
+        getDictOfVars,
+        getResults,
+        getLoadedHistoryEntryId,
+        getCustomSelectableBounds,
+        onCustomSelectionMove,
+        onCustomSelectionStart,
+        getCustomOffsets,
+        onRestoreCustomOffsets
+    );
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -534,6 +620,29 @@ export default function Home() {
 
     const [cardOffsets, setCardOffsets] = useState<Record<string, { x: number; y: number }>>({});
 
+    useEffect(() => {
+        cameraRef.current = camera;
+    }, [camera]);
+
+    useEffect(() => {
+        scheduleAutosaveCallbackRef.current = scheduleAutosave;
+    }, [scheduleAutosave]);
+
+    useEffect(() => {
+        setCardOffsetsCallbackRef.current = setCardOffsets;
+        cardOffsetsRef.current = cardOffsets;
+    }, [cardOffsets]);
+
+    const handleSelectCard = useCallback((cardId: string, shiftKey: boolean) => {
+        if (activeTool !== 'select') return;
+        setSelectedElementIds(prev => {
+            if (shiftKey) {
+                return prev.includes(cardId) ? prev.filter(id => id !== cardId) : [...prev, cardId];
+            }
+            return [cardId];
+        });
+    }, [activeTool, setSelectedElementIds]);
+
     const lastResultsLengthRef = useRef(results.length);
     useEffect(() => {
         if (!isScanning) {
@@ -565,6 +674,10 @@ export default function Home() {
         }
     }, [isScanning, results]);
 
+    useEffect(() => {
+        latexPositionRef.current = latexPosition;
+    }, [latexPosition]);
+
     const getCardPosition = useCallback((result: any, index: number) => {
         if (result.bounds) {
             const worldAnchorX = result.bounds.maxX + 20;
@@ -576,7 +689,7 @@ export default function Home() {
             };
         }
         return { x: latexPosition.x, y: latexPosition.y + index * 120 };
-    }, [cardOffsets, camera.scale, camera.offsetX, camera.offsetY, latexPosition.x, latexPosition.y]);
+    }, [cardOffsets, camera.scale, camera.offsetX, camera.offsetY, latexPosition]);
 
     const handleCardPositionChange = useCallback((result: any, newScreenPos: { x: number; y: number }) => {
         if (result.bounds) {
@@ -1468,6 +1581,10 @@ export default function Home() {
                     onShare={handleShareResult}
                     zoomScale={camera.scale}
                     onUpdateResult={handleUpdateResult}
+                    isSelected={selectedElementIds.includes(result.id)}
+                    isSelectMode={activeTool === 'select'}
+                    onSelectCard={(shiftKey) => handleSelectCard(result.id, shiftKey)}
+                    onDragStart={saveState}
                 />
             ))}
 

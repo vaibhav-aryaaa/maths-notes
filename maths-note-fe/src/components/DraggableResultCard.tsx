@@ -44,6 +44,10 @@ interface DraggableResultCardProps {
     onShare?: (result: GeneratedResult) => void;
     zoomScale?: number;
     onUpdateResult?: (id: string, updates: Partial<GeneratedResult>) => void;
+    isSelected?: boolean;
+    isSelectMode?: boolean;
+    onSelectCard?: (shiftKey: boolean) => void;
+    onDragStart?: () => void;
 }
 
 export const DraggableResultCard = ({ 
@@ -53,7 +57,11 @@ export const DraggableResultCard = ({
     readOnly = false,
     onShare,
     zoomScale = 1,
-    onUpdateResult
+    onUpdateResult,
+    isSelected = false,
+    isSelectMode = false,
+    onSelectCard,
+    onDragStart
 }: DraggableResultCardProps) => {
     const [isDragging, setIsDragging] = useState(false);
     const [position, setPosition] = useState(defaultPosition);
@@ -140,6 +148,10 @@ export const DraggableResultCard = ({
         if (target.closest('button') || target.closest('[data-slot^="accordion"]')) {
             return;
         }
+        if (isSelectMode) {
+            onSelectCard?.(e.shiftKey);
+        }
+        onDragStart?.();
         setIsDragging(true);
         dragStart.current = { x: e.clientX, y: e.clientY };
         cardStart.current = defaultPosition;
@@ -154,6 +166,10 @@ export const DraggableResultCard = ({
         if (target.closest('button') || target.closest('[data-slot^="accordion"]')) {
             return;
         }
+        if (isSelectMode) {
+            onSelectCard?.((e as any).shiftKey);
+        }
+        onDragStart?.();
         const touch = e.touches[0];
         setIsDragging(true);
         dragStart.current = { x: touch.clientX, y: touch.clientY };
@@ -409,7 +425,9 @@ export const DraggableResultCard = ({
             tabIndex={0}
             onKeyDown={handleKeyDown}
             aria-label={`AI Result Card. Solution: ${summaryText}. Press arrow keys to move card around viewport.`}
-            className="absolute top-0 left-0 z-draggable-card glassmorphic-card p-4 rounded-xl shadow-2xl cursor-move select-none flex flex-col overflow-hidden animate-[fadeIn_0.5s_ease-out_forwards] focus-visible:outline-none"
+            className={`absolute top-0 left-0 z-draggable-card glassmorphic-card p-4 rounded-xl shadow-2xl cursor-move select-none flex flex-col overflow-hidden animate-[fadeIn_0.5s_ease-out_forwards] focus-visible:outline-none transition-shadow ${
+                isSelected ? 'ring-2 ring-blue-500 shadow-[0_0_24px_rgba(59,130,246,0.35)]' : ''
+            }`}
             style={{ 
                 transform: `translate3d(${finalPosition.x}px, ${finalPosition.y}px, 0) scale(${zoomScale})`,
                 transformOrigin: 'top left',
