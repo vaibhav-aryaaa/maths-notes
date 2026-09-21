@@ -298,3 +298,15 @@
 .sketch-circle:active {
   transform: scale(0.95) rotate(4deg);
 }
+
+/* High-Performance Smooth Theme Transitions (Hardware Accelerated) */
+html,
+body,
+#root {
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+.glassmorphic-card,
+.glassmorphic-panel {
+  transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, color 0.25s ease;
+}

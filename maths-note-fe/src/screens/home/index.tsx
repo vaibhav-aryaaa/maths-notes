@@ -88,6 +88,7 @@ const WIDTH_RANGES: Record<string, { min: number; max: number; default: number }
 
 export default function Home() {
     const { colorScheme, toggleColorScheme } = useMantineColorScheme();
+
     const [activeSolveRegion, setActiveSolveRegion] = useState<{
         bounds: { minX: number; minY: number; maxX: number; maxY: number };
         status: 'scanning' | 'solved';
@@ -1447,12 +1448,25 @@ export default function Home() {
                 {/* Theme Toggle Button */}
                 <Button
                     onClick={toggleColorScheme}
-                    className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg cursor-pointer"
+                    className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg cursor-pointer group"
                     variant="default"
                     title={colorScheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                     aria-label={colorScheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                 >
-                    {colorScheme === 'dark' ? <Sun size={14} className="text-stone-900 dark:text-stone-100" /> : <Moon size={14} className="text-stone-600" />}
+                    <div className="relative w-4 h-4 flex items-center justify-center">
+                        <Sun
+                            size={14}
+                            className={`absolute text-amber-500 dark:text-stone-100 transition-all duration-300 transform ${
+                                colorScheme === 'dark' ? 'rotate-0 scale-100 opacity-100' : 'rotate-90 scale-0 opacity-0'
+                            }`}
+                        />
+                        <Moon
+                            size={14}
+                            className={`absolute text-stone-600 dark:text-stone-300 transition-all duration-300 transform ${
+                                colorScheme === 'light' ? 'rotate-0 scale-100 opacity-100' : '-rotate-90 scale-0 opacity-0'
+                            }`}
+                        />
+                    </div>
                 </Button>
 
                 {/* Focus/Presentation Mode Button */}
@@ -1473,7 +1487,7 @@ export default function Home() {
             <canvas
                 ref={canvasRef}
                 id="canvas"
-                className={`absolute top-0 left-0 w-full h-full touch-none transition-all duration-300 ${
+                className={`absolute top-0 left-0 w-full h-full touch-none ${
                     colorScheme === 'light' ? 'invert-[0.93] hue-rotate-180' : ''
                 }`}
                 style={{ cursor: canvasCursor }}
