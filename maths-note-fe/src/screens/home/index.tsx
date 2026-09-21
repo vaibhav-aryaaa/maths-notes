@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { SWATCHES } from '@/constants';
 import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, FilePlus, Scissors, LassoSelect, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut, Grid, MousePointer, Type, Image as ImageIcon, Plus, Minus } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { ResultSkeleton } from '@/components/ResultSkeleton';
@@ -18,17 +17,10 @@ import { trackEvent } from '@/lib/analytics';
 import { HistorySidebar } from '@/components/HistorySidebar';
 import { AuthManager } from '@/components/AuthManager';
 import { CopilotPanel } from '@/components/CopilotPanel';
+import { GradientColorPicker } from '@/components/GradientColorPicker';
 import type { GeneratedResult, DictOfVars, ImageElement } from '@/types';
 
 import { EXAMPLE_PROBLEMS } from '@/data/exampleProblems';
-
-const HIGHLIGHTER_SWATCHES = [
-    '#FEF08A', // pastel yellow
-    '#BBF7D0', // pastel green
-    '#FBCFE8', // pastel pink
-    '#BFDBFE', // pastel blue
-    '#E9D5FF'  // pastel purple
-];
 
 const measureTextWidth = (text: string, fontSize: number): number => {
     if (typeof window === 'undefined') return 120;
@@ -537,14 +529,8 @@ export default function Home() {
         }
 
         if (activeTool === 'highlighter') {
-            if (!HIGHLIGHTER_SWATCHES.includes(color)) {
-                setSavedInkColor(color);
-            }
             setColor(savedHighlighterColor);
         } else if (['pen', 'fountain', 'marker', 'text'].includes(activeTool)) {
-            if (HIGHLIGHTER_SWATCHES.includes(color)) {
-                setSavedHighlighterColor(color);
-            }
             setColor(savedInkColor);
         }
 
@@ -553,6 +539,15 @@ export default function Home() {
 
         prevToolRef.current = activeTool;
     }, [activeTool]);
+
+    const handleColorChange = useCallback((newColor: string) => {
+        setColor(newColor);
+        if (activeTool === 'highlighter') {
+            setSavedHighlighterColor(newColor);
+        } else {
+            setSavedInkColor(newColor);
+        }
+    }, [activeTool, setColor]);
 
     const handleWidthChange = (val: number) => {
         setToolWidths(prev => ({ ...prev, [activeTool]: val }));
@@ -1270,24 +1265,13 @@ export default function Home() {
                                             </div>
                                         ) : (
                                             <>
-                                                {/* Color swatches inside popover for drawing tools */}
+                                                {/* Continuous Gradient Color Picker inside popover */}
                                                 {t.id !== 'eraser' && (
-                                                    <div className="flex items-center gap-1.5">
-                                                        {(t.id === 'highlighter' ? HIGHLIGHTER_SWATCHES : SWATCHES).map((swatch) => (
-                                                            <button
-                                                                key={swatch}
-                                                                onClick={() => setColor(swatch)}
-                                                                className={`cursor-pointer w-5 h-5 rounded-full border border-stone-200 dark:border-[#2d2d30] transition-all hover:scale-110 active:scale-90 ${
-                                                                    color === swatch 
-                                                                        ? 'ring-2 ring-stone-900 dark:ring-stone-100 ring-offset-2 ring-offset-white dark:ring-offset-[#1c1c1f] scale-110' 
-                                                                        : ''
-                                                                }`}
-                                                                style={{ backgroundColor: swatch }}
-                                                                title={swatch}
-                                                                aria-label={`Select brush color ${swatch}`}
-                                                            />
-                                                        ))}
-                                                    </div>
+                                                    <GradientColorPicker
+                                                        value={color}
+                                                        onChange={handleColorChange}
+                                                        lightnessRange={t.id === 'highlighter' ? [0.55, 0.90] : undefined}
+                                                    />
                                                 )}
 
                                                 {/* Width slider inside popover */}
