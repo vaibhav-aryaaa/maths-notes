@@ -40,25 +40,27 @@ class ShareCreateRequest(BaseModel):
 @router.post("", dependencies=[Depends(verify_app_key)])
 @limiter.limit("10/minute")
 async def create_share_endpoint(request: Request, body: ShareCreateRequest):
-    # Generate unique 8-character url-safe token ID
-    share_id = secrets.token_urlsafe(8)
-
-    # Rare collision check
-    while get_share(share_id) is not None:
+    try:
+        # Generate unique 8-character url-safe token ID
         share_id = secrets.token_urlsafe(8)
 
-    try:
+        # Rare collision check
+        try:
+            while get_share(share_id) is not None:
+                share_id = secrets.token_urlsafe(8)
+        except Exception as col_err:
+            logger.warning(f"Error checking share ID collision, proceeding: {col_err}")
+
         results_list = [item.model_dump() for item in body.data]
         create_share(share_id, body.image, results_list)
         logger.info(f"Created share link. ID: {share_id}")
-    except Exception:
-        logger.exception("Failed to write share entry to SQLite")
+        return {"share_id": share_id, "status": "success"}
+    except Exception as e:
+        logger.exception("Failed to write share entry to database")
         raise HTTPException(
             status_code=500,
-            detail="Failed to generate share link. Please try again."
+            detail=f"Failed to generate share link. {str(e)}"
         )
-
-    return {"share_id": share_id, "status": "success"}
 
 @router.get("/{share_id}")
 async def get_share_endpoint(share_id: str):

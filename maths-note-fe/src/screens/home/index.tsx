@@ -752,15 +752,19 @@ export default function Home() {
         try {
             const apiHost = import.meta.env.VITE_API_URL || 'http://localhost:5001';
             
+            const solutions = (result.solutions && result.solutions.length > 0)
+                ? result.solutions
+                : [{ expression: result.expr || '', answer: result.result !== undefined ? result.result : '', type: result.type || 'math' }];
+
             // Map solutions to CalculationResult format expected by backend
-            const payloadData = result.solutions.map((sol: any) => ({
-                expr: sol.expression,
-                result: sol.answer,
+            const payloadData = solutions.map((sol: any) => ({
+                expr: String(sol.expression || sol.expr || ''),
+                result: sol.answer !== undefined ? sol.answer : (sol.result !== undefined ? sol.result : ''),
                 type: sol.type || 'math',
-                thought_process: result.thought_process,
-                confidence_score: result.confidence_score,
-                latency: result.latency,
-                steps: result.steps
+                thought_process: result.thought_process || null,
+                confidence_score: typeof result.confidence_score === 'number' ? result.confidence_score : null,
+                latency: typeof result.latency === 'number' ? result.latency : null,
+                steps: Array.isArray(result.steps) ? result.steps : null
             }));
 
             const response = await axios({
