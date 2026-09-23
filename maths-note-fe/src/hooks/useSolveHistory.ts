@@ -16,33 +16,7 @@ export interface HistoryEntry {
     isDraft?: boolean;
 }
 
-const DB_NAME = 'SolveIQHistoryDB';
-const STORE_NAME = 'history';
-const LIVE_CANVAS_STORE = 'live_canvas';
-const DB_VERSION = 2;
-
-// Native IndexedDB Promise Wrapper
-function openDB(): Promise<IDBDatabase | null> {
-    return new Promise((resolve) => {
-        if (typeof window === 'undefined' || !window.indexedDB) {
-            resolve(null);
-            return;
-        }
-
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-        request.onupgradeneeded = () => {
-            const db = request.result;
-            if (!db.objectStoreNames.contains(STORE_NAME)) {
-                db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-            }
-            if (!db.objectStoreNames.contains(LIVE_CANVAS_STORE)) {
-                db.createObjectStore(LIVE_CANVAS_STORE);
-            }
-        };
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => resolve(null);
-    });
-}
+import { openDB, HISTORY_STORE as STORE_NAME } from '@/lib/liveCanvasPersistence';
 
 function getCanvasThumbnail(canvas: HTMLCanvasElement): string {
     const tempCanvas = document.createElement('canvas');

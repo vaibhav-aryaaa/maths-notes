@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Stroke, CanvasElement, ImageElement, DictOfVars, GeneratedResult } from '@/types';
 import { getStrokeOutline, getElementBounds, getElementCenter, drawElement, getStrokeBounds } from './canvasUtils';
 import { CANVAS_BACKGROUND_COLOR } from '@/constants';
-import { saveLiveCanvas, loadLiveCanvas, clearLiveCanvas, type LiveCanvasData } from '@/lib/liveCanvasPersistence';
+import { saveLiveCanvas, loadLiveCanvas, clearLiveCanvas, DEFAULT_CANVAS_ID, type LiveCanvasData } from '@/lib/liveCanvasPersistence';
 
 const generateUUID = () => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -195,7 +195,8 @@ export const useMathCanvas = (
     onCustomSelectionMove?: (selectedCustomIds: string[], dx: number, dy: number, isFinal: boolean) => void,
     onCustomSelectionStart?: (selectedCustomIds: string[]) => void,
     getCustomOffsets?: () => Record<string, { x: number; y: number }>,
-    onRestoreCustomOffsets?: (offsets: Record<string, { x: number; y: number }>) => void
+    onRestoreCustomOffsets?: (offsets: Record<string, { x: number; y: number }>) => void,
+    activeCanvasId: string = DEFAULT_CANVAS_ID
 ) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const masterCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -373,6 +374,11 @@ export const useMathCanvas = (
         isCanvasDirtyRef.current = false;
     }, []);
 
+    const activeCanvasIdRef = useRef(activeCanvasId);
+    useEffect(() => {
+        activeCanvasIdRef.current = activeCanvasId;
+    }, [activeCanvasId]);
+
     const markCanvasDirty = useCallback(() => {
         isCanvasDirtyRef.current = true;
     }, []);
@@ -390,7 +396,7 @@ export const useMathCanvas = (
         const results = getResults ? getResults() : undefined;
         const loadedHistoryEntryId = getLoadedHistoryEntryId ? getLoadedHistoryEntryId() : undefined;
 
-        await saveLiveCanvas({
+        await saveLiveCanvas(activeCanvasIdRef.current, {
             elements: currentElements,
             camera: currentCamera,
             dictOfVars,
@@ -909,10 +915,10 @@ export const useMathCanvas = (
         redrawViewCanvasRef.current = redrawViewCanvas;
     }, [redrawViewCanvas]);
 
-    // Restore live canvas from IndexedDB on mount (strictly once)
+    // Restore live canvas from IndexedDB on mount and when activeCanvasId changes
     useEffect(() => {
         let isMounted = true;
-        loadLiveCanvas().then((savedData) => {
+        loadLiveCanvas(activeCanvasId).then((savedData) => {
             if (!isMounted) return;
             if (savedData && (savedData.elements?.length > 0 || savedData.camera)) {
                 isFirstLayoutRef.current = false;
@@ -947,7 +953,7 @@ export const useMathCanvas = (
         return () => {
             isMounted = false;
         };
-    }, []);
+    }, [activeCanvasId]);
 
     // Autosave camera pan/zoom changes
     useEffect(() => {
@@ -1063,7 +1069,7 @@ export const useMathCanvas = (
             clearTimeout(autosaveTimerRef.current);
             autosaveTimerRef.current = null;
         }
-        clearLiveCanvas().catch(console.error);
+        clearLiveCanvas(activeCanvasIdRef.current).catch(console.error);
 
         isCanvasDirtyRef.current = false;
         elementsRef.current = [];

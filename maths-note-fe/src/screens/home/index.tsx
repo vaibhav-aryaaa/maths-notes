@@ -11,7 +11,7 @@ import { Modal, useMantineColorScheme, Slider, Popover, Menu as MantineMenu } fr
 import { notifications } from '@mantine/notifications';
 import axios from 'axios';
 
-import { clearLiveCanvas } from '@/lib/liveCanvasPersistence';
+import { clearLiveCanvas, DEFAULT_CANVAS_ID } from '@/lib/liveCanvasPersistence';
 import { useSolveHistory } from '@/hooks/useSolveHistory';
 import { trackEvent } from '@/lib/analytics';
 import { HistorySidebar } from '@/components/HistorySidebar';
@@ -229,6 +229,8 @@ export default function Home() {
         }
     }, []);
 
+    const [activeCanvasId, _setActiveCanvasId] = useState<string>(DEFAULT_CANVAS_ID);
+
     const {
         canvasRef,
         masterCanvasRef,
@@ -298,7 +300,8 @@ export default function Home() {
         onCustomSelectionMove,
         onCustomSelectionStart,
         getCustomOffsets,
-        onRestoreCustomOffsets
+        onRestoreCustomOffsets,
+        activeCanvasId
     );
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -987,7 +990,7 @@ export default function Home() {
         loadedHistoryEntryIdRef.current = null;
 
         // Clear persisted live canvas from IndexedDB
-        clearLiveCanvas().catch(console.error);
+        clearLiveCanvas(activeCanvasId).catch(console.error);
 
         // Reset canvas strokes, images, camera transform
         resetCanvas();
@@ -999,14 +1002,14 @@ export default function Home() {
         setSkeletonVisible(false);
         setSkeletonRegion(null);
         markCanvasClean();
-    }, [saveDraftHistoryEntry, saveState, resetCanvas, setResults, setDictOfVars, markCanvasClean]);
+    }, [activeCanvasId, saveDraftHistoryEntry, saveState, resetCanvas, setResults, setDictOfVars, markCanvasClean]);
 
     const handleDeleteHistoryEntry = useCallback((id: string) => {
         deleteHistoryItem(id);
         // If the item currently loaded on screen is what got deleted, reset the canvas
         if (loadedHistoryEntryIdRef.current === id) {
             loadedHistoryEntryIdRef.current = null;
-            clearLiveCanvas().catch(console.error);
+            clearLiveCanvas(activeCanvasId).catch(console.error);
             resetCanvas();
             setResults([]);
             setDictOfVars({});
@@ -1015,12 +1018,12 @@ export default function Home() {
             setSkeletonRegion(null);
             markCanvasClean();
         }
-    }, [deleteHistoryItem, resetCanvas, setResults, setDictOfVars, markCanvasClean]);
+    }, [activeCanvasId, deleteHistoryItem, resetCanvas, setResults, setDictOfVars, markCanvasClean]);
 
     const handleClearHistory = useCallback(() => {
         clearHistory();
         loadedHistoryEntryIdRef.current = null;
-        clearLiveCanvas().catch(console.error);
+        clearLiveCanvas(activeCanvasId).catch(console.error);
         resetCanvas();
         setResults([]);
         setDictOfVars({});
@@ -1028,7 +1031,7 @@ export default function Home() {
         setSkeletonVisible(false);
         setSkeletonRegion(null);
         markCanvasClean();
-    }, [clearHistory, resetCanvas, setResults, setDictOfVars, markCanvasClean]);
+    }, [activeCanvasId, clearHistory, resetCanvas, setResults, setDictOfVars, markCanvasClean]);
 
     const showExamples = isCanvasEmpty && results.length === 0 && !isFocusMode;
 
