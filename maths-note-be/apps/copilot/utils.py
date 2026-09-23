@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 client = Groq(api_key=GROQ_API_KEY)
 MODEL = "openai/gpt-oss-120b"
 
+
 def is_transient_groq_error(exception):
     if isinstance(exception, RateLimitError):
         return True
@@ -33,11 +34,12 @@ def is_transient_groq_error(exception):
             return True
     return False
 
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=8),
     retry=retry_if_exception(is_transient_groq_error),
-    reraise=True
+    reraise=True,
 )
 def _chat_completions_create_with_retry(messages):
     start_time = time.time()
@@ -51,14 +53,20 @@ def _chat_completions_create_with_retry(messages):
         return response
     except Exception as e:
         latency = round((time.time() - start_time) * 1000)
-        logger.warning("[Groq API Retry] Call failed. Latency: %dms. Error class: %s. Error detail: %s", latency, e.__class__.__name__, e)
+        logger.warning(
+            "[Groq API Retry] Call failed. Latency: %dms. Error class: %s. Error detail: %s",
+            latency,
+            e.__class__.__name__,
+            e,
+        )
         raise
+
 
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=8),
     retry=retry_if_exception(is_transient_groq_error),
-    reraise=True
+    reraise=True,
 )
 def _chat_completions_create_stream_with_retry(messages):
     start_time = time.time()
@@ -73,20 +81,26 @@ def _chat_completions_create_stream_with_retry(messages):
         return response
     except Exception as e:
         latency = round((time.time() - start_time) * 1000)
-        logger.warning("[Groq API Retry] Stream call failed. Latency: %dms. Error class: %s. Error detail: %s", latency, e.__class__.__name__, e)
+        logger.warning(
+            "[Groq API Retry] Stream call failed. Latency: %dms. Error class: %s. Error detail: %s",
+            latency,
+            e.__class__.__name__,
+            e,
+        )
         raise
+
+
 # In-memory session store with LRU eviction and TTL sweep
 _sessions: OrderedDict[str, dict] = OrderedDict()
+
 
 def _sweep_idle_sessions():
     now = time.time()
     ttl = 30 * 60  # 30 minutes in seconds
-    to_delete = [
-        sid for sid, session in _sessions.items()
-        if now - session["last_active"] > ttl
-    ]
+    to_delete = [sid for sid, session in _sessions.items() if now - session["last_active"] > ttl]
     for sid in to_delete:
         _sessions.pop(sid, None)
+
 
 def _get_or_create_session(session_id: str) -> list:
     _sweep_idle_sessions()
@@ -108,6 +122,7 @@ def _get_or_create_session(session_id: str) -> list:
     messages = []
     _sessions[session_id] = {"messages": messages, "last_active": now}
     return messages
+
 
 def _save_session(session_id: str, messages: list):
     if session_id in _sessions:

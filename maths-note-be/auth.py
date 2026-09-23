@@ -37,19 +37,15 @@ if SUPABASE_PROJECT_ID:
         headers["apikey"] = SUPABASE_ANON_KEY
     jwk_client = jwt.PyJWKClient(jwk_url, headers=headers)
 
+
 def verify_app_key(x_app_key: str | None = Header(None)):
     if not x_app_key or x_app_key != APP_SECRET:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing X-App-Key header"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing X-App-Key header")
+
 
 def get_current_user(authorization: str | None = Header(None)) -> str:
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing or invalid Authorization header"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid Authorization header")
 
     token = authorization.split(" ", 1)[1]
 
@@ -61,7 +57,7 @@ def get_current_user(authorization: str | None = Header(None)) -> str:
                 return "dev-user-uuid-12345"
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication failed: session verification client is unconfigured."
+            detail="Authentication failed: session verification client is unconfigured.",
         )
 
     try:
@@ -69,27 +65,15 @@ def get_current_user(authorization: str | None = Header(None)) -> str:
         signing_key = jwk_client.get_signing_key_from_jwt(token)
 
         # Decode and verify the token using the public key
-        payload = jwt.decode(
-            token,
-            signing_key.key,
-            algorithms=["RS256", "ES256"],
-            audience="authenticated"
-        )
+        payload = jwt.decode(token, signing_key.key, algorithms=["RS256", "ES256"], audience="authenticated")
         user_id = payload.get("sub")
         if not user_id:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token payload is missing subject claim"
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Token payload is missing subject claim"
             )
         return user_id
     except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication token has expired"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication token has expired")
     except jwt.InvalidTokenError:
         logger.exception("JWT validation failed")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token."
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication token.")

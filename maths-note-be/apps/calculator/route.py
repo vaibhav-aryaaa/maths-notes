@@ -21,47 +21,41 @@ logger = logging.getLogger(__name__)
 # In-memory query cache with LRU eviction and 10-minute TTL
 _result_cache: OrderedDict[str, dict] = OrderedDict()
 
-@router.post('', dependencies=[Depends(verify_app_key)])
+
+@router.post("", dependencies=[Depends(verify_app_key)])
 @limiter.limit("10/minute")
 async def run(request: Request, data: ImageData):
     # 1. Decode the incoming image
     try:
         raw = data.image
-        if ',' in raw:
-            raw = raw.split(',', 1)[1]
+        if "," in raw:
+            raw = raw.split(",", 1)[1]
         image_data = base64.b64decode(raw)
         image_bytes = BytesIO(image_data)
         image = Image.open(image_bytes)
     except Exception:
         logger.exception("Failed to decode base64 image data")
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid or malformed base64 image data"
-        )
+        raise HTTPException(status_code=400, detail="Invalid or malformed base64 image data")
 
     # Validate image dimensions
     if image.width < 10 or image.height < 10:
-        raise HTTPException(
-            status_code=400,
-            detail="Image is too small. Please provide a clearer drawing."
-        )
+        raise HTTPException(status_code=400, detail="Image is too small. Please provide a clearer drawing.")
     if image.width > 4000 or image.height > 4000:
-        raise HTTPException(
-            status_code=400,
-            detail="Image dimensions exceed maximum limit of 4000x4000px."
-        )
+        raise HTTPException(status_code=400, detail="Image dimensions exceed maximum limit of 4000x4000px.")
 
     # Validate image format
     if image.format not in ("PNG", "JPEG", "WEBP"):
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported image format: {image.format}. Allowed formats are PNG, JPEG, and WEBP."
+            detail=f"Unsupported image format: {image.format}. Allowed formats are PNG, JPEG, and WEBP.",
         )
 
-    logger.info("Processing image calculation request. Dimensions: %dx%d, Format: %s", image.width, image.height, image.format)
+    logger.info(
+        "Processing image calculation request. Dimensions: %dx%d, Format: %s", image.width, image.height, image.format
+    )
 
     # 2. Check cache first
-    vars_encoded = json.dumps(data.dict_of_vars, sort_keys=True).encode('utf-8')
+    vars_encoded = json.dumps(data.dict_of_vars, sort_keys=True).encode("utf-8")
     key_hash = hashlib.sha256(image_data + vars_encoded).hexdigest()
 
     now = time.time()
@@ -76,7 +70,7 @@ async def run(request: Request, data: ImageData):
             formatted_responses = []
             for resp in cached_responses:
                 item = copy.deepcopy(resp)
-                item['latency'] = 0
+                item["latency"] = 0
                 formatted_responses.append(item)
 
             logger.debug("response in route (cached hit): %s", formatted_responses)
@@ -84,7 +78,7 @@ async def run(request: Request, data: ImageData):
                 "message": "Image processed successfully",
                 "type": "success",
                 "data": formatted_responses,
-                "cached": True
+                "cached": True,
             }
         else:
             # Stale entry, evict it
@@ -99,88 +93,62 @@ async def run(request: Request, data: ImageData):
         logger.exception("Failed parsing AI JSON response")
         raise HTTPException(
             status_code=502,
-            detail="The AI provider returned a response that could not be parsed. Please try drawing more clearly or check for stray marks."
+            detail="The AI provider returned a response that could not be parsed. Please try drawing more clearly or check for stray marks.",
         )
     except Exception:
         logger.exception("Failed calling Gemini API")
-        raise HTTPException(
-            status_code=502,
-            detail="The AI provider failed to process this request. Please try again."
-        )
+        raise HTTPException(status_code=502, detail="The AI provider failed to process this request. Please try again.")
 
     latency = round((end_time - start_time) * 1000)
 
     # Save a deep copy in the cache
     while len(_result_cache) >= 1000:
         _result_cache.popitem(last=False)
-    _result_cache[key_hash] = {
-        "result": copy.deepcopy(responses),
-        "timestamp": now
-    }
+    _result_cache[key_hash] = {"result": copy.deepcopy(responses), "timestamp": now}
 
     formatted_responses = []
     for response in responses:
-        response['latency'] = latency
+        response["latency"] = latency
         formatted_responses.append(response)
 
-    logger.debug('response in route: %s', formatted_responses)
-    return {
-        "message": "Image processed successfully",
-        "type": "success",
-        "data": formatted_responses,
-        "cached": False
-    }
+    logger.debug("response in route: %s", formatted_responses)
+    return {"message": "Image processed successfully", "type": "success", "data": formatted_responses, "cached": False}
 
 
-@router.post('/explain', dependencies=[Depends(verify_app_key)], response_model=ExplainResponse)
+@router.post("/explain", dependencies=[Depends(verify_app_key)], response_model=ExplainResponse)
 @limiter.limit("10/minute")
 async def explain(request: Request, data: ExplainRequest):
     try:
         raw = data.image
-        if ',' in raw:
-            raw = raw.split(',', 1)[1]
+        if "," in raw:
+            raw = raw.split(",", 1)[1]
         image_data = base64.b64decode(raw)
         image_bytes = BytesIO(image_data)
         image = Image.open(image_bytes)
     except Exception:
         logger.exception("Failed to decode base64 image data")
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid or malformed base64 image data"
-        )
+        raise HTTPException(status_code=400, detail="Invalid or malformed base64 image data")
 
     # Validate image dimensions
     if image.width < 10 or image.height < 10:
-        raise HTTPException(
-            status_code=400,
-            detail="Image is too small. Please provide a clearer drawing."
-        )
+        raise HTTPException(status_code=400, detail="Image is too small. Please provide a clearer drawing.")
     if image.width > 4000 or image.height > 4000:
-        raise HTTPException(
-            status_code=400,
-            detail="Image dimensions exceed maximum limit of 4000x4000px."
-        )
+        raise HTTPException(status_code=400, detail="Image dimensions exceed maximum limit of 4000x4000px.")
 
     # Validate image format
     if image.format not in ("PNG", "JPEG", "WEBP"):
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported image format: {image.format}. Allowed formats are PNG, JPEG, and WEBP."
+            detail=f"Unsupported image format: {image.format}. Allowed formats are PNG, JPEG, and WEBP.",
         )
 
     try:
         from apps.calculator.utils import explain_result
+
         explanation = explain_result(
-            image,
-            dict_of_vars=data.dict_of_vars,
-            expr=data.expr,
-            result=data.result,
-            type=data.type
+            image, dict_of_vars=data.dict_of_vars, expr=data.expr, result=data.result, type=data.type
         )
         return explanation
     except Exception:
         logger.exception("Failed to generate explanation")
-        raise HTTPException(
-            status_code=502,
-            detail="Failed to generate explanation from AI provider."
-        )
+        raise HTTPException(status_code=502, detail="Failed to generate explanation from AI provider.")

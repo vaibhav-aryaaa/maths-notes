@@ -16,6 +16,7 @@ from constants import GEMINI_API_KEY, GEMINI_MODEL_EXPLAIN, GEMINI_MODEL_FAST
 client = genai.Client(api_key=GEMINI_API_KEY)
 logger = logging.getLogger(__name__)
 
+
 def is_transient_gemini_error(exception):
     if isinstance(exception, ServerError):
         return True
@@ -23,11 +24,12 @@ def is_transient_gemini_error(exception):
         return True
     return bool(isinstance(exception, (httpx.HTTPError, ConnectionError, TimeoutError)))
 
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=8),
     retry=retry_if_exception(is_transient_gemini_error),
-    reraise=True
+    reraise=True,
 )
 def _generate_content_with_retry(prompt, img, model: str):
     start_time = time.time()
@@ -42,13 +44,20 @@ def _generate_content_with_retry(prompt, img, model: str):
         return res
     except Exception as e:
         latency = round((time.time() - start_time) * 1000)
-        logger.warning("[Gemini API Retry] Call failed. Latency: %dms. Error class: %s. Error detail: %s", latency, e.__class__.__name__, e)
+        logger.warning(
+            "[Gemini API Retry] Call failed. Latency: %dms. Error class: %s. Error detail: %s",
+            latency,
+            e.__class__.__name__,
+            e,
+        )
         raise
+
 
 class AIParsingError(Exception):
     def __init__(self, message, raw_response):
         super().__init__(message)
         self.raw_response = raw_response
+
 
 def analyze_image(img: Image, dict_of_vars: dict, is_retry: bool = False):
     dict_of_vars_str = json.dumps(dict_of_vars, ensure_ascii=False)
@@ -86,7 +95,7 @@ def analyze_image(img: Image, dict_of_vars: dict, is_retry: bool = False):
     try:
         answers = json.loads(response.text)
     except Exception as e:
-        logger.warning("Error in parsing response on attempt %s: %s", '2' if is_retry else '1', e)
+        logger.warning("Error in parsing response on attempt %s: %s", "2" if is_retry else "1", e)
         if not is_retry:
             logger.info("[AIParsingError] First attempt failed. Retrying with explicit JSON guidelines...")
             return analyze_image(img, dict_of_vars, is_retry=True)
@@ -96,22 +105,24 @@ def analyze_image(img: Image, dict_of_vars: dict, is_retry: bool = False):
             logger.error(
                 "AIParsingError Debug Context - Timestamp: %s, Prompt: v1.0 (PEMDAS-JSON-Rules), Raw Response: %s",
                 timestamp,
-                response.text
+                response.text,
             )
             raise AIParsingError("The AI provider returned a response that could not be parsed as JSON.", response.text)
 
-    logger.debug('returned answer: %s', answers)
+    logger.debug("returned answer: %s", answers)
     for answer in answers:
-        if 'assign' in answer:
-            answer['assign'] = True
+        if "assign" in answer:
+            answer["assign"] = True
         else:
-            answer['assign'] = False
-        answer['thought_process'] = None
-        answer['steps'] = None
+            answer["assign"] = False
+        answer["thought_process"] = None
+        answer["steps"] = None
     return answers
 
 
-def explain_result(img: Image, dict_of_vars: dict, expr: str, result: Any, type: str | None = None, is_retry: bool = False):
+def explain_result(
+    img: Image, dict_of_vars: dict, expr: str, result: Any, type: str | None = None, is_retry: bool = False
+):
     dict_of_vars_str = json.dumps(dict_of_vars, ensure_ascii=False)
     prompt = (
         f"You are given an image with mathematical expressions, equations, graphical problems, or abstract concepts, "
@@ -130,7 +141,7 @@ def explain_result(img: Image, dict_of_vars: dict, expr: str, result: Any, type:
         f"DO NOT USE BACKTICKS OR MARKDOWN FORMATTING.\n"
         f"RETURN ONLY THE JSON OBJECT."
     )
-    if type == 'text':
+    if type == "text":
         prompt += (
             "\n\nCRITICAL: The problem classification is 'text' (non-mathematical/abstract). "
             "Therefore, you MUST return 'steps' as null and rely on 'thought_process' alone."
@@ -151,9 +162,9 @@ def explain_result(img: Image, dict_of_vars: dict, expr: str, result: Any, type:
             raise AIParsingError("The AI provider returned a response that could not be parsed as JSON.", response.text)
 
     # Ensure keys exist
-    if 'thought_process' not in explanation:
-        explanation['thought_process'] = f"The expression {expr} was calculated to be {result}."
-    if 'steps' not in explanation:
-        explanation['steps'] = None
+    if "thought_process" not in explanation:
+        explanation["thought_process"] = f"The expression {expr} was calculated to be {result}."
+    if "steps" not in explanation:
+        explanation["steps"] = None
 
     return explanation

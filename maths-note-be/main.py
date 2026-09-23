@@ -12,9 +12,7 @@ if SENTRY_DSN and ENV in ("prod", "production"):
 
 log_level = logging.DEBUG if ENV == "dev" else logging.INFO
 logging.basicConfig(
-    level=log_level,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
+    level=log_level, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
 )
 
 from contextlib import asynccontextmanager
@@ -29,6 +27,7 @@ from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from apps.calculator.route import router as calculator_router
+from apps.canvases.route import canvases_router, folders_router
 from apps.copilot.route import router as copilot_router
 from apps.history.route import router as history_router
 from apps.share.route import router as share_router
@@ -42,21 +41,20 @@ class LimitUploadSizeMiddleware(BaseHTTPMiddleware):
         self.max_upload_size = max_upload_size
 
     async def dispatch(self, request: Request, call_next):
-        content_length = request.headers.get('content-length')
+        content_length = request.headers.get("content-length")
         if content_length:
             try:
                 if int(content_length) > self.max_upload_size:
-                    return JSONResponse(
-                        status_code=413,
-                        content={"detail": "Payload Too Large"}
-                    )
+                    return JSONResponse(status_code=413, content={"detail": "Payload Too Large"})
             except ValueError:
                 pass
         return await call_next(request)
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from db import cleanup_expired_shares, init_db
+
     try:
         init_db()
         deleted = cleanup_expired_shares()
@@ -65,9 +63,11 @@ async def lifespan(app: FastAPI):
         logging.getLogger("main").error(f"Lifespan startup database task failed: {e}")
     yield
 
+
 app = FastAPI(lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -75,30 +75,23 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     for err in exc.errors():
         loc = [str(x) for x in err.get("loc", []) if x != "body"]
         field_name = loc[-1] if loc else "request body"
-        errors.append({
-            "field": field_name,
-            "message": err.get("msg", "Invalid value"),
-            "type": err.get("type", "value_error")
-        })
-    return JSONResponse(
-        status_code=422,
-        content={
-            "detail": "Request validation failed",
-            "errors": errors
-        }
-    )
+        errors.append(
+            {"field": field_name, "message": err.get("msg", "Invalid value"), "type": err.get("type", "value_error")}
+        )
+    return JSONResponse(status_code=422, content={"detail": "Request validation failed", "errors": errors})
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     import traceback
+
     logging.getLogger("main").error(f"Unhandled exception: {exc}\n{traceback.format_exc()}")
 
     # Capture exception to Sentry explicitly
     sentry_sdk.capture_exception(exc)
 
     response = JSONResponse(
-        status_code=500,
-        content={"detail": "An internal server error occurred.", "error": "Internal Server Error"}
+        status_code=500, content={"detail": "An internal server error occurred.", "error": "Internal Server Error"}
     )
     # Ensure CORS is attached even on 500 crashes
     origin = request.headers.get("origin")
@@ -107,6 +100,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         response.headers["Access-Control-Allow-Methods"] = "*"
         response.headers["Access-Control-Allow-Headers"] = "*"
     return response
+
 
 app.add_middleware(LimitUploadSizeMiddleware, max_upload_size=8 * 1024 * 1024)
 
@@ -121,8 +115,8 @@ app.add_middleware(
 )
 
 
-@app.get('/')
-@app.head('/')
+@app.get("/")
+@app.head("/")
 async def root():
     return {"message": "Server is running"}
 
@@ -131,6 +125,8 @@ app.include_router(calculator_router, prefix="/calculate", tags=["calculate"])
 app.include_router(copilot_router, prefix="/copilot", tags=["copilot"])
 app.include_router(share_router, prefix="/share", tags=["share"])
 app.include_router(history_router, prefix="/history", tags=["history"])
+app.include_router(folders_router, prefix="/folders", tags=["folders"])
+app.include_router(canvases_router, prefix="/canvases", tags=["canvases"])
 
 
 if __name__ == "__main__":

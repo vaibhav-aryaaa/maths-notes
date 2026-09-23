@@ -17,10 +17,12 @@ from main import app
 
 client = TestClient(app)
 
+
 def test_root_endpoint():
     response = client.get("/")
     assert response.status_code == 200
     assert response.json() == {"message": "Server is running"}
+
 
 @patch("apps.calculator.route.analyze_image")
 def test_calculate_endpoint(mock_analyze):
@@ -32,7 +34,7 @@ def test_calculate_endpoint(mock_analyze):
             "type": "math",
             "thought_process": "Basic addition",
             "confidence_score": 100,
-            "steps": None
+            "steps": None,
         }
     ]
 
@@ -40,23 +42,21 @@ def test_calculate_endpoint(mock_analyze):
     from io import BytesIO
 
     from PIL import Image
+
     img = Image.new("RGBA", (10, 10), (0, 0, 0, 0))
     buffered = BytesIO()
     img.save(buffered, format="PNG")
     fake_image_b64 = "data:image/png;base64," + base64.b64encode(buffered.getvalue()).decode()
 
     headers = {"X-App-Key": "test-secret"}
-    response = client.post(
-        "/calculate",
-        json={"image": fake_image_b64, "dict_of_vars": {}},
-        headers=headers
-    )
+    response = client.post("/calculate", json={"image": fake_image_b64, "dict_of_vars": {}}, headers=headers)
 
     assert response.status_code == 200
     res_data = response.json()
     assert res_data["type"] == "success"
     assert res_data["data"][0]["result"] == "4"
     mock_analyze.assert_called_once()
+
 
 @patch("apps.copilot.route.chat_with_copilot_stream")
 def test_copilot_chat_endpoint(mock_chat_stream):
@@ -75,9 +75,9 @@ def test_copilot_chat_endpoint(mock_chat_stream):
             "message": "Hello copilot",
             "canvas_image": "fake-b64-str",
             "dict_of_vars": {},
-            "results": []
+            "results": [],
         },
-        headers=headers
+        headers=headers,
     )
 
     assert response.status_code == 200
@@ -86,15 +86,13 @@ def test_copilot_chat_endpoint(mock_chat_stream):
 
 @patch("apps.calculator.utils.explain_result")
 def test_explain_endpoint(mock_explain):
-    mock_explain.return_value = {
-        "thought_process": "Meme explanation text.",
-        "steps": None
-    }
+    mock_explain.return_value = {"thought_process": "Meme explanation text.", "steps": None}
 
     import base64
     from io import BytesIO
 
     from PIL import Image
+
     img = Image.new("RGBA", (10, 10), (0, 0, 0, 0))
     buffered = BytesIO()
     img.save(buffered, format="PNG")
@@ -108,9 +106,9 @@ def test_explain_endpoint(mock_explain):
             "dict_of_vars": {},
             "expr": "some expression",
             "result": "some result",
-            "type": "text"
+            "type": "text",
         },
-        headers=headers
+        headers=headers,
     )
 
     assert response.status_code == 200
@@ -118,9 +116,9 @@ def test_explain_endpoint(mock_explain):
     assert res_data["thought_process"] == "Meme explanation text."
     assert res_data["steps"] is None
     mock_explain.assert_called_once_with(
-        mock_explain.call_args[0][0], # PIL Image object
+        mock_explain.call_args[0][0],  # PIL Image object
         dict_of_vars={},
         expr="some expression",
         result="some result",
-        type="text"
+        type="text",
     )
