@@ -9,6 +9,7 @@ import Home from '@/screens/home';
 import Landing from '@/screens/landing';
 import ShareView from '@/screens/share';
 import ResetPassword from '@/screens/reset-password/ResetPassword';
+import LibraryScreen from '@/screens/library';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
@@ -59,6 +60,9 @@ const App = () => {
                 <BrowserRouter>
                     <Routes>
                         <Route path="/" element={<ErrorBoundary name="Home Screen"><AppContent /></ErrorBoundary>} />
+                        <Route path="/canvas/:id" element={<ErrorBoundary name="Canvas Screen"><Home /></ErrorBoundary>} />
+                        <Route path="/library" element={<ErrorBoundary name="Library Screen"><LibraryScreen /></ErrorBoundary>} />
+                        <Route path="/library/folder/:folderId" element={<ErrorBoundary name="Library Folder Screen"><LibraryScreen /></ErrorBoundary>} />
                         <Route path="/share/:shareId" element={<ErrorBoundary name="Share View"><ShareView /></ErrorBoundary>} />
                         <Route path="/reset-password" element={<ErrorBoundary name="Reset Password"><ResetPassword /></ErrorBoundary>} />
                     </Routes>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, FilePlus, Scissors, LassoSelect, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut, Grid, MousePointer, Type, Image as ImageIcon, Plus, Minus } from 'lucide-react';
+import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, FilePlus, Scissors, LassoSelect, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut, Grid, MousePointer, Type, Image as ImageIcon, Plus, Minus, BookOpen } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { ResultSkeleton } from '@/components/ResultSkeleton';
 import { useMathCanvas } from './useMathCanvas';
@@ -12,6 +13,7 @@ import { notifications } from '@mantine/notifications';
 import axios from 'axios';
 
 import { clearLiveCanvas, DEFAULT_CANVAS_ID } from '@/lib/liveCanvasPersistence';
+import { fetchCanvasDetail, updateCanvas } from '@/lib/canvasesApi';
 import { useSolveHistory } from '@/hooks/useSolveHistory';
 import { trackEvent } from '@/lib/analytics';
 import { HistorySidebar } from '@/components/HistorySidebar';
@@ -229,7 +231,12 @@ export default function Home() {
         }
     }, []);
 
-    const [activeCanvasId, _setActiveCanvasId] = useState<string>(DEFAULT_CANVAS_ID);
+    const { id: routeCanvasId } = useParams<{ id?: string }>();
+    const navigate = useNavigate();
+    const activeCanvasId = routeCanvasId || DEFAULT_CANVAS_ID;
+    const [canvasTitle, setCanvasTitle] = useState<string>('Notebook');
+    const [isEditingTitle, setIsEditingTitle] = useState(false);
+    const [tempTitle, setTempTitle] = useState('');
 
     const {
         canvasRef,
@@ -577,6 +584,39 @@ export default function Home() {
         getHistoryEntryImage,
         user
     } = useSolveHistory();
+
+    useEffect(() => {
+        let isMounted = true;
+        if (routeCanvasId && user) {
+            fetchCanvasDetail(routeCanvasId).then(detail => {
+                if (isMounted && detail?.name) {
+                    setCanvasTitle(detail.name);
+                }
+            }).catch(console.error);
+        } else {
+            Promise.resolve().then(() => {
+                if (isMounted) {
+                    setCanvasTitle('Notebook');
+                }
+            });
+        }
+        return () => {
+            isMounted = false;
+        };
+    }, [routeCanvasId, user]);
+
+    const handleSaveTitle = async () => {
+        if (!tempTitle.trim()) {
+            setIsEditingTitle(false);
+            return;
+        }
+        const newTitle = tempTitle.trim();
+        setCanvasTitle(newTitle);
+        setIsEditingTitle(false);
+        if (routeCanvasId && user) {
+            updateCanvas(routeCanvasId, { name: newTitle }).catch(console.error);
+        }
+    };
 
     const {
         dictOfVars,
@@ -1142,8 +1182,8 @@ export default function Home() {
                 <AuthManager user={user} clearHistory={clearHistory} isFocusMode={isFocusMode} />
             </div>
 
-            {/* Sidebar Toggle & Standalone Logo Button (Top-Left) */}
-            <div className={`absolute z-controls top-[calc(1.25rem+env(safe-area-inset-top))] left-[calc(1.25rem+env(safe-area-inset-left))] flex items-center gap-3 pointer-events-auto transition-opacity duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            {/* Sidebar Toggle, Logo & Library Navigation (Top-Left) */}
+            <div className={`absolute z-controls top-[calc(1.25rem+env(safe-area-inset-top))] left-[calc(1.25rem+env(safe-area-inset-left))] flex items-center gap-2 pointer-events-auto transition-opacity duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                 <Button
                     onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                     className={`bg-white dark:bg-[#1e1e1e] hover:bg-slate-50 dark:hover:bg-[#2e2e2e] text-stone-700 dark:text-white border border-stone-200 dark:border-[#333] transition-all shadow-lg p-2.5 h-10 w-10 rounded-lg flex items-center justify-center ${isSidebarOpen ? 'bg-slate-100 dark:bg-[#333] border-stone-300 dark:border-white/20' : ''}`}
@@ -1154,13 +1194,58 @@ export default function Home() {
                     {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
                 </Button>
 
-                {/* Standalone Logo when Sidebar is closed */}
+                {/* Standalone Logo & Title when Sidebar is closed */}
                 {!isSidebarOpen && (
                     <div className="flex items-center gap-2 bg-white/90 dark:bg-black/80 backdrop-blur-md px-3.5 h-10 border border-stone-200 dark:border-[#333] rounded-xl shadow-lg animate-in fade-in slide-in-from-left-4 duration-300">
-                        <span className="text-sm font-extrabold tracking-tight font-sans select-none">
+                        <span 
+                            onClick={() => user ? navigate('/library') : undefined}
+                            className={`text-sm font-extrabold tracking-tight font-sans select-none ${user ? 'cursor-pointer hover:opacity-80' : ''}`}
+                        >
                             solve<span className="text-stone-900 dark:text-white">IQ</span>
                         </span>
+                        {routeCanvasId && (
+                            <>
+                                <span className="text-stone-300 dark:text-stone-700 select-none">/</span>
+                                {isEditingTitle ? (
+                                    <input
+                                        type="text"
+                                        value={tempTitle}
+                                        onChange={(e) => setTempTitle(e.target.value)}
+                                        onBlur={handleSaveTitle}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleSaveTitle();
+                                            if (e.key === 'Escape') setIsEditingTitle(false);
+                                        }}
+                                        autoFocus
+                                        className="bg-transparent text-xs font-bold text-stone-900 dark:text-white border-b border-teal-500 outline-none w-28 px-1 font-sans"
+                                    />
+                                ) : (
+                                    <span 
+                                        onClick={() => {
+                                            setTempTitle(canvasTitle);
+                                            setIsEditingTitle(true);
+                                        }}
+                                        className="text-xs font-semibold text-stone-600 dark:text-stone-300 hover:text-teal-600 dark:hover:text-teal-400 cursor-pointer max-w-[140px] truncate select-none font-sans"
+                                        title="Click to rename notebook"
+                                    >
+                                        {canvasTitle}
+                                    </span>
+                                )}
+                            </>
+                        )}
                     </div>
+                )}
+
+                {user && (
+                    <Button
+                        onClick={() => navigate('/library')}
+                        className="bg-white/90 dark:bg-black/80 hover:bg-slate-50 dark:hover:bg-[#1e1e1e] text-stone-700 dark:text-stone-300 hover:text-teal-600 dark:hover:text-teal-400 border border-stone-200 dark:border-[#333] transition-all shadow-lg px-3 h-10 rounded-xl flex items-center gap-1.5 font-bold text-xs cursor-pointer"
+                        variant="default"
+                        title="Open Library"
+                    >
+                        <BookOpen size={15} />
+                        <span className="hidden sm:inline">Library</span>
+                    </Button>
                 )}
             </div>
 

@@ -679,3 +679,127 @@ def delete_canvas(user_id: str, canvas_id: str) -> bool:
         return True
     finally:
         conn.close()
+
+
+def get_user_trash(user_id: str) -> dict[str, list[dict]]:
+    conn, p = get_connection()
+    try:
+        cursor = conn.cursor()
+        # Fetch soft-deleted folders
+        cursor.execute(
+            f"""SELECT id, user_id, name, created_at, updated_at, deleted_at
+                FROM folders
+                WHERE user_id = {p} AND deleted_at IS NOT NULL
+                ORDER BY deleted_at DESC""",
+            (user_id,),
+        )
+        folder_rows = cursor.fetchall()
+        folders = [
+            {
+                "id": r[0],
+                "user_id": r[1],
+                "name": r[2],
+                "created_at": _format_datetime(r[3]),
+                "updated_at": _format_datetime(r[4]),
+                "deleted_at": _format_datetime(r[5]),
+            }
+            for r in folder_rows
+        ]
+
+        # Fetch soft-deleted canvases
+        cursor.execute(
+            f"""SELECT id, user_id, folder_id, name, thumbnail, created_at, updated_at, deleted_at
+                FROM canvases
+                WHERE user_id = {p} AND deleted_at IS NOT NULL
+                ORDER BY deleted_at DESC""",
+            (user_id,),
+        )
+        canvas_rows = cursor.fetchall()
+        canvases = [
+            {
+                "id": r[0],
+                "user_id": r[1],
+                "folder_id": r[2],
+                "name": r[3],
+                "thumbnail": r[4],
+                "created_at": _format_datetime(r[5]),
+                "updated_at": _format_datetime(r[6]),
+                "deleted_at": _format_datetime(r[7]),
+            }
+            for r in canvas_rows
+        ]
+
+        return {"folders": folders, "canvases": canvases}
+    finally:
+        conn.close()
+
+
+def restore_canvas(user_id: str, canvas_id: str) -> bool:
+    now = datetime.now(UTC).isoformat()
+    conn, p = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"""UPDATE canvases
+                SET deleted_at = NULL, updated_at = {p}
+                WHERE user_id = {p} AND id = {p} AND deleted_at IS NOT NULL""",
+            (now, user_id, canvas_id),
+        )
+        if cursor.rowcount == 0:
+            return False
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def restore_folder(user_id: str, folder_id: str) -> bool:
+    now = datetime.now(UTC).isoformat()
+    conn, p = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"""UPDATE folders
+                SET deleted_at = NULL, updated_at = {p}
+                WHERE user_id = {p} AND id = {p} AND deleted_at IS NOT NULL""",
+            (now, user_id, folder_id),
+        )
+        if cursor.rowcount == 0:
+            return False
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def permanently_delete_canvas(user_id: str, canvas_id: str) -> bool:
+    conn, p = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"DELETE FROM canvases WHERE user_id = {p} AND id = {p}",
+            (user_id, canvas_id),
+        )
+        if cursor.rowcount == 0:
+            return False
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def permanently_delete_folder(user_id: str, folder_id: str) -> bool:
+    conn, p = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"DELETE FROM folders WHERE user_id = {p} AND id = {p}",
+            (user_id, folder_id),
+        )
+        if cursor.rowcount == 0:
+            return False
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+

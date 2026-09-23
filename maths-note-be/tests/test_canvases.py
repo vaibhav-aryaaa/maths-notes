@@ -202,3 +202,53 @@ def test_security_auth_and_invalid_folder():
         "/canvases", json={"name": "Test", "folder_id": "00000000-0000-0000-0000-000000000000"}, headers=AUTH_HEADERS
     )
     assert invalid_res.status_code == 404
+
+
+def test_trash_and_restore_flow():
+    global current_test_user
+    current_test_user = "user-frank"
+
+    # 1. Create Folder and Canvas
+    f_res = client.post("/folders", json={"name": "Trash Test Folder"}, headers=AUTH_HEADERS)
+    folder_id = f_res.json()["id"]
+
+    c_res = client.post(
+        "/canvases", json={"name": "Trash Test Canvas", "folder_id": folder_id, "elements": []}, headers=AUTH_HEADERS
+    )
+    canvas_id = c_res.json()["id"]
+
+    # 2. Delete both
+    assert client.delete(f"/canvases/{canvas_id}", headers=AUTH_HEADERS).status_code == 200
+    assert client.delete(f"/folders/{folder_id}", headers=AUTH_HEADERS).status_code == 200
+
+    # 3. Check Trash listing
+    trash_res = client.get("/canvases/trash", headers=AUTH_HEADERS)
+    assert trash_res.status_code == 200
+    trash_data = trash_res.json()
+    assert any(c["id"] == canvas_id for c in trash_data["canvases"])
+    assert any(f["id"] == folder_id for f in trash_data["folders"])
+
+    # 4. Restore Canvas
+    restore_c = client.post(f"/canvases/{canvas_id}/restore", headers=AUTH_HEADERS)
+    assert restore_c.status_code == 200
+    assert client.get(f"/canvases/{canvas_id}", headers=AUTH_HEADERS).status_code == 200
+
+    # 5. Restore Folder
+    restore_f = client.post(f"/folders/{folder_id}/restore", headers=AUTH_HEADERS)
+    assert restore_f.status_code == 200
+    assert any(f["id"] == folder_id for f in client.get("/folders", headers=AUTH_HEADERS).json())
+
+    # 6. Delete again and permanently purge
+    client.delete(f"/canvases/{canvas_id}", headers=AUTH_HEADERS)
+    client.delete(f"/folders/{folder_id}", headers=AUTH_HEADERS)
+
+    perm_c = client.delete(f"/canvases/{canvas_id}/permanent", headers=AUTH_HEADERS)
+    assert perm_c.status_code == 200
+    perm_f = client.delete(f"/folders/{folder_id}/permanent", headers=AUTH_HEADERS)
+    assert perm_f.status_code == 200
+
+    # Verify not even in trash
+    empty_trash = client.get("/canvases/trash", headers=AUTH_HEADERS).json()
+    assert all(c["id"] != canvas_id for c in empty_trash["canvases"])
+    assert all(f["id"] != folder_id for f in empty_trash["folders"])
+

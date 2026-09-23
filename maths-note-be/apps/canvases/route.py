@@ -12,6 +12,11 @@ from db import (
     get_canvas_detail,
     get_user_canvases_metadata,
     get_user_folders,
+    get_user_trash,
+    permanently_delete_canvas,
+    permanently_delete_folder,
+    restore_canvas,
+    restore_folder,
     update_canvas,
     update_folder,
 )
@@ -91,9 +96,50 @@ async def delete_folder_endpoint(request: Request, folder_id: str, user_id: str 
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to delete folder.")
 
 
+@folders_router.post("/{folder_id}/restore", response_model=dict[str, Any])
+@limiter.limit("30/minute")
+async def restore_folder_endpoint(request: Request, folder_id: str, user_id: str = Depends(get_current_user)):
+    try:
+        restored = restore_folder(user_id=user_id, folder_id=folder_id)
+        if not restored:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found in trash.")
+        return {"status": "success", "message": "Folder restored successfully."}
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception(f"Failed to restore folder {folder_id}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to restore folder.")
+
+
+@folders_router.delete("/{folder_id}/permanent", response_model=dict[str, Any])
+@limiter.limit("30/minute")
+async def permanent_delete_folder_endpoint(request: Request, folder_id: str, user_id: str = Depends(get_current_user)):
+    try:
+        deleted = permanently_delete_folder(user_id=user_id, folder_id=folder_id)
+        if not deleted:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found or not owned by user.")
+        return {"status": "success", "message": "Folder permanently deleted."}
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception(f"Failed to permanently delete folder {folder_id}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to delete folder.")
+
+
 # ============================================================================
 # CANVASES ENDPOINTS (/canvases)
 # ============================================================================
+
+
+@canvases_router.get("/trash", response_model=dict[str, Any])
+@limiter.limit("60/minute")
+async def get_trash_endpoint(request: Request, user_id: str = Depends(get_current_user)):
+    try:
+        trash = get_user_trash(user_id=user_id)
+        return trash
+    except Exception:
+        logger.exception("Failed to get trash items")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get trash items.")
 
 
 @canvases_router.post("", response_model=CanvasDetailResponse)
@@ -185,3 +231,34 @@ async def delete_canvas_endpoint(request: Request, canvas_id: str, user_id: str 
     except Exception:
         logger.exception(f"Failed to delete canvas {canvas_id}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to delete canvas.")
+
+
+@canvases_router.post("/{canvas_id}/restore", response_model=dict[str, Any])
+@limiter.limit("30/minute")
+async def restore_canvas_endpoint(request: Request, canvas_id: str, user_id: str = Depends(get_current_user)):
+    try:
+        restored = restore_canvas(user_id=user_id, canvas_id=canvas_id)
+        if not restored:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Canvas not found in trash.")
+        return {"status": "success", "message": "Canvas restored successfully."}
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception(f"Failed to restore canvas {canvas_id}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to restore canvas.")
+
+
+@canvases_router.delete("/{canvas_id}/permanent", response_model=dict[str, Any])
+@limiter.limit("30/minute")
+async def permanent_delete_canvas_endpoint(request: Request, canvas_id: str, user_id: str = Depends(get_current_user)):
+    try:
+        deleted = permanently_delete_canvas(user_id=user_id, canvas_id=canvas_id)
+        if not deleted:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Canvas not found or not owned by user.")
+        return {"status": "success", "message": "Canvas permanently deleted."}
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception(f"Failed to permanently delete canvas {canvas_id}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to delete canvas.")
+
