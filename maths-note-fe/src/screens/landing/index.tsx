@@ -1,16 +1,35 @@
 import { useMantineColorScheme } from '@mantine/core';
+import { LogIn } from 'lucide-react';
 import CursorGrid from '@/components/CursorGrid';
 import TextLoop from '@/components/TextLoop';
 
 interface LandingProps {
-    onStart: () => void;
+    onStart?: () => void;
+    onStartGuest?: () => void;
+    onSignIn?: () => void;
 }
 
-export default function Landing({ onStart }: LandingProps) {
+export default function Landing({ onStart, onStartGuest, onSignIn }: LandingProps) {
     const { colorScheme } = useMantineColorScheme();
     const gridColor = colorScheme === 'dark' ? '#ffffff' : '#1c1917';
     const loopRibbonColor = colorScheme === 'dark' ? '#1c1917' : '#f5f5f4';
     const loopTextColor = colorScheme === 'dark' ? '#ffffff' : '#1c1917';
+
+    const handleStartGuest = () => {
+        if (onStartGuest) {
+            onStartGuest();
+        } else if (onStart) {
+            onStart();
+        }
+    };
+
+    const handleSignIn = () => {
+        if (onSignIn) {
+            onSignIn();
+        } else if (onStart) {
+            onStart();
+        }
+    };
 
     return (
         <div className="relative w-full h-screen bg-[#fafaf9] dark:bg-stone-950 overflow-hidden flex flex-col items-center justify-between font-sans transition-colors duration-300">
@@ -21,7 +40,15 @@ export default function Landing({ onStart }: LandingProps) {
                         solve<span className="text-stone-900 dark:text-white">IQ</span>
                     </span>
                 </div>
-                <div className="pointer-events-auto">
+                <div className="pointer-events-auto flex items-center gap-2.5">
+                    <button 
+                        onClick={handleSignIn}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 hover:bg-stone-50 dark:hover:bg-stone-850 text-stone-700 dark:text-stone-300 shadow-sm transition-all text-xs sm:text-sm font-semibold cursor-pointer"
+                        aria-label="Sign in to your solveIQ account"
+                    >
+                        <LogIn size={14} className="text-stone-700 dark:text-stone-300" />
+                        <span>Sign In</span>
+                    </button>
                     <a 
                         href="https://github.com/vaibhav-aryaaa/maths-notes" 
                         target="_blank" 
@@ -81,17 +108,28 @@ export default function Landing({ onStart }: LandingProps) {
                     Draw equations, get step-by-step reasoning, and see the AI's thought process, personalized to your mathematical style.
                 </p>
 
-                <button 
-                    onClick={onStart}
-                    className="group relative px-7 py-3.5 bg-stone-950 dark:bg-stone-100 hover:bg-stone-800 dark:hover:bg-stone-200 text-stone-50 dark:text-stone-950 font-bold tracking-wide rounded-2xl shadow-md transition-all duration-300 transform hover:scale-[1.02] active:scale-95 border border-stone-850 dark:border-stone-200 flex items-center gap-2 text-base pointer-events-auto animate-fade-in-up"
-                    style={{ animationDelay: '450ms' }}
-                    aria-label="Enter whiteboard math canvas workspace and start solving"
-                >
-                    <span>Start Solving</span>
-                    <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                    </svg>
-                </button>
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 w-full max-w-md pointer-events-auto">
+                    <button 
+                        onClick={handleStartGuest}
+                        className="group relative w-full sm:w-auto px-7 py-3.5 bg-stone-950 dark:bg-stone-100 hover:bg-stone-800 dark:hover:bg-stone-200 text-stone-50 dark:text-stone-950 font-bold tracking-wide rounded-2xl shadow-md transition-all duration-300 transform hover:scale-[1.02] active:scale-95 border border-stone-850 dark:border-stone-200 flex items-center justify-center gap-2 text-base pointer-events-auto animate-fade-in-up cursor-pointer"
+                        style={{ animationDelay: '450ms' }}
+                        aria-label="Try solveIQ whiteboard math canvas as guest"
+                    >
+                        <span>Try as Guest</span>
+                        <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        </svg>
+                    </button>
+
+                    <button 
+                        onClick={handleSignIn}
+                        className="group relative w-full sm:w-auto px-6 py-3.5 bg-white/80 dark:bg-stone-900/80 hover:bg-white dark:hover:bg-stone-850 text-stone-800 dark:text-stone-200 font-bold tracking-wide rounded-2xl shadow-sm transition-all duration-300 transform hover:scale-[1.02] active:scale-95 border border-stone-300/80 dark:border-stone-700/80 backdrop-blur-sm flex items-center justify-center gap-2 text-base pointer-events-auto animate-fade-in-up cursor-pointer"
+                        style={{ animationDelay: '500ms' }}
+                        aria-label="Sign in or register an account on solveIQ"
+                    >
+                        <span>Sign In / Sign Up</span>
+                    </button>
+                </div>
             </div>
 
             {/* Scrolling Banner Tape (naturally flows at the bottom, padded off the lower viewport edge) */}

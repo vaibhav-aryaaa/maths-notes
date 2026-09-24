@@ -34,19 +34,39 @@ const ThemeSync = ({ children }: { children: React.ReactNode }) => {
 
 const AppContent = () => {
     const [started, setStarted] = useState(false);
+    const [authModalOpened, setAuthModalOpened] = useState(false);
+    const [authInitialSignUp, setAuthInitialSignUp] = useState(false);
+
+    const handleStartGuest = () => {
+        setStarted(true);
+    };
+
+    const handleSignIn = () => {
+        setStarted(true);
+        setAuthInitialSignUp(false);
+        setAuthModalOpened(true);
+    };
 
     return (
         <div className="relative w-full h-screen overflow-hidden bg-slate-50 dark:bg-black transition-colors duration-300">
             {/* The main application board (rendered but hidden under the landing page until started) */}
             <div className={`absolute inset-0 transition-opacity duration-1000 ${started ? 'opacity-100 pointer-events-auto z-10' : 'opacity-0 pointer-events-none z-0'}`}>
-                <Home />
+                <Home 
+                    initialAuthOpened={authModalOpened}
+                    onAuthOpenedChange={setAuthModalOpened}
+                    initialSignUp={authInitialSignUp}
+                />
             </div>
 
             {/* The landing page curtain */}
             <div 
                 className={`absolute inset-0 transition-transform duration-1000 ease-[cubic-bezier(0.87,0,0.13,1)] z-50 ${started ? '-translate-y-full shadow-[0_20px_50px_rgba(0,0,0,0.5)]' : 'translate-y-0'}`}
             >
-                <Landing onStart={() => setStarted(true)} />
+                <Landing 
+                    onStart={handleStartGuest}
+                    onStartGuest={handleStartGuest}
+                    onSignIn={handleSignIn}
+                />
             </div>
         </div>
     );

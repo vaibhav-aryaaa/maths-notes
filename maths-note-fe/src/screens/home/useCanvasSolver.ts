@@ -4,13 +4,16 @@ import { notifications } from '@mantine/notifications';
 import type { GeneratedResult, DictOfVars, CalculateResponseItem, CanvasElement } from '@/types';
 import { trackEvent } from '@/lib/analytics';
 import { rasterizeRegion } from './canvasUtils';
+import { hasReachedGuestSolveCap, incrementGuestSolveCount } from '@/lib/guestSession';
 
 export const useCanvasSolver = (
     canvasRef: React.RefObject<HTMLCanvasElement | null>,
     elementsRef: React.RefObject<CanvasElement[]>,
     drawBoundsRef: React.RefObject<{ minX: number; minY: number; maxX: number; maxY: number }>,
     onSaveHistory?: (canvas: HTMLCanvasElement, allResults: GeneratedResult[], dictOfVars: DictOfVars) => void,
-    redrawViewCanvas?: () => void
+    redrawViewCanvas?: () => void,
+    isGuest: boolean = false,
+    onGuestLimitReached?: () => void
 ) => {
     const [dictOfVars, setDictOfVars] = useState<DictOfVars>({});
     const [results, setResults] = useState<GeneratedResult[]>([]);
@@ -21,6 +24,16 @@ export const useCanvasSolver = (
         selection?: { type: 'rect' | 'lasso'; points: { x: number; y: number }[]; bounds: { minX: number; minY: number; maxX: number; maxY: number } },
         onStartScan?: (bounds: { minX: number; minY: number; maxX: number; maxY: number }) => void
     ) => {
+        if (isGuest && hasReachedGuestSolveCap()) {
+            notifications.show({
+                title: 'Free Solves Limit Reached',
+                message: "You've used your 5 free solves — sign up to keep going",
+                color: 'indigo',
+                autoClose: 8000
+            });
+            onGuestLimitReached?.();
+            return;
+        }
         if (!navigator.onLine) {
             notifications.show({
                 title: 'Offline Mode',
@@ -129,6 +142,10 @@ export const useCanvasSolver = (
                     confidence: maxConfidence > 0 ? maxConfidence : undefined,
                     latency: maxLatency > 0 ? maxLatency : undefined
                 });
+
+                if (isGuest) {
+                    incrementGuestSolveCount();
+                }
             }
             
             redrawViewCanvas?.();

@@ -80,7 +80,17 @@ const WIDTH_RANGES: Record<string, { min: number; max: number; default: number }
     text: { min: 12, max: 72, default: 24 }
 };
 
-export default function Home() {
+interface HomeProps {
+    initialAuthOpened?: boolean;
+    onAuthOpenedChange?: (opened: boolean) => void;
+    initialSignUp?: boolean;
+}
+
+export default function Home({
+    initialAuthOpened = false,
+    onAuthOpenedChange,
+    initialSignUp = false
+}: HomeProps = {}) {
     const { colorScheme, toggleColorScheme } = useMantineColorScheme();
 
     const [activeSolveRegion, setActiveSolveRegion] = useState<{
@@ -238,6 +248,28 @@ export default function Home() {
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [tempTitle, setTempTitle] = useState('');
 
+    const { 
+        history, 
+        showAllNotebooks,
+        setShowAllNotebooks,
+        saveHistoryEntry, 
+        clearHistory, 
+        deleteHistoryItem,
+        getHistoryEntryImage,
+        user
+    } = useSolveHistory(activeCanvasId);
+
+    const isGuest = !user;
+    const [guestLimitModalOpen, setGuestLimitModalOpen] = useState(false);
+    const [internalAuthOpened, setInternalAuthOpened] = useState(false);
+    const [authInitialSignUp, setAuthInitialSignUp] = useState(initialSignUp);
+    const authModalOpened = initialAuthOpened || internalAuthOpened;
+
+    const handleAuthOpenedChange = (opened: boolean) => {
+        setInternalAuthOpened(opened);
+        onAuthOpenedChange?.(opened);
+    };
+
     const {
         canvasRef,
         masterCanvasRef,
@@ -307,7 +339,8 @@ export default function Home() {
         onCustomSelectionStart,
         getCustomOffsets,
         onRestoreCustomOffsets,
-        activeCanvasId
+        activeCanvasId,
+        isGuest
     );
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -574,17 +607,6 @@ export default function Home() {
         }
     };
 
-    const { 
-        history, 
-        showAllNotebooks,
-        setShowAllNotebooks,
-        saveHistoryEntry, 
-        clearHistory, 
-        deleteHistoryItem,
-        getHistoryEntryImage,
-        user
-    } = useSolveHistory(activeCanvasId);
-
     useEffect(() => {
         let isMounted = true;
         if (routeCanvasId && user) {
@@ -593,12 +615,6 @@ export default function Home() {
                     setCanvasTitle(detail.name);
                 }
             }).catch(console.error);
-        } else {
-            Promise.resolve().then(() => {
-                if (isMounted) {
-                    setCanvasTitle('Notebook');
-                }
-            });
         }
         return () => {
             isMounted = false;
@@ -635,7 +651,9 @@ export default function Home() {
             saveHistoryEntry(canvas, allResults, currentDict, elementsRef.current, activeCanvasId);
             markCanvasClean();
         },
-        redrawViewCanvas
+        redrawViewCanvas,
+        isGuest,
+        () => setGuestLimitModalOpen(true)
     );
 
     useEffect(() => {
@@ -1166,7 +1184,14 @@ export default function Home() {
 
             {/* Cloud Sync / Authentication Manager (Top-Right) */}
             <div className="absolute z-controls top-[calc(1.25rem+env(safe-area-inset-top))] right-[calc(1.25rem+env(safe-area-inset-right))]">
-                <AuthManager user={user} clearHistory={clearHistory} isFocusMode={isFocusMode} />
+                <AuthManager
+                    user={user}
+                    clearHistory={clearHistory}
+                    isFocusMode={isFocusMode}
+                    opened={authModalOpened}
+                    onOpenedChange={handleAuthOpenedChange}
+                    initialSignUp={authInitialSignUp}
+                />
             </div>
 
             {/* Sidebar Toggle, Logo & Library Navigation (Top-Left) */}
@@ -1909,6 +1934,50 @@ export default function Home() {
                     <div className="flex justify-between items-center py-1.5">
                         <span className="text-stone-500 dark:text-gray-400">Open Shortcuts Help</span>
                         <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-stone-750 dark:text-stone-300 font-bold border border-stone-200 dark:border-white/15">?</kbd>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Guest 5-Solves Limit Friendly Modal */}
+            <Modal
+                opened={guestLimitModalOpen}
+                onClose={() => setGuestLimitModalOpen(false)}
+                title=""
+                centered
+                size="sm"
+                classNames={{
+                    content: "bg-white dark:bg-[#18181c] text-stone-800 dark:text-white border border-stone-200 dark:border-stone-800/80 rounded-2xl shadow-2xl p-5 flex flex-col font-sans",
+                    header: "bg-transparent pb-0 min-h-0"
+                }}
+            >
+                <div className="text-center py-2 px-1">
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 mx-auto flex items-center justify-center mb-3.5 shadow-inner">
+                        <BookOpen size={24} />
+                    </div>
+                    <h3 className="text-lg font-bold text-stone-900 dark:text-white mb-2">
+                        You've used your 5 free solves
+                    </h3>
+                    <p className="text-xs sm:text-sm text-stone-500 dark:text-stone-450 mb-6 leading-relaxed font-medium">
+                        Sign up to keep going and unlock unlimited AI solving, multi-notebook organization, and cloud sync across all your devices.
+                    </p>
+                    <div className="flex flex-col gap-2.5">
+                        <Button
+                            onClick={() => {
+                                setGuestLimitModalOpen(false);
+                                setAuthInitialSignUp(true);
+                                setInternalAuthOpened(true);
+                            }}
+                            className="w-full bg-stone-950 hover:bg-stone-800 dark:bg-stone-100 dark:hover:bg-stone-200 text-stone-50 dark:text-stone-950 font-bold py-2.5 rounded-xl shadow-sm text-sm"
+                        >
+                            Sign Up to Keep Going
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            onClick={() => setGuestLimitModalOpen(false)}
+                            className="w-full text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300 text-xs font-semibold"
+                        >
+                            Maybe Later
+                        </Button>
                     </div>
                 </div>
             </Modal>

@@ -181,4 +181,82 @@ describe('useCanvasSolver', () => {
         // Restore createElement
         document.createElement = origCreateElement;
     });
+
+    it('should increment guest solve count on successful guest solve', async () => {
+        sessionStorage.clear();
+        const mockResponse = {
+            data: {
+                status: 'success',
+                data: [
+                    { expr: 'y', result: '10', assign: true, type: 'math' }
+                ]
+            }
+        };
+        vi.mocked(axios).mockResolvedValue(mockResponse);
+
+        const mockTempCanvas = {
+            width: 0,
+            height: 0,
+            getContext: vi.fn().mockReturnValue({
+                fillStyle: '',
+                fillRect: vi.fn(),
+                drawImage: vi.fn(),
+                scale: vi.fn(),
+                translate: vi.fn(),
+                beginPath: vi.fn(),
+                moveTo: vi.fn(),
+                lineTo: vi.fn(),
+                stroke: vi.fn(),
+                rect: vi.fn(),
+                closePath: vi.fn(),
+                fill: vi.fn(),
+                save: vi.fn(),
+                restore: vi.fn(),
+            }),
+            toDataURL: vi.fn().mockReturnValue('data:image/png;base64,mocked_image_bytes'),
+        };
+        const origCreateElement = document.createElement;
+        document.createElement = vi.fn().mockImplementation((tag) => {
+            if (tag === 'canvas') return mockTempCanvas;
+            return origCreateElement.call(document, tag);
+        });
+
+        const { result } = renderHook(() => useCanvasSolver(
+            canvasRef,
+            strokesRef,
+            drawBoundsRef,
+            undefined,
+            undefined,
+            true // isGuest
+        ));
+
+        await act(async () => {
+            await result.current.runRoute();
+        });
+
+        expect(sessionStorage.getItem('guest_solve_count')).toBe('1');
+        document.createElement = origCreateElement;
+    });
+
+    it('should block API call and invoke onGuestLimitReached when guest reaches 5 solves', async () => {
+        sessionStorage.setItem('guest_solve_count', '5');
+        const onLimitReached = vi.fn();
+
+        const { result } = renderHook(() => useCanvasSolver(
+            canvasRef,
+            strokesRef,
+            drawBoundsRef,
+            undefined,
+            undefined,
+            true, // isGuest
+            onLimitReached
+        ));
+
+        await act(async () => {
+            await result.current.runRoute();
+        });
+
+        expect(axios).not.toHaveBeenCalled();
+        expect(onLimitReached).toHaveBeenCalledTimes(1);
+    });
 });

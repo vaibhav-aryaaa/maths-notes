@@ -41,4 +41,38 @@ describe('useSolveHistory', () => {
 
         expect(result.current.showAllNotebooks).toBe(true);
     });
+
+    it('should save and load history exclusively in sessionStorage when user is guest', async () => {
+        sessionStorage.clear();
+        const { result } = renderHook(() => useSolveHistory('canvas-1'));
+
+        await waitFor(() => {
+            expect(result.current.isDbReady).toBe(true);
+        });
+
+        const mockCanvas = {
+            width: 100,
+            height: 100,
+            getContext: () => ({
+                fillStyle: '',
+                fillRect: () => {},
+                drawImage: () => {}
+            }),
+            toDataURL: () => 'data:image/png;base64,mock'
+        } as unknown as HTMLCanvasElement;
+
+        await act(async () => {
+            await result.current.saveHistoryEntry(mockCanvas, [], {});
+        });
+
+        expect(result.current.history.length).toBe(1);
+        expect(sessionStorage.getItem('guest_history')).toContain('mock');
+
+        await act(async () => {
+            await result.current.clearHistory();
+        });
+
+        expect(result.current.history.length).toBe(0);
+        expect(sessionStorage.getItem('guest_history')).toBeNull();
+    });
 });

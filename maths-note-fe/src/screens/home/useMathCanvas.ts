@@ -3,6 +3,7 @@ import type { Stroke, CanvasElement, ImageElement, DictOfVars, GeneratedResult }
 import { getStrokeOutline, getElementBounds, getElementCenter, drawElement, getStrokeBounds } from './canvasUtils';
 import { CANVAS_BACKGROUND_COLOR } from '@/constants';
 import { saveLiveCanvas, loadLiveCanvas, clearLiveCanvas, DEFAULT_CANVAS_ID, type LiveCanvasData } from '@/lib/liveCanvasPersistence';
+import { saveGuestCanvasData, loadGuestCanvasData, clearGuestCanvasData } from '@/lib/guestSession';
 
 const generateUUID = () => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -196,8 +197,14 @@ export const useMathCanvas = (
     onCustomSelectionStart?: (selectedCustomIds: string[]) => void,
     getCustomOffsets?: () => Record<string, { x: number; y: number }>,
     onRestoreCustomOffsets?: (offsets: Record<string, { x: number; y: number }>) => void,
-    activeCanvasId: string = DEFAULT_CANVAS_ID
+    activeCanvasId: string = DEFAULT_CANVAS_ID,
+    isGuest: boolean = false
 ) => {
+    const isGuestRef = useRef(isGuest);
+    useEffect(() => {
+        isGuestRef.current = isGuest;
+    }, [isGuest]);
+
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const masterCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -396,14 +403,20 @@ export const useMathCanvas = (
         const results = getResults ? getResults() : undefined;
         const loadedHistoryEntryId = getLoadedHistoryEntryId ? getLoadedHistoryEntryId() : undefined;
 
-        await saveLiveCanvas(activeCanvasIdRef.current, {
+        const liveData: LiveCanvasData = {
             elements: currentElements,
             camera: currentCamera,
             dictOfVars,
             results,
             loadedHistoryEntryId,
             updatedAt: Date.now()
-        });
+        };
+
+        if (isGuestRef.current) {
+            saveGuestCanvasData(liveData);
+        } else {
+            await saveLiveCanvas(activeCanvasIdRef.current, liveData);
+        }
     }, [getDictOfVars, getResults, getLoadedHistoryEntryId]);
 
     const scheduleAutosave = useCallback(() => {
@@ -915,10 +928,12 @@ export const useMathCanvas = (
         redrawViewCanvasRef.current = redrawViewCanvas;
     }, [redrawViewCanvas]);
 
-    // Restore live canvas from IndexedDB on mount and when activeCanvasId changes
+    // Restore live canvas from sessionStorage (if guest) or IndexedDB on mount and when activeCanvasId changes
     useEffect(() => {
         let isMounted = true;
-        loadLiveCanvas(activeCanvasId).then((savedData) => {
+        const loadPromise = isGuest ? Promise.resolve(loadGuestCanvasData()) : loadLiveCanvas(activeCanvasId);
+
+        loadPromise.then((savedData) => {
             if (!isMounted) return;
             if (savedData && (savedData.elements?.length > 0 || savedData.camera)) {
                 isFirstLayoutRef.current = false;
@@ -946,14 +961,14 @@ export const useMathCanvas = (
             }
             isRestoredRef.current = true;
         }).catch((err) => {
-            console.error('Failed to restore live canvas from IndexedDB:', err);
+            console.error('Failed to restore live canvas:', err);
             isRestoredRef.current = true;
         });
 
         return () => {
             isMounted = false;
         };
-    }, [activeCanvasId]);
+    }, [activeCanvasId, isGuest]);
 
     // Autosave camera pan/zoom changes
     useEffect(() => {
@@ -1069,7 +1084,11 @@ export const useMathCanvas = (
             clearTimeout(autosaveTimerRef.current);
             autosaveTimerRef.current = null;
         }
-        clearLiveCanvas(activeCanvasIdRef.current).catch(console.error);
+        if (isGuestRef.current) {
+            clearGuestCanvasData();
+        } else {
+            clearLiveCanvas(activeCanvasIdRef.current).catch(console.error);
+        }
 
         isCanvasDirtyRef.current = false;
         elementsRef.current = [];

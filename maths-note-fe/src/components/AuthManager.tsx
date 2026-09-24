@@ -10,11 +10,33 @@ interface AuthManagerProps {
     user: User | null;
     clearHistory: () => Promise<void>;
     isFocusMode?: boolean;
+    opened?: boolean;
+    onOpenedChange?: (opened: boolean) => void;
+    initialSignUp?: boolean;
 }
 
-export function AuthManager({ user, clearHistory, isFocusMode = false }: AuthManagerProps) {
-    const [opened, setOpened] = useState(false);
-    const [isSignUp, setIsSignUp] = useState(false);
+export function AuthManager({
+    user,
+    clearHistory,
+    isFocusMode = false,
+    opened: externalOpened,
+    onOpenedChange,
+    initialSignUp = false
+}: AuthManagerProps) {
+    const [internalOpened, setInternalOpened] = useState(false);
+    const isControlled = typeof externalOpened === 'boolean';
+    const opened = isControlled ? externalOpened : internalOpened;
+
+    const setOpened = (open: boolean) => {
+        if (onOpenedChange) {
+            onOpenedChange(open);
+        }
+        if (!isControlled) {
+            setInternalOpened(open);
+        }
+    };
+
+    const [isSignUp, setIsSignUp] = useState(initialSignUp);
     const [isForgotPassword, setIsForgotPassword] = useState(false);
     const [regDisplayName, setRegDisplayName] = useState('');
     const [email, setEmail] = useState('');

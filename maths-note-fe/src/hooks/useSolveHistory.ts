@@ -1,9 +1,20 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import type { GeneratedResult, DictOfVars } from '@/types';
 import { supabase } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
 import axios from 'axios';
-import { openDB, HISTORY_STORE as STORE_NAME, DEFAULT_CANVAS_ID } from '@/lib/liveCanvasPersistence';
+import { openDB, HISTORY_STORE as STORE_NAME, DEFAULT_CANVAS_ID, saveLiveCanvas } from '@/lib/liveCanvasPersistence';
+import {
+    loadGuestHistory,
+    saveGuestHistory,
+    addGuestHistoryEntry,
+    clearGuestHistory,
+    loadGuestCanvasData,
+    clearGuestCanvasData,
+    clearGuestSession
+} from '@/lib/guestSession';
+import { createCanvas } from '@/lib/canvasesApi';
+import { notifications } from '@mantine/notifications';
 
 export interface HistoryEntry {
     id: string;
@@ -82,8 +93,17 @@ export function useSolveHistory(activeCanvasId: string = DEFAULT_CANVAS_ID) {
         }
     }, []);
 
-    // 2. Fetch from local IndexedDB
-    const loadLocalHistory = useCallback(async () => {
+    // 2. Fetch history (sessionStorage for guest, IndexedDB for signed in)
+    const loadLocalHistory = useCallback(async (currentUser?: User | null) => {
+        if (!currentUser) {
+            const guestEntries = loadGuestHistory();
+            setAllHistory(guestEntries.map((entry: HistoryEntry) => {
+                const { canvasImage: _canvasImage, ...rest } = entry;
+                return rest as HistoryEntry;
+            }));
+            return;
+        }
+
         const db = await openDB();
         if (!db) return;
 
@@ -106,99 +126,142 @@ export function useSolveHistory(activeCanvasId: string = DEFAULT_CANVAS_ID) {
     }, []);
 
     // 3. Main loader routing
-    const loadHistory = useCallback(async (token: string | null) => {
+    const loadHistory = useCallback(async (token: string | null, currentUser?: User | null) => {
         if (token) {
             await loadBackendHistory(token);
         } else {
-            await loadLocalHistory();
+            await loadLocalHistory(currentUser);
         }
     }, [loadBackendHistory, loadLocalHistory]);
 
-    // 4. Sync IndexedDB to Backend
-    const syncLocalHistoryToBackend = useCallback(async (token: string) => {
-        const db = await openDB();
-        if (!db) return;
-
+    // 4. Migrate guest data to user account on sign in / sign up
+    const migrateGuestDataToUser = useCallback(async (token: string, _authenticatedUser: User) => {
+        let hasMigratedAnything = false;
         try {
-            const transaction = db.transaction(STORE_NAME, 'readonly');
-            const store = transaction.objectStore(STORE_NAME);
-            const request = store.getAll();
+            const guestCanvas = loadGuestCanvasData();
+            const guestHistory = loadGuestHistory();
 
-            request.onsuccess = async () => {
-                const localEntries = request.result as HistoryEntry[];
-                if (localEntries.length === 0) {
-                    await loadBackendHistory(token);
-                    return;
-                }
-
-                const apiHost = getApiHost();
-                const response = await axios.post(`${apiHost}/history/sync`, {
-                    entries: localEntries
-                }, {
-                    headers: getAuthHeaders(token)
+            // 4a. Migrate guest canvas into user's first notebook / active canvas
+            if (guestCanvas && ((guestCanvas.elements && guestCanvas.elements.length > 0) || (guestCanvas.results && guestCanvas.results.length > 0))) {
+                await saveLiveCanvas(activeCanvasId || DEFAULT_CANVAS_ID, guestCanvas, {
+                    name: 'First Notebook'
                 });
 
-                if (response.data && Array.isArray(response.data.entries)) {
-                    const entries = response.data.entries as HistoryEntry[];
-                    
-                    // Write synced entries to local IndexedDB
-                    const db = await openDB();
-                    if (db) {
-                        const transaction = db.transaction(STORE_NAME, 'readwrite');
-                        const store = transaction.objectStore(STORE_NAME);
-                        entries.forEach(entry => store.put(entry));
-                    }
-
-                    setAllHistory(entries.map((entry: HistoryEntry) => {
-                        const { canvasImage: _canvasImage, ...rest } = entry;
-                        return rest as HistoryEntry;
-                    }));
+                try {
+                    await createCanvas({
+                        name: 'First Notebook',
+                        elements: guestCanvas.elements
+                    }, token);
+                } catch (e) {
+                    console.warn('Backend canvas creation on migration deferred/failed:', e);
                 }
-            };
+
+                clearGuestCanvasData();
+                hasMigratedAnything = true;
+            }
+
+            // 4b. Migrate guest history entries to backend and IndexedDB
+            if (guestHistory.length > 0) {
+                const apiHost = getApiHost();
+                try {
+                    await axios.post(`${apiHost}/history/sync`, {
+                        entries: guestHistory
+                    }, {
+                        headers: getAuthHeaders(token)
+                    });
+                } catch (e) {
+                    console.warn('Backend history sync failed:', e);
+                }
+
+                const db = await openDB();
+                if (db) {
+                    const transaction = db.transaction(STORE_NAME, 'readwrite');
+                    const store = transaction.objectStore(STORE_NAME);
+                    guestHistory.forEach(entry => store.put(entry));
+                }
+
+                clearGuestHistory();
+                hasMigratedAnything = true;
+            }
+
+            clearGuestSession();
+
+            if (hasMigratedAnything) {
+                notifications.show({
+                    title: 'Workspace Migrated',
+                    message: 'Your guest whiteboard and history have been saved to your account!',
+                    color: 'teal',
+                    autoClose: 6000
+                });
+            }
+
+            await loadBackendHistory(token);
         } catch (error) {
-            console.error('Failed to sync local history to backend:', error);
+            console.error('Failed to migrate guest session data to account:', error);
             await loadBackendHistory(token);
         }
-    }, [loadBackendHistory]);
+    }, [activeCanvasId, loadBackendHistory]);
 
-    // 5. Subscribe to Supabase Auth changes
+    const loadHistoryRef = useRef(loadHistory);
+    const loadLocalHistoryRef = useRef(loadLocalHistory);
+    const migrateGuestDataToUserRef = useRef(migrateGuestDataToUser);
+
     useEffect(() => {
+        loadHistoryRef.current = loadHistory;
+        loadLocalHistoryRef.current = loadLocalHistory;
+        migrateGuestDataToUserRef.current = migrateGuestDataToUser;
+    });
+
+    // 5. Subscribe to Supabase Auth changes (runs ONCE on mount)
+    useEffect(() => {
+        let isMounted = true;
         if (!supabase) {
-            loadLocalHistory().then(() => setIsDbReady(true));
+            Promise.resolve().then(async () => {
+                await loadLocalHistoryRef.current(null);
+                if (isMounted) setIsDbReady(true);
+            });
             return;
         }
 
         // Fetch initial session
         supabase.auth.getSession().then(async ({ data: { session } }) => {
+            if (!isMounted) return;
             if (session) {
                 setUser(session.user);
                 setJwt(session.access_token);
-                await loadHistory(session.access_token);
+                await loadHistoryRef.current(session.access_token, session.user);
             } else {
-                await loadLocalHistory();
+                setUser(null);
+                setJwt(null);
+                await loadLocalHistoryRef.current(null);
             }
             setIsDbReady(true);
         });
 
         // Set up subscription listener
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            if (!isMounted) return;
             if (session) {
+                const isNewSignIn = event === 'SIGNED_IN' || event === 'USER_UPDATED';
                 setUser(session.user);
                 setJwt(session.access_token);
-                if (event === 'SIGNED_IN') {
-                    await syncLocalHistoryToBackend(session.access_token);
+                if (isNewSignIn) {
+                    await migrateGuestDataToUserRef.current(session.access_token, session.user);
+                } else {
+                    await loadHistoryRef.current(session.access_token, session.user);
                 }
             } else {
                 setUser(null);
                 setJwt(null);
-                await loadLocalHistory();
+                await loadLocalHistoryRef.current(null);
             }
         });
 
         return () => {
+            isMounted = false;
             subscription.unsubscribe();
         };
-    }, [loadHistory, loadLocalHistory, syncLocalHistoryToBackend]);
+    }, []);
 
     // 6. Save history entry
     const saveHistoryEntry = useCallback(async (
@@ -225,7 +288,14 @@ export function useSolveHistory(activeCanvasId: string = DEFAULT_CANVAS_ID) {
             canvas_id
         };
 
-        // Try backend write first if authenticated
+        // Guest Mode: Store exclusively in sessionStorage, skip backend and IndexedDB
+        if (!user) {
+            addGuestHistoryEntry(entry);
+            loadLocalHistory(null);
+            return;
+        }
+
+        // Authenticated: Try backend write
         if (jwt) {
             try {
                 const apiHost = getApiHost();
@@ -238,7 +308,7 @@ export function useSolveHistory(activeCanvasId: string = DEFAULT_CANVAS_ID) {
             }
         }
 
-        // Save to IndexedDB (guest mode or dual backup)
+        // Authenticated: Save to IndexedDB
         const db = await openDB();
         if (!db) return;
 
@@ -263,20 +333,27 @@ export function useSolveHistory(activeCanvasId: string = DEFAULT_CANVAS_ID) {
                             deleteStore.delete(allEntries[i].id);
                         }
                         deleteTx.oncomplete = () => {
-                            if (!jwt) loadLocalHistory();
+                            if (!jwt) loadLocalHistory(user);
                         };
                     } else {
-                        if (!jwt) loadLocalHistory();
+                        if (!jwt) loadLocalHistory(user);
                     }
                 };
             };
         } catch (error) {
             console.error('Failed to save history entry locally:', error);
         }
-    }, [jwt, activeCanvasId, loadBackendHistory, loadLocalHistory]);
+    }, [user, jwt, activeCanvasId, loadBackendHistory, loadLocalHistory]);
 
     // 7. Delete single item
     const deleteHistoryItem = useCallback(async (id: string) => {
+        if (!user) {
+            const remaining = loadGuestHistory().filter(e => e.id !== id);
+            saveGuestHistory(remaining);
+            loadLocalHistory(null);
+            return;
+        }
+
         if (jwt) {
             try {
                 const apiHost = getApiHost();
@@ -297,15 +374,21 @@ export function useSolveHistory(activeCanvasId: string = DEFAULT_CANVAS_ID) {
             const store = transaction.objectStore(STORE_NAME);
             store.delete(id);
             transaction.oncomplete = () => {
-                if (!jwt) loadLocalHistory();
+                if (!jwt) loadLocalHistory(user);
             };
         } catch (error) {
             console.error('Failed to delete history item locally:', error);
         }
-    }, [jwt, loadBackendHistory, loadLocalHistory]);
+    }, [user, jwt, loadBackendHistory, loadLocalHistory]);
 
     // 8. Clear all entries (Wipe/Purge)
     const clearHistory = useCallback(async () => {
+        if (!user) {
+            clearGuestHistory();
+            loadLocalHistory(null);
+            return;
+        }
+
         if (jwt) {
             try {
                 const apiHost = getApiHost();
@@ -326,14 +409,19 @@ export function useSolveHistory(activeCanvasId: string = DEFAULT_CANVAS_ID) {
             const store = transaction.objectStore(STORE_NAME);
             store.clear();
             transaction.oncomplete = () => {
-                if (!jwt) loadLocalHistory();
+                if (!jwt) loadLocalHistory(user);
             };
         } catch (error) {
             console.error('Failed to clear history locally:', error);
         }
-    }, [jwt, loadBackendHistory, loadLocalHistory]);
+    }, [user, jwt, loadBackendHistory, loadLocalHistory]);
 
     const getHistoryEntryImage = useCallback(async (id: string): Promise<string> => {
+        if (!user) {
+            const entry = loadGuestHistory().find(e => e.id === id);
+            return entry?.canvasImage || '';
+        }
+
         const db = await openDB();
         if (!db) return '';
         return new Promise((resolve) => {
@@ -351,7 +439,7 @@ export function useSolveHistory(activeCanvasId: string = DEFAULT_CANVAS_ID) {
                 resolve('');
             }
         });
-    }, []);
+    }, [user]);
 
     // Filter history to current notebook by default, or all notebooks if toggled
     const history = useMemo(() => {
