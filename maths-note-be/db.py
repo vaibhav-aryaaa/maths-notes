@@ -4,7 +4,7 @@ import os
 import sqlite3
 import time
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -382,7 +382,7 @@ def _format_datetime(val: Any) -> str | None:
 
 def create_folder(user_id: str, name: str) -> dict:
     folder_id = str(uuid.uuid4())
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     conn, p = get_connection()
     try:
         cursor = conn.cursor()
@@ -461,7 +461,7 @@ def get_folder(user_id: str, folder_id: str) -> dict | None:
 
 
 def update_folder(user_id: str, folder_id: str, name: str) -> dict | None:
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     conn, p = get_connection()
     try:
         cursor = conn.cursor()
@@ -480,7 +480,7 @@ def update_folder(user_id: str, folder_id: str, name: str) -> dict | None:
 
 
 def delete_folder(user_id: str, folder_id: str) -> bool:
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     conn, p = get_connection()
     try:
         cursor = conn.cursor()
@@ -519,7 +519,7 @@ def create_canvas(
             raise ValueError(f"Folder '{folder_id}' not found or not owned by user.")
 
     canvas_id = str(uuid.uuid4())
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     elements_json = json.dumps(elements) if elements is not None and not isinstance(elements, str) else elements
 
     conn, p = get_connection()
@@ -639,7 +639,7 @@ def update_canvas(
         if not folder:
             raise ValueError(f"Folder '{folder_id}' not found or not owned by user.")
 
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     conn, p = get_connection()
     fields = [f"updated_at = {p}"]
     params = [now]
@@ -675,7 +675,7 @@ def update_canvas(
 
 
 def delete_canvas(user_id: str, canvas_id: str) -> bool:
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     conn, p = get_connection()
     try:
         cursor = conn.cursor()
@@ -747,7 +747,7 @@ def get_user_trash(user_id: str) -> dict[str, list[dict]]:
 
 
 def restore_canvas(user_id: str, canvas_id: str) -> bool:
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     conn, p = get_connection()
     try:
         cursor = conn.cursor()
@@ -766,7 +766,7 @@ def restore_canvas(user_id: str, canvas_id: str) -> bool:
 
 
 def restore_folder(user_id: str, folder_id: str) -> bool:
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     conn, p = get_connection()
     try:
         cursor = conn.cursor()

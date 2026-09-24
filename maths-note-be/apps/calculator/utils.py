@@ -101,7 +101,7 @@ def analyze_image(img: Image, dict_of_vars: dict, is_retry: bool = False):
             return analyze_image(img, dict_of_vars, is_retry=True)
         else:
             # Structurally log the failure context
-            timestamp = datetime.datetime.now(datetime.UTC).isoformat()
+            timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
             logger.error(
                 "AIParsingError Debug Context - Timestamp: %s, Prompt: v1.0 (PEMDAS-JSON-Rules), Raw Response: %s",
                 timestamp,

@@ -2,8 +2,9 @@
 # Ruff configuration for maths-note-be
 
 line-length = 120
-target-version = "py313"
+target-version = "py310"
 
 [lint]
 select = ["E", "F", "I", "W", "UP"]
-ignore = ["E501", "E402"]
+ignore = ["E501", "E402", "UP017"]
+
