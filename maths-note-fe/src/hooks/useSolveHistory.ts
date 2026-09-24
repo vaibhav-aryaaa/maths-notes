@@ -1,8 +1,9 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import type { GeneratedResult, DictOfVars } from '@/types';
 import { supabase } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
 import axios from 'axios';
+import { openDB, HISTORY_STORE as STORE_NAME, DEFAULT_CANVAS_ID } from '@/lib/liveCanvasPersistence';
 
 export interface HistoryEntry {
     id: string;
@@ -13,10 +14,8 @@ export interface HistoryEntry {
     dictOfVars: DictOfVars;
     strokes?: any[];
     elements?: any[];
-    isDraft?: boolean;
+    canvas_id?: string | null;
 }
-
-import { openDB, HISTORY_STORE as STORE_NAME } from '@/lib/liveCanvasPersistence';
 
 function getCanvasThumbnail(canvas: HTMLCanvasElement): string {
     const tempCanvas = document.createElement('canvas');
@@ -36,22 +35,31 @@ function getCanvasThumbnail(canvas: HTMLCanvasElement): string {
     return tempCanvas.toDataURL('image/jpeg', 0.6);
 }
 
-export function useSolveHistory() {
-    const [history, setHistory] = useState<HistoryEntry[]>([]);
+const getApiHost = () => import.meta.env.VITE_API_URL || 'http://localhost:5001';
+const getAppKey = () => import.meta.env.VITE_APP_KEY || import.meta.env.VITE_APP_SECRET || '';
+
+const getAuthHeaders = (token: string) => {
+    const headers: Record<string, string> = {
+        'Authorization': `Bearer ${token}`
+    };
+    const appKey = getAppKey();
+    if (appKey) headers['X-App-Key'] = appKey;
+    return headers;
+};
+
+export function useSolveHistory(activeCanvasId: string = DEFAULT_CANVAS_ID) {
+    const [allHistory, setAllHistory] = useState<HistoryEntry[]>([]);
+    const [showAllNotebooks, setShowAllNotebooks] = useState(false);
     const [isDbReady, setIsDbReady] = useState(false);
     const [user, setUser] = useState<User | null>(null);
     const [jwt, setJwt] = useState<string | null>(null);
-
-    const getApiHost = () => import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
     // 1. Fetch from backend API
     const loadBackendHistory = useCallback(async (token: string) => {
         try {
             const apiHost = getApiHost();
             const response = await axios.get(`${apiHost}/history`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
+                headers: getAuthHeaders(token)
             });
             if (response.data && Array.isArray(response.data.entries)) {
                 const entries = response.data.entries as HistoryEntry[];
@@ -64,7 +72,7 @@ export function useSolveHistory() {
                     entries.forEach(entry => store.put(entry));
                 }
 
-                setHistory(entries.map((entry: HistoryEntry) => {
+                setAllHistory(entries.map((entry: HistoryEntry) => {
                     const { canvasImage: _canvasImage, ...rest } = entry;
                     return rest as HistoryEntry;
                 }));
@@ -87,7 +95,7 @@ export function useSolveHistory() {
             request.onsuccess = () => {
                 const results = request.result as HistoryEntry[];
                 results.sort((a, b) => b.timestamp - a.timestamp);
-                setHistory(results.map((entry: HistoryEntry) => {
+                setAllHistory(results.map((entry: HistoryEntry) => {
                     const { canvasImage: _canvasImage, ...rest } = entry;
                     return rest as HistoryEntry;
                 }));
@@ -127,9 +135,7 @@ export function useSolveHistory() {
                 const response = await axios.post(`${apiHost}/history/sync`, {
                     entries: localEntries
                 }, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
+                    headers: getAuthHeaders(token)
                 });
 
                 if (response.data && Array.isArray(response.data.entries)) {
@@ -143,7 +149,7 @@ export function useSolveHistory() {
                         entries.forEach(entry => store.put(entry));
                     }
 
-                    setHistory(entries.map((entry: HistoryEntry) => {
+                    setAllHistory(entries.map((entry: HistoryEntry) => {
                         const { canvasImage: _canvasImage, ...rest } = entry;
                         return rest as HistoryEntry;
                     }));
@@ -199,12 +205,14 @@ export function useSolveHistory() {
         canvas: HTMLCanvasElement,
         results: GeneratedResult[],
         dictOfVars: DictOfVars,
-        elements?: any[]
+        elements?: any[],
+        canvasIdOverride?: string
     ) => {
         const canvasThumbnail = getCanvasThumbnail(canvas);
         const canvasImage = canvas.toDataURL('image/png');
         const entryId = crypto.randomUUID();
         const timestamp = Date.now();
+        const canvas_id = canvasIdOverride || activeCanvasId;
 
         const entry: HistoryEntry = {
             id: entryId,
@@ -213,7 +221,8 @@ export function useSolveHistory() {
             canvasImage,
             results,
             dictOfVars,
-            elements
+            elements,
+            canvas_id
         };
 
         // Try backend write first if authenticated
@@ -221,9 +230,7 @@ export function useSolveHistory() {
             try {
                 const apiHost = getApiHost();
                 await axios.post(`${apiHost}/history`, { entry }, {
-                    headers: {
-                        'Authorization': `Bearer ${jwt}`
-                    }
+                    headers: getAuthHeaders(jwt)
                 });
                 await loadBackendHistory(jwt);
             } catch (error) {
@@ -266,68 +273,7 @@ export function useSolveHistory() {
         } catch (error) {
             console.error('Failed to save history entry locally:', error);
         }
-    }, [jwt, loadBackendHistory, loadLocalHistory]);
-
-    // 6.b Save draft history entry (unsolved scratch work)
-    const saveDraftHistoryEntry = useCallback(async (
-        canvas: HTMLCanvasElement | null,
-        dictOfVars: DictOfVars,
-        elements?: any[]
-    ) => {
-        if (!elements || elements.length === 0) return;
-
-        let canvasThumbnail = '';
-        let canvasImage = '';
-        if (canvas) {
-            canvasThumbnail = getCanvasThumbnail(canvas);
-            canvasImage = canvas.toDataURL('image/png');
-        }
-
-        const entryId = crypto.randomUUID();
-        const timestamp = Date.now();
-
-        const entry: HistoryEntry = {
-            id: entryId,
-            timestamp,
-            canvasThumbnail,
-            canvasImage,
-            results: [],
-            dictOfVars,
-            elements,
-            isDraft: true
-        };
-
-        // Try backend write first if authenticated
-        if (jwt) {
-            try {
-                const apiHost = getApiHost();
-                await axios.post(`${apiHost}/history`, { entry }, {
-                    headers: {
-                        'Authorization': `Bearer ${jwt}`
-                    }
-                });
-                await loadBackendHistory(jwt);
-            } catch (error) {
-                console.error('Failed to save draft history entry to backend, falling back to local only:', error);
-            }
-        }
-
-        // Save to IndexedDB
-        const db = await openDB();
-        if (!db) return;
-
-        try {
-            const transaction = db.transaction(STORE_NAME, 'readwrite');
-            const store = transaction.objectStore(STORE_NAME);
-            store.put(entry);
-
-            transaction.oncomplete = () => {
-                if (!jwt) loadLocalHistory();
-            };
-        } catch (error) {
-            console.error('Failed to save draft history entry locally:', error);
-        }
-    }, [jwt, loadBackendHistory, loadLocalHistory]);
+    }, [jwt, activeCanvasId, loadBackendHistory, loadLocalHistory]);
 
     // 7. Delete single item
     const deleteHistoryItem = useCallback(async (id: string) => {
@@ -335,9 +281,7 @@ export function useSolveHistory() {
             try {
                 const apiHost = getApiHost();
                 await axios.delete(`${apiHost}/history/${id}`, {
-                    headers: {
-                        'Authorization': `Bearer ${jwt}`
-                    }
+                    headers: getAuthHeaders(jwt)
                 });
                 await loadBackendHistory(jwt);
             } catch (error) {
@@ -366,9 +310,7 @@ export function useSolveHistory() {
             try {
                 const apiHost = getApiHost();
                 await axios.delete(`${apiHost}/history/purge`, {
-                    headers: {
-                        'Authorization': `Bearer ${jwt}`
-                    }
+                    headers: getAuthHeaders(jwt)
                 });
                 await loadBackendHistory(jwt);
             } catch (error) {
@@ -390,6 +332,7 @@ export function useSolveHistory() {
             console.error('Failed to clear history locally:', error);
         }
     }, [jwt, loadBackendHistory, loadLocalHistory]);
+
     const getHistoryEntryImage = useCallback(async (id: string): Promise<string> => {
         const db = await openDB();
         if (!db) return '';
@@ -410,11 +353,21 @@ export function useSolveHistory() {
         });
     }, []);
 
+    // Filter history to current notebook by default, or all notebooks if toggled
+    const history = useMemo(() => {
+        if (showAllNotebooks) {
+            return allHistory;
+        }
+        return allHistory.filter(entry => !entry.canvas_id || entry.canvas_id === activeCanvasId);
+    }, [allHistory, showAllNotebooks, activeCanvasId]);
+
     return {
         history,
+        allHistory,
+        showAllNotebooks,
+        setShowAllNotebooks,
         isDbReady,
         saveHistoryEntry,
-        saveDraftHistoryEntry,
         deleteHistoryItem,
         clearHistory,
         getHistoryEntryImage,
@@ -422,4 +375,4 @@ export function useSolveHistory() {
         jwt,
         supabase
     };
-};
+}

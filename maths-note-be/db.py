@@ -246,18 +246,24 @@ def cleanup_expired_shares(max_age_days: int = 30) -> int:
 # --- User Calculation History CRUD Sync Functions ---
 
 
-def get_user_history(user_id: str) -> list:
+def get_user_history(user_id: str, canvas_id: str | None = None) -> list:
     conn, p = get_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            f"SELECT id, timestamp, canvas_thumbnail, canvas_image, results, dict_of_vars FROM history WHERE user_id = {p} ORDER BY timestamp DESC",
-            (user_id,),
-        )
+        if canvas_id:
+            cursor.execute(
+                f"SELECT id, timestamp, canvas_thumbnail, canvas_image, results, dict_of_vars, canvas_id FROM history WHERE user_id = {p} AND canvas_id = {p} ORDER BY timestamp DESC",
+                (user_id, canvas_id),
+            )
+        else:
+            cursor.execute(
+                f"SELECT id, timestamp, canvas_thumbnail, canvas_image, results, dict_of_vars, canvas_id FROM history WHERE user_id = {p} ORDER BY timestamp DESC",
+                (user_id,),
+            )
         rows = cursor.fetchall()
         entries = []
         for row in rows:
-            entry_id, timestamp, thumbnail, image, results_str, dict_of_vars_str = row
+            entry_id, timestamp, thumbnail, image, results_str, dict_of_vars_str, c_id = row
             entries.append(
                 {
                     "id": entry_id,
@@ -268,6 +274,7 @@ def get_user_history(user_id: str) -> list:
                     "dictOfVars": json.loads(dict_of_vars_str)
                     if isinstance(dict_of_vars_str, str)
                     else dict_of_vars_str,
+                    "canvas_id": c_id,
                 }
             )
         return entries
@@ -276,20 +283,22 @@ def get_user_history(user_id: str) -> list:
 
 
 def save_history_entry(user_id: str, entry: dict) -> None:
+    canvas_id = entry.get("canvas_id") or entry.get("canvasId")
     conn, p = get_connection()
     try:
         cursor = conn.cursor()
         if DATABASE_URL:
             # PostgreSQL ON CONFLICT DO UPDATE
             cursor.execute(
-                f"""INSERT INTO history (id, user_id, timestamp, canvas_thumbnail, canvas_image, results, dict_of_vars)
-                    VALUES ({p}, {p}, {p}, {p}, {p}, {p}, {p})
+                f"""INSERT INTO history (id, user_id, timestamp, canvas_thumbnail, canvas_image, results, dict_of_vars, canvas_id)
+                    VALUES ({p}, {p}, {p}, {p}, {p}, {p}, {p}, {p})
                     ON CONFLICT (id) DO UPDATE SET
                     timestamp = EXCLUDED.timestamp,
                     canvas_thumbnail = EXCLUDED.canvas_thumbnail,
                     canvas_image = EXCLUDED.canvas_image,
                     results = EXCLUDED.results,
-                    dict_of_vars = EXCLUDED.dict_of_vars
+                    dict_of_vars = EXCLUDED.dict_of_vars,
+                    canvas_id = EXCLUDED.canvas_id
                     WHERE history.user_id = EXCLUDED.user_id""",
                 (
                     entry["id"],
@@ -299,19 +308,21 @@ def save_history_entry(user_id: str, entry: dict) -> None:
                     entry["canvasImage"],
                     json.dumps(entry["results"]),
                     json.dumps(entry["dictOfVars"]),
+                    canvas_id,
                 ),
             )
         else:
             # SQLite ON CONFLICT DO UPDATE
             cursor.execute(
-                f"""INSERT INTO history (id, user_id, timestamp, canvas_thumbnail, canvas_image, results, dict_of_vars)
-                    VALUES ({p}, {p}, {p}, {p}, {p}, {p}, {p})
+                f"""INSERT INTO history (id, user_id, timestamp, canvas_thumbnail, canvas_image, results, dict_of_vars, canvas_id)
+                    VALUES ({p}, {p}, {p}, {p}, {p}, {p}, {p}, {p})
                     ON CONFLICT (id) DO UPDATE SET
                     timestamp = excluded.timestamp,
                     canvas_thumbnail = excluded.canvas_thumbnail,
                     canvas_image = excluded.canvas_image,
                     results = excluded.results,
-                    dict_of_vars = excluded.dict_of_vars
+                    dict_of_vars = excluded.dict_of_vars,
+                    canvas_id = excluded.canvas_id
                     WHERE history.user_id = excluded.user_id""",
                 (
                     entry["id"],
@@ -321,6 +332,7 @@ def save_history_entry(user_id: str, entry: dict) -> None:
                     entry["canvasImage"],
                     json.dumps(entry["results"]),
                     json.dumps(entry["dictOfVars"]),
+                    canvas_id,
                 ),
             )
         conn.commit()

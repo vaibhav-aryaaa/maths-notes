@@ -19,6 +19,8 @@ class HistoryEntryPayload(BaseModel):
     canvasImage: str
     results: list[dict[str, Any]]
     dictOfVars: dict[str, Any]
+    canvas_id: str | None = None
+    canvasId: str | None = None
 
 
 class SingleEntrySaveRequest(BaseModel):
@@ -30,10 +32,12 @@ class SyncHistoryRequest(BaseModel):
 
 
 @router.get("", response_model=dict[str, Any])
-@limiter.limit("10/minute")
-async def get_history_endpoint(request: Request, user_id: str = Depends(get_current_user)):
+@limiter.limit("60/minute")
+async def get_history_endpoint(
+    request: Request, canvas_id: str | None = None, user_id: str = Depends(get_current_user)
+):
     try:
-        entries = get_user_history(user_id)
+        entries = get_user_history(user_id, canvas_id=canvas_id)
         return {"status": "success", "entries": entries}
     except Exception:
         logger.exception("Failed to fetch user history")

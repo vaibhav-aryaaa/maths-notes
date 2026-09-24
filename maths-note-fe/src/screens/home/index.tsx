@@ -294,7 +294,6 @@ export default function Home() {
         insertImageFile,
         flushLiveCanvasSave,
         scheduleAutosave,
-        isCanvasDirtyRef,
         markCanvasClean,
         markCanvasDirty
     } = useMathCanvas(
@@ -577,13 +576,14 @@ export default function Home() {
 
     const { 
         history, 
+        showAllNotebooks,
+        setShowAllNotebooks,
         saveHistoryEntry, 
-        saveDraftHistoryEntry,
         clearHistory, 
         deleteHistoryItem,
         getHistoryEntryImage,
         user
-    } = useSolveHistory();
+    } = useSolveHistory(activeCanvasId);
 
     useEffect(() => {
         let isMounted = true;
@@ -632,7 +632,7 @@ export default function Home() {
         elementsRef,
         drawBoundsRef,
         (canvas, allResults, currentDict) => {
-            saveHistoryEntry(canvas, allResults, currentDict, elementsRef.current);
+            saveHistoryEntry(canvas, allResults, currentDict, elementsRef.current, activeCanvasId);
             markCanvasClean();
         },
         redrawViewCanvas
@@ -880,11 +880,6 @@ export default function Home() {
     const activeSolveBox = activeSolveRegion ? getSelectionBox(activeSolveRegion.bounds) : null;
 
     const handleSelectHistoryEntry = (entry: any) => {
-        // Only snapshot as a Draft if there is unsaved/dirty work currently on the canvas
-        if (elementsRef.current.length > 0 && isCanvasDirtyRef.current) {
-            saveDraftHistoryEntry(canvasRef.current, dictOfVarsRef.current, elementsRef.current);
-            saveState();
-        }
         // Durably flush pending in-memory canvas state to IndexedDB before overwriting
         flushLiveCanvasSave();
 
@@ -1002,10 +997,6 @@ export default function Home() {
     } = useCopilotChat(dictOfVars, results);
 
     const handleTryExample = (problem: typeof EXAMPLE_PROBLEMS[number]) => {
-        if (elementsRef.current.length > 0 && isCanvasDirtyRef.current) {
-            saveDraftHistoryEntry(canvasRef.current, dictOfVarsRef.current, elementsRef.current);
-            saveState();
-        }
         flushLiveCanvasSave();
         trackEvent('example_clicked', {
             example_id: problem.id,
@@ -1021,12 +1012,6 @@ export default function Home() {
     };
 
     const handleNewCanvas = useCallback(() => {
-        // If there is active unsaved/modified work, auto-save it as a Draft in History first
-        if (elementsRef.current.length > 0 && isCanvasDirtyRef.current) {
-            saveDraftHistoryEntry(canvasRef.current, dictOfVarsRef.current, elementsRef.current);
-            saveState();
-        }
-
         loadedHistoryEntryIdRef.current = null;
 
         // Clear persisted live canvas from IndexedDB
@@ -1042,7 +1027,7 @@ export default function Home() {
         setSkeletonVisible(false);
         setSkeletonRegion(null);
         markCanvasClean();
-    }, [activeCanvasId, saveDraftHistoryEntry, saveState, resetCanvas, setResults, setDictOfVars, markCanvasClean]);
+    }, [activeCanvasId, resetCanvas, setResults, setDictOfVars, markCanvasClean]);
 
     const handleDeleteHistoryEntry = useCallback((id: string) => {
         deleteHistoryItem(id);
@@ -1171,6 +1156,8 @@ export default function Home() {
                 onClose={() => setIsSidebarOpen(false)}
                 dictOfVars={dictOfVars}
                 history={history}
+                showAllNotebooks={showAllNotebooks}
+                onToggleShowAllNotebooks={setShowAllNotebooks}
                 onSelectEntry={handleSelectHistoryEntry}
                 onClearHistory={handleClearHistory}
                 onDeleteEntry={handleDeleteHistoryEntry}

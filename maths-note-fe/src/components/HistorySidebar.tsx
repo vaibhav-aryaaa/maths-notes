@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, BookOpen, Layers } from 'lucide-react';
 import type { DictOfVars } from '@/types';
 import type { HistoryEntry } from '@/hooks/useSolveHistory';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -9,6 +9,8 @@ interface HistorySidebarProps {
     onClose: () => void;
     dictOfVars: DictOfVars;
     history: HistoryEntry[];
+    showAllNotebooks?: boolean;
+    onToggleShowAllNotebooks?: (show: boolean) => void;
     onSelectEntry: (entry: HistoryEntry) => void;
     onClearHistory: () => void;
     onDeleteEntry: (id: string) => void;
@@ -28,6 +30,8 @@ export function HistorySidebar(props: HistorySidebarProps) {
 function HistorySidebarInner({
     dictOfVars,
     history,
+    showAllNotebooks = false,
+    onToggleShowAllNotebooks,
     onSelectEntry,
     onClearHistory,
     onDeleteEntry,
@@ -47,9 +51,9 @@ function HistorySidebarInner({
                 </span>
             </div>
 
-            <div className="flex-1 flex flex-col gap-5 overflow-hidden min-h-0">
+            <div className="flex-1 flex flex-col gap-4 overflow-hidden min-h-0">
                 {/* Variable memory panel */}
-                <div className="shrink-0 flex flex-col max-h-[30%] min-h-[100px] overflow-hidden">
+                <div className="shrink-0 flex flex-col max-h-[25%] min-h-[90px] overflow-hidden">
                     <h3 className="text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider mb-2 shrink-0">Variable Memory</h3>
                     <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
                         {Object.keys(dictOfVars).length > 0 ? (
@@ -68,9 +72,41 @@ function HistorySidebarInner({
                     </div>
                 </div>
 
-                {/* History list panel */}
-                <div className="flex-1 flex flex-col min-h-0 overflow-hidden border-t border-stone-200 dark:border-white/10 pt-4">
-                    <h3 className="text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider mb-2 shrink-0">Solve History</h3>
+                {/* History list panel with Notebook Scope Switcher */}
+                <div className="flex-1 flex flex-col min-h-0 overflow-hidden border-t border-stone-200 dark:border-white/10 pt-3">
+                    <div className="flex items-center justify-between gap-2 mb-2.5 shrink-0">
+                        <h3 className="text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider">Solve History</h3>
+                        
+                        {onToggleShowAllNotebooks && (
+                            <div className="flex items-center bg-stone-100 dark:bg-stone-900 p-0.5 rounded-lg border border-stone-200/60 dark:border-stone-800">
+                                <button
+                                    onClick={() => onToggleShowAllNotebooks(false)}
+                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer border-none flex items-center gap-1 ${
+                                        !showAllNotebooks 
+                                            ? 'bg-white dark:bg-stone-800 text-stone-900 dark:text-white shadow-xs' 
+                                            : 'bg-transparent text-stone-400 hover:text-stone-600 dark:hover:text-stone-300'
+                                    }`}
+                                    title="Show solves in this notebook"
+                                >
+                                    <BookOpen size={11} />
+                                    <span>This Notebook</span>
+                                </button>
+                                <button
+                                    onClick={() => onToggleShowAllNotebooks(true)}
+                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer border-none flex items-center gap-1 ${
+                                        showAllNotebooks 
+                                            ? 'bg-white dark:bg-stone-800 text-stone-900 dark:text-white shadow-xs' 
+                                            : 'bg-transparent text-stone-400 hover:text-stone-600 dark:hover:text-stone-300'
+                                    }`}
+                                    title="Show solves across all notebooks"
+                                >
+                                    <Layers size={11} />
+                                    <span>All</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
                     <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-2 scrollbar-thin">
                         {history.length > 0 ? (
                             history.map((entry) => (
@@ -110,30 +146,12 @@ function HistorySidebarInner({
                                         )}
                                     </div>
                                     <div className="flex-1 min-w-0 pr-6">
-                                        {entry.isDraft ? (
-                                            <>
-                                                <div className="flex items-center gap-1.5">
-                                                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300/50 dark:border-amber-700/50">
-                                                        Draft
-                                                    </span>
-                                                    <span className="text-xs font-bold text-stone-700 dark:text-stone-300 truncate">
-                                                        Unsaved Sketch
-                                                    </span>
-                                                </div>
-                                                <p className="text-[10px] text-stone-500 dark:text-stone-400 font-mono mt-0.5 truncate">
-                                                    {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                </p>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <p className="text-xs font-bold text-stone-800 dark:text-stone-200 truncate">
-                                                    {entry.results[0]?.solutions[0]?.expression || 'Equation'}
-                                                </p>
-                                                <p className="text-[10px] text-stone-600 dark:text-stone-400 font-mono mt-0.5 truncate">
-                                                    = {entry.results[0]?.solutions[0]?.answer || '?'}
-                                                </p>
-                                            </>
-                                        )}
+                                        <p className="text-xs font-bold text-stone-800 dark:text-stone-200 truncate">
+                                            {entry.results[0]?.solutions[0]?.expression || 'Equation'}
+                                        </p>
+                                        <p className="text-[10px] text-stone-600 dark:text-stone-400 font-mono mt-0.5 truncate">
+                                            = {entry.results[0]?.solutions[0]?.answer || '?'}
+                                        </p>
                                     </div>
                                     
                                     {/* Inline Delete Button */}
@@ -151,7 +169,11 @@ function HistorySidebarInner({
                                 </div>
                             ))
                         ) : (
-                            <p className="text-xs text-stone-600 dark:text-stone-400 italic py-1">Solve expressions on the canvas to build history.</p>
+                            <p className="text-xs text-stone-600 dark:text-stone-400 italic py-1">
+                                {showAllNotebooks 
+                                    ? 'No solve history found across any notebooks.' 
+                                    : 'Solve expressions on this canvas to build history.'}
+                            </p>
                         )}
                     </div>
 
@@ -185,7 +207,7 @@ function HistorySidebarInner({
                                 <button
                                     onClick={() => setConfirmClear(true)}
                                     className="cursor-pointer w-full text-[11px] font-bold text-red-600 dark:text-red-400 hover:text-red-500 dark:hover:text-red-300 border border-red-200 dark:border-red-500/20 hover:border-red-300 dark:hover:border-red-500/40 bg-red-50 dark:bg-red-500/5 hover:bg-red-100 dark:hover:bg-red-500/10 py-1.5 rounded-xl transition-all font-sans flex items-center justify-center gap-1.5"
-                                    aria-label="Clear all solve history entries"
+                                    aria-label="Clear solve history entries"
                                 >
                                     Clear History
                                 </button>
