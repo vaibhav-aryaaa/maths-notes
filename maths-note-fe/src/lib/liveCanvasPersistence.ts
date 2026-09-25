@@ -1,4 +1,5 @@
 import type { CanvasElement, DictOfVars, GeneratedResult } from '@/types';
+import { updateCanvas, type CanvasDetail } from './canvasesApi';
 
 export interface LiveCanvasData {
     id?: string;
@@ -229,3 +230,103 @@ export async function deleteLocalCanvas(canvasId: string): Promise<void> {
         }
     });
 }
+
+export async function syncLiveCanvasToBackend(
+    canvasId: string,
+    data: LiveCanvasData,
+    token?: string | null
+): Promise<void> {
+    if (!canvasId || canvasId === DEFAULT_CANVAS_ID) return;
+    try {
+        await updateCanvas(canvasId, {
+            elements: {
+                elements: data.elements,
+                camera: data.camera,
+                dictOfVars: data.dictOfVars,
+                results: data.results,
+                loadedHistoryEntryId: data.loadedHistoryEntryId
+            }
+        }, token);
+    } catch (err) {
+        console.warn(`Failed to sync live canvas ${canvasId} to backend:`, err);
+    }
+}
+
+export interface ResolvedLiveCanvasResult {
+    data: LiveCanvasData | null;
+    source: 'local' | 'remote' | 'empty';
+    shouldSaveLocal: boolean;
+    shouldPushRemote: boolean;
+}
+
+export function resolveLiveCanvasWithRemote(
+    localData: LiveCanvasData | null,
+    remoteDetail: CanvasDetail | null
+): ResolvedLiveCanvasResult {
+    if (!localData && !remoteDetail) {
+        return { data: null, source: 'empty', shouldSaveLocal: false, shouldPushRemote: false };
+    }
+
+    const localTime = localData?.updatedAt || 0;
+    const remoteTime = remoteDetail?.updated_at ? new Date(remoteDetail.updated_at).getTime() : 0;
+
+    const hasRemoteElements = Boolean(
+        remoteDetail &&
+        remoteDetail.elements !== undefined &&
+        remoteDetail.elements !== null
+    );
+
+    // If remote is strictly newer or local doesn't exist but remote does
+    if (remoteDetail && hasRemoteElements && (remoteTime > localTime || !localData)) {
+        const rawPayload = remoteDetail.elements;
+        const isArray = Array.isArray(rawPayload);
+
+        const remoteElements: CanvasElement[] = isArray
+            ? rawPayload
+            : (rawPayload?.elements || []);
+
+        const remoteCamera = (!isArray && rawPayload?.camera)
+            || localData?.camera
+            || undefined;
+
+        const remoteDictOfVars = (!isArray && rawPayload?.dictOfVars)
+            ?? localData?.dictOfVars;
+
+        const remoteResults = (!isArray && rawPayload?.results)
+            ?? localData?.results;
+
+        const remoteHistoryId = (!isArray && rawPayload?.loadedHistoryEntryId)
+            ?? localData?.loadedHistoryEntryId;
+
+        const resolvedData: LiveCanvasData = {
+            id: remoteDetail.id,
+            elements: remoteElements,
+            camera: remoteCamera || { offsetX: 0, offsetY: 0, scale: 1 },
+            dictOfVars: remoteDictOfVars,
+            results: remoteResults,
+            loadedHistoryEntryId: remoteHistoryId,
+            updatedAt: remoteTime || Date.now()
+        };
+
+        return {
+            data: resolvedData,
+            source: 'remote',
+            shouldSaveLocal: true,
+            shouldPushRemote: false
+        };
+    }
+
+    // Local exists and is newer or equal
+    if (localData) {
+        const shouldPush = Boolean(remoteDetail && localTime > remoteTime);
+        return {
+            data: localData,
+            source: 'local',
+            shouldSaveLocal: false,
+            shouldPushRemote: shouldPush
+        };
+    }
+
+    return { data: null, source: 'empty', shouldSaveLocal: false, shouldPushRemote: false };
+}
+

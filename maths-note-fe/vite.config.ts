@@ -50,6 +50,8 @@ export default defineConfig({
               return url.pathname.includes('/calculate') ||
                      url.pathname.includes('/copilot') ||
                      url.pathname.includes('/history') ||
+                     url.pathname.includes('/canvases') ||
+                     url.pathname.includes('/folders') ||
                      url.pathname.includes('/share')
             },
             handler: 'NetworkOnly'

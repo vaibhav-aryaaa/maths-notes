@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Stroke, CanvasElement, ImageElement, DictOfVars, GeneratedResult } from '@/types';
 import { getStrokeOutline, getElementBounds, getElementCenter, drawElement, getStrokeBounds } from './canvasUtils';
 import { CANVAS_BACKGROUND_COLOR } from '@/constants';
-import { saveLiveCanvas, loadLiveCanvas, clearLiveCanvas, DEFAULT_CANVAS_ID, type LiveCanvasData } from '@/lib/liveCanvasPersistence';
+import { saveLiveCanvas, loadLiveCanvas, clearLiveCanvas, DEFAULT_CANVAS_ID, syncLiveCanvasToBackend, resolveLiveCanvasWithRemote, type LiveCanvasData } from '@/lib/liveCanvasPersistence';
+import { fetchCanvasDetail } from '@/lib/canvasesApi';
 import { saveGuestCanvasData, loadGuestCanvasData, clearGuestCanvasData } from '@/lib/guestSession';
 
 const generateUUID = () => {
@@ -416,6 +417,11 @@ export const useMathCanvas = (
             saveGuestCanvasData(liveData);
         } else {
             await saveLiveCanvas(activeCanvasIdRef.current, liveData);
+            if (activeCanvasIdRef.current && activeCanvasIdRef.current !== DEFAULT_CANVAS_ID) {
+                syncLiveCanvasToBackend(activeCanvasIdRef.current, liveData).catch((err) => {
+                    console.warn('Live canvas cloud sync deferred:', err);
+                });
+            }
         }
     }, [getDictOfVars, getResults, getLoadedHistoryEntryId]);
 
@@ -928,47 +934,117 @@ export const useMathCanvas = (
         redrawViewCanvasRef.current = redrawViewCanvas;
     }, [redrawViewCanvas]);
 
-    // Restore live canvas from sessionStorage (if guest) or IndexedDB on mount and when activeCanvasId changes
+    const applyLoadedCanvasData = useCallback((data: LiveCanvasData) => {
+        if (!data) return;
+        if (data.elements && data.elements.length > 0) {
+            isFirstLayoutRef.current = false;
+            elementsRef.current = data.elements.map(cloneCanvasElement);
+            setIsCanvasEmpty(false);
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            elementsRef.current.forEach((el) => {
+                const bounds = getElementBounds(el);
+                if (bounds.minX < minX) minX = bounds.minX;
+                if (bounds.maxX > maxX) maxX = bounds.maxX;
+                if (bounds.minY < minY) minY = bounds.minY;
+                if (bounds.maxY > maxY) maxY = bounds.maxY;
+            });
+            drawBoundsRef.current = { minX, minY, maxX, maxY };
+        } else {
+            elementsRef.current = [];
+            setIsCanvasEmpty(true);
+            drawBoundsRef.current = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+        }
+        if (data.camera && (data.camera.offsetX !== 0 || data.camera.offsetY !== 0 || data.camera.scale !== 1)) {
+            isFirstLayoutRef.current = false;
+            cameraRef.current = data.camera;
+            setCamera(data.camera);
+        } else if (data.elements && data.elements.length > 0 && isFirstLayoutRef.current) {
+            isFirstLayoutRef.current = false;
+            const viewCanvas = canvasRef.current;
+            const width = viewCanvas ? viewCanvas.width : (typeof window !== 'undefined' ? window.innerWidth : 1024);
+            const height = viewCanvas ? viewCanvas.height : (typeof window !== 'undefined' ? window.innerHeight : 768);
+            const contentCenterX = (drawBoundsRef.current.minX + drawBoundsRef.current.maxX) / 2;
+            const contentCenterY = (drawBoundsRef.current.minY + drawBoundsRef.current.maxY) / 2;
+            const targetCamera = {
+                offsetX: width / 2 - contentCenterX,
+                offsetY: height / 2 - contentCenterY,
+                scale: 1
+            };
+            cameraRef.current = targetCamera;
+            setCamera(targetCamera);
+        }
+        redrawViewCanvasRef.current();
+        if (onRestoreLiveCanvasRef.current) {
+            onRestoreLiveCanvasRef.current(data);
+        }
+    }, []);
+
+    // Restore live canvas from sessionStorage (if guest) or IndexedDB/Cloud on mount and when activeCanvasId changes
     useEffect(() => {
         let isMounted = true;
-        const loadPromise = isGuest ? Promise.resolve(loadGuestCanvasData()) : loadLiveCanvas(activeCanvasId);
 
-        loadPromise.then((savedData) => {
-            if (!isMounted) return;
-            if (savedData && (savedData.elements?.length > 0 || savedData.camera)) {
-                isFirstLayoutRef.current = false;
-                if (savedData.elements && savedData.elements.length > 0) {
-                    elementsRef.current = savedData.elements.map(cloneCanvasElement);
-                    setIsCanvasEmpty(false);
-                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                    elementsRef.current.forEach((el) => {
-                        const bounds = getElementBounds(el);
-                        if (bounds.minX < minX) minX = bounds.minX;
-                        if (bounds.maxX > maxX) maxX = bounds.maxX;
-                        if (bounds.minY < minY) minY = bounds.minY;
-                        if (bounds.maxY > maxY) maxY = bounds.maxY;
-                    });
-                    drawBoundsRef.current = { minX, minY, maxX, maxY };
+        if (isGuest) {
+            Promise.resolve().then(() => {
+                if (!isMounted) return;
+                try {
+                    const guestData = loadGuestCanvasData();
+                    if (guestData && (guestData.elements?.length > 0 || guestData.camera)) {
+                        applyLoadedCanvasData(guestData);
+                    }
+                } catch (err) {
+                    console.error('Failed to load guest canvas:', err);
                 }
-                if (savedData.camera) {
-                    cameraRef.current = savedData.camera;
-                    setCamera(savedData.camera);
+                isRestoredRef.current = true;
+            });
+            return () => {
+                isMounted = false;
+            };
+        }
+
+        // Signed-in user flow: Local-first + Cloud Sync Resolution
+        (async () => {
+            let localData: LiveCanvasData | null = null;
+            try {
+                localData = await loadLiveCanvas(activeCanvasId);
+                if (!isMounted) return;
+                if (localData && (localData.elements?.length > 0 || localData.camera)) {
+                    applyLoadedCanvasData(localData);
                 }
-                redrawViewCanvasRef.current();
-                if (onRestoreLiveCanvasRef.current && savedData) {
-                    onRestoreLiveCanvasRef.current(savedData);
+            } catch (err) {
+                console.error('Failed to restore live canvas from local IndexedDB:', err);
+            }
+
+            // If we have a real canvas ID, resolve against remote backend
+            if (activeCanvasId && activeCanvasId !== DEFAULT_CANVAS_ID) {
+                try {
+                    const remoteDetail = await fetchCanvasDetail(activeCanvasId);
+                    if (!isMounted) return;
+
+                    const resolution = resolveLiveCanvasWithRemote(localData, remoteDetail);
+                    if (resolution.data && resolution.source === 'remote') {
+                        applyLoadedCanvasData(resolution.data);
+                        if (resolution.shouldSaveLocal) {
+                            await saveLiveCanvas(activeCanvasId, resolution.data);
+                        }
+                    } else if (resolution.data && resolution.source === 'local' && resolution.shouldPushRemote) {
+                        syncLiveCanvasToBackend(activeCanvasId, resolution.data).catch((e) => {
+                            console.warn('Deferred sync of local newer canvas to backend:', e);
+                        });
+                    }
+                } catch (remoteErr) {
+                    console.warn('Failed to fetch remote canvas detail for sync resolution:', remoteErr);
                 }
             }
-            isRestoredRef.current = true;
-        }).catch((err) => {
-            console.error('Failed to restore live canvas:', err);
-            isRestoredRef.current = true;
-        });
+
+            if (isMounted) {
+                isRestoredRef.current = true;
+            }
+        })();
 
         return () => {
             isMounted = false;
         };
-    }, [activeCanvasId, isGuest]);
+    }, [activeCanvasId, isGuest, applyLoadedCanvasData]);
 
     // Autosave camera pan/zoom changes
     useEffect(() => {

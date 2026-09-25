@@ -123,7 +123,7 @@ class CanvasCreate(BaseModel):
     name: str
     folder_id: str | None = None
     thumbnail: str | None = None
-    elements: list[dict[str, Any]] | str | None = None
+    elements: Any = None
 
     @field_validator("name")
     @classmethod
@@ -137,7 +137,7 @@ class CanvasUpdate(BaseModel):
     name: str | None = None
     folder_id: str | None = None
     thumbnail: str | None = None
-    elements: list[dict[str, Any]] | str | None = None
+    elements: Any = None
 
     @field_validator("name")
     @classmethod

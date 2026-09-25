@@ -6,10 +6,13 @@ import {
     saveLocalCanvasMetadata,
     loadLocalCanvasesMetadata,
     deleteLocalCanvas,
+    syncLiveCanvasToBackend,
+    resolveLiveCanvasWithRemote,
     DEFAULT_CANVAS_ID,
     type LiveCanvasData,
     type LocalCanvasMetadata
 } from './liveCanvasPersistence';
+import * as canvasesApi from './canvasesApi';
 
 describe('liveCanvasPersistence multi-canvas', () => {
     let mockDB: any;
@@ -216,4 +219,136 @@ describe('liveCanvasPersistence multi-canvas', () => {
         await expect(loadLocalCanvasesMetadata()).resolves.toEqual([]);
         await expect(deleteLocalCanvas('canvas-xyz')).resolves.toBeUndefined();
     });
+
+    describe('resolveLiveCanvasWithRemote (Timestamp-based conflict resolution)', () => {
+        it('should prefer remote canvas if remote updated_at is newer than local', () => {
+            const localData: LiveCanvasData = {
+                elements: [{ id: 'local-stroke', kind: 'stroke', tool: 'pen', color: '#fff', width: 2, points: [] }],
+                camera: { offsetX: 0, offsetY: 0, scale: 1 },
+                updatedAt: 1000
+            };
+
+            const remoteDetail: canvasesApi.CanvasDetail = {
+                id: 'canvas-123',
+                name: 'Remote Notebook',
+                elements: [{ id: 'remote-stroke', kind: 'stroke', tool: 'marker', color: '#ff0000', width: 4, points: [] }],
+                updated_at: new Date(2000).toISOString()
+            };
+
+            const result = resolveLiveCanvasWithRemote(localData, remoteDetail);
+            expect(result.source).toBe('remote');
+            expect(result.shouldSaveLocal).toBe(true);
+            expect(result.shouldPushRemote).toBe(false);
+            expect(result.data?.elements).toEqual(remoteDetail.elements);
+            expect(result.data?.updatedAt).toBe(2000);
+        });
+
+        it('should prefer local canvas if local updatedAt is newer than remote', () => {
+            const localData: LiveCanvasData = {
+                elements: [{ id: 'newer-local-stroke', kind: 'stroke', tool: 'pen', color: '#fff', width: 2, points: [] }],
+                camera: { offsetX: 10, offsetY: 20, scale: 1 },
+                updatedAt: 5000
+            };
+
+            const remoteDetail: canvasesApi.CanvasDetail = {
+                id: 'canvas-123',
+                name: 'Remote Notebook',
+                elements: [{ id: 'older-remote-stroke', kind: 'stroke', tool: 'pen', color: '#000', width: 2, points: [] }],
+                updated_at: new Date(3000).toISOString()
+            };
+
+            const result = resolveLiveCanvasWithRemote(localData, remoteDetail);
+            expect(result.source).toBe('local');
+            expect(result.shouldSaveLocal).toBe(false);
+            expect(result.shouldPushRemote).toBe(true);
+            expect(result.data).toEqual(localData);
+        });
+
+        it('should pick remote if local data is null and remote has data', () => {
+            const remoteDetail: canvasesApi.CanvasDetail = {
+                id: 'canvas-123',
+                name: 'New Device Notebook',
+                elements: [{ id: 'remote-1', kind: 'stroke', tool: 'pen', color: '#fff', width: 2, points: [] }],
+                updated_at: new Date(1500).toISOString()
+            };
+
+            const result = resolveLiveCanvasWithRemote(null, remoteDetail);
+            expect(result.source).toBe('remote');
+            expect(result.shouldSaveLocal).toBe(true);
+            expect(result.data?.elements).toEqual(remoteDetail.elements);
+        });
+
+        it('should return empty source when both local and remote are null', () => {
+            const result = resolveLiveCanvasWithRemote(null, null);
+            expect(result.source).toBe('empty');
+            expect(result.data).toBeNull();
+            expect(result.shouldSaveLocal).toBe(false);
+            expect(result.shouldPushRemote).toBe(false);
+        });
+    });
+
+    describe('syncLiveCanvasToBackend', () => {
+        it('should call updateCanvas with elements when canvasId is valid', async () => {
+            const spyUpdate = vi.spyOn(canvasesApi, 'updateCanvas').mockResolvedValue({
+                id: 'c-1',
+                name: 'Test',
+                elements: []
+            } as any);
+
+            const liveData: LiveCanvasData = {
+                elements: [{ id: 's-1', kind: 'stroke', tool: 'pen', color: '#fff', width: 2, points: [] }],
+                camera: { offsetX: 0, offsetY: 0, scale: 1 },
+                updatedAt: 1234
+            };
+
+            await syncLiveCanvasToBackend('c-1', liveData, 'mock-token');
+            expect(spyUpdate).toHaveBeenCalledWith('c-1', {
+                elements: {
+                    elements: liveData.elements,
+                    camera: liveData.camera,
+                    dictOfVars: liveData.dictOfVars,
+                    results: liveData.results,
+                    loadedHistoryEntryId: liveData.loadedHistoryEntryId
+                }
+            }, 'mock-token');
+
+            spyUpdate.mockRestore();
+        });
+
+        it('should not call updateCanvas when canvasId is default or empty', async () => {
+            const spyUpdate = vi.spyOn(canvasesApi, 'updateCanvas').mockResolvedValue({} as any);
+
+            const liveData: LiveCanvasData = {
+                elements: [],
+                camera: { offsetX: 0, offsetY: 0, scale: 1 },
+                updatedAt: 1234
+            };
+
+            await syncLiveCanvasToBackend(DEFAULT_CANVAS_ID, liveData);
+            expect(spyUpdate).not.toHaveBeenCalled();
+
+            await syncLiveCanvasToBackend('', liveData);
+            expect(spyUpdate).not.toHaveBeenCalled();
+
+            spyUpdate.mockRestore();
+        });
+
+        it('should degrade gracefully and not throw on backend failure', async () => {
+            const spyUpdate = vi.spyOn(canvasesApi, 'updateCanvas').mockRejectedValue(new Error('Network Offline'));
+            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+            const liveData: LiveCanvasData = {
+                elements: [],
+                camera: { offsetX: 0, offsetY: 0, scale: 1 },
+                updatedAt: 1234
+            };
+
+            await expect(syncLiveCanvasToBackend('c-1', liveData)).resolves.toBeUndefined();
+            expect(warnSpy).toHaveBeenCalled();
+
+            spyUpdate.mockRestore();
+            warnSpy.mockRestore();
+        });
+    });
 });
+

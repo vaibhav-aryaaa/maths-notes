@@ -252,3 +252,42 @@ def test_trash_and_restore_flow():
     assert all(c["id"] != canvas_id for c in empty_trash["canvases"])
     assert all(f["id"] != folder_id for f in empty_trash["folders"])
 
+
+def test_canvas_patch_elements_sync():
+    global current_test_user
+    current_test_user = "user-sync-test"
+
+    # 1. Create Canvas
+    c_res = client.post(
+        "/canvases",
+        json={"name": "Sync Notebook", "elements": [{"id": "s-1", "kind": "stroke"}]},
+        headers=AUTH_HEADERS,
+    )
+    assert c_res.status_code == 200
+    canvas = c_res.json()
+    canvas_id = canvas["id"]
+    initial_updated_at = canvas["updated_at"]
+    assert canvas["elements"] == [{"id": "s-1", "kind": "stroke"}]
+
+    # 2. Patch with updated elements
+    updated_elements = [
+        {"id": "s-1", "kind": "stroke"},
+        {"id": "s-2", "kind": "stroke", "color": "#ff0000", "points": [{"x": 10, "y": 20}]},
+        {"id": "t-1", "kind": "text", "text": "Euler formula", "x": 100, "y": 150},
+    ]
+    patch_res = client.patch(
+        f"/canvases/{canvas_id}",
+        json={"elements": updated_elements},
+        headers=AUTH_HEADERS,
+    )
+    assert patch_res.status_code == 200
+    updated_canvas = patch_res.json()
+    assert updated_canvas["elements"] == updated_elements
+    assert updated_canvas["updated_at"] >= initial_updated_at
+
+    # 3. Verify GET /canvases/{id} reflects new synced content
+    detail_res = client.get(f"/canvases/{canvas_id}", headers=AUTH_HEADERS)
+    assert detail_res.status_code == 200
+    assert detail_res.json()["elements"] == updated_elements
+
+

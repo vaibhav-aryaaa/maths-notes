@@ -22,7 +22,7 @@ export interface CanvasMetadata {
 }
 
 export interface CanvasDetail extends CanvasMetadata {
-    elements?: any[];
+    elements?: any;
 }
 
 export interface TrashData {
@@ -117,7 +117,7 @@ export async function fetchCanvasDetail(canvasId: string, token?: string | null)
 }
 
 export async function createCanvas(
-    payload: { name: string; folder_id?: string | null; thumbnail?: string | null; elements?: any[] },
+    payload: { name: string; folder_id?: string | null; thumbnail?: string | null; elements?: any },
     token?: string | null
 ): Promise<CanvasDetail> {
     const headers = await getAuthHeaders(token);
@@ -127,7 +127,7 @@ export async function createCanvas(
 
 export async function updateCanvas(
     canvasId: string,
-    payload: { name?: string; folder_id?: string | null; thumbnail?: string | null; elements?: any[] },
+    payload: { name?: string; folder_id?: string | null; thumbnail?: string | null; elements?: any },
     token?: string | null
 ): Promise<CanvasDetail> {
     const headers = await getAuthHeaders(token);
