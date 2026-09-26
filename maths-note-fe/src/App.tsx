@@ -42,7 +42,6 @@ const AppContent = () => {
     };
 
     const handleSignIn = () => {
-        setStarted(true);
         setAuthInitialSignUp(false);
         setAuthModalOpened(true);
     };

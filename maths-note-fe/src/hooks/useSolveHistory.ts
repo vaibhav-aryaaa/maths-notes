@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { GeneratedResult, DictOfVars } from '@/types';
 import { supabase } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
@@ -59,6 +60,7 @@ const getAuthHeaders = (token: string) => {
 };
 
 export function useSolveHistory(activeCanvasId: string = DEFAULT_CANVAS_ID) {
+    const navigate = useNavigate();
     const [allHistory, setAllHistory] = useState<HistoryEntry[]>([]);
     const [showAllNotebooks, setShowAllNotebooks] = useState(false);
     const [isDbReady, setIsDbReady] = useState(false);
@@ -143,15 +145,28 @@ export function useSolveHistory(activeCanvasId: string = DEFAULT_CANVAS_ID) {
 
             // 4a. Migrate guest canvas into user's first notebook / active canvas
             if (guestCanvas && ((guestCanvas.elements && guestCanvas.elements.length > 0) || (guestCanvas.results && guestCanvas.results.length > 0))) {
-                await saveLiveCanvas(activeCanvasId || DEFAULT_CANVAS_ID, guestCanvas, {
-                    name: 'First Notebook'
-                });
+                const fullPayload = {
+                    elements: guestCanvas.elements,
+                    camera: guestCanvas.camera,
+                    dictOfVars: guestCanvas.dictOfVars,
+                    results: guestCanvas.results,
+                    loadedHistoryEntryId: guestCanvas.loadedHistoryEntryId
+                };
 
                 try {
-                    await createCanvas({
+                    const newCanvas = await createCanvas({
                         name: 'First Notebook',
-                        elements: guestCanvas.elements
+                        elements: fullPayload
                     }, token);
+
+                    if (newCanvas && newCanvas.id) {
+                        await saveLiveCanvas(newCanvas.id, {
+                            ...guestCanvas,
+                            id: newCanvas.id
+                        }, {
+                            name: 'First Notebook'
+                        });
+                    }
                 } catch (e) {
                     console.warn('Backend canvas creation on migration deferred/failed:', e);
                 }
@@ -247,6 +262,9 @@ export function useSolveHistory(activeCanvasId: string = DEFAULT_CANVAS_ID) {
                 setJwt(session.access_token);
                 if (isNewSignIn) {
                     await migrateGuestDataToUserRef.current(session.access_token, session.user);
+                    if (event === 'SIGNED_IN') {
+                        navigate('/library');
+                    }
                 } else {
                     await loadHistoryRef.current(session.access_token, session.user);
                 }
