@@ -135,7 +135,7 @@ export const useCanvasSolver = (
                     clipPath: selection?.type === 'lasso' ? selection.points : undefined,
                     scale: 1.0
                 });
-                onSaveHistory?.(historyCanvas, updatedResults, dictOfVars);
+                onSaveHistory?.(historyCanvas, [newResult], dictOfVars);
 
                 trackEvent('solve_succeeded', {
                     solution_count: solutions.length,

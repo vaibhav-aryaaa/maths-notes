@@ -259,4 +259,80 @@ describe('useCanvasSolver', () => {
         expect(axios).not.toHaveBeenCalled();
         expect(onLimitReached).toHaveBeenCalledTimes(1);
     });
+
+    it('should pass only the single newResult to onSaveHistory while updating cumulative live results', async () => {
+        const onSaveHistory = vi.fn();
+        const mockResponse1 = {
+            data: {
+                status: 'success',
+                data: [{ expr: 'x + 1', result: '3', assign: false, type: 'math' }]
+            }
+        };
+        const mockResponse2 = {
+            data: {
+                status: 'success',
+                data: [{ expr: 'y * 2', result: '10', assign: false, type: 'math' }]
+            }
+        };
+
+        const mockTempCanvas = {
+            width: 0,
+            height: 0,
+            getContext: vi.fn().mockReturnValue({
+                fillStyle: '',
+                fillRect: vi.fn(),
+                drawImage: vi.fn(),
+                scale: vi.fn(),
+                translate: vi.fn(),
+                beginPath: vi.fn(),
+                moveTo: vi.fn(),
+                lineTo: vi.fn(),
+                stroke: vi.fn(),
+                rect: vi.fn(),
+                closePath: vi.fn(),
+                fill: vi.fn(),
+                save: vi.fn(),
+                restore: vi.fn(),
+            }),
+            toDataURL: vi.fn().mockReturnValue('data:image/png;base64,mocked_image_bytes'),
+        };
+        const origCreateElement = document.createElement;
+        document.createElement = vi.fn().mockImplementation((tag) => {
+            if (tag === 'canvas') return mockTempCanvas;
+            return origCreateElement.call(document, tag);
+        });
+
+        const { result } = renderHook(() => useCanvasSolver(
+            canvasRef,
+            strokesRef,
+            drawBoundsRef,
+            onSaveHistory
+        ));
+
+        // First solve
+        vi.mocked(axios).mockResolvedValueOnce(mockResponse1);
+        await act(async () => {
+            await result.current.runRoute();
+        });
+
+        expect(result.current.results.length).toBe(1);
+        expect(onSaveHistory).toHaveBeenCalledTimes(1);
+        expect(onSaveHistory.mock.calls[0][1]).toHaveLength(1);
+        expect(onSaveHistory.mock.calls[0][1][0].solutions[0].expression).toBe('x + 1');
+
+        // Second solve
+        vi.mocked(axios).mockResolvedValueOnce(mockResponse2);
+        await act(async () => {
+            await result.current.runRoute();
+        });
+
+        // Cumulative live results has 2 items
+        expect(result.current.results.length).toBe(2);
+        // onSaveHistory called second time with ONLY the 2nd single result
+        expect(onSaveHistory).toHaveBeenCalledTimes(2);
+        expect(onSaveHistory.mock.calls[1][1]).toHaveLength(1);
+        expect(onSaveHistory.mock.calls[1][1][0].solutions[0].expression).toBe('y * 2');
+
+        document.createElement = origCreateElement;
+    });
 });
