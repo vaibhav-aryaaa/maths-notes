@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, FilePlus, Scissors, LassoSelect, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut, Grid, MousePointer, Type, Image as ImageIcon, Plus, Minus, BookOpen } from 'lucide-react';
+import { Eraser, Pen, Highlighter, PenTool, Paintbrush, MessageSquare, X, Menu, Square, Circle, Triangle, Slash, Undo2, Redo2, Maximize, Trash2, Scissors, LassoSelect, Sun, Moon, Eye, Hand, Target, ZoomIn, ZoomOut, Grid, MousePointer, Type, Image as ImageIcon, Plus, Minus, BookOpen } from 'lucide-react';
 import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { ResultSkeleton } from '@/components/ResultSkeleton';
 import { useMathCanvas } from './useMathCanvas';
@@ -260,6 +260,7 @@ export default function Home({
     } = useSolveHistory(activeCanvasId);
 
     const isGuest = !user;
+    const [clearCanvasModalOpen, setClearCanvasModalOpen] = useState(false);
     const [guestLimitModalOpen, setGuestLimitModalOpen] = useState(false);
     const [internalAuthOpened, setInternalAuthOpened] = useState(false);
     const [authInitialSignUp, setAuthInitialSignUp] = useState(initialSignUp);
@@ -1029,7 +1030,8 @@ export default function Home({
         }, 600);
     };
 
-    const handleNewCanvas = useCallback(() => {
+    const handleClearCanvas = useCallback(() => {
+        setClearCanvasModalOpen(false);
         loadedHistoryEntryIdRef.current = null;
 
         // Clear persisted live canvas from IndexedDB
@@ -1458,15 +1460,15 @@ export default function Home({
                 {/* Divider */}
                 <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
 
-                {/* New Canvas Button */}
+                {/* Clear Canvas Button */}
                 <Button
-                    onClick={handleNewCanvas}
+                    onClick={() => setClearCanvasModalOpen(true)}
                     className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-stone-300 transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg"
                     variant="default"
-                    title="New Canvas (Archives current work to Draft and creates fresh whiteboard)"
-                    aria-label="Create a new blank canvas"
+                    title="Clear this canvas (cannot be undone)"
+                    aria-label="Clear Canvas"
                 >
-                    <FilePlus size={16} className="text-stone-600 dark:text-stone-300" />
+                    <Trash2 size={16} className="text-stone-600 dark:text-stone-300" />
                 </Button>
 
 
@@ -1934,6 +1936,46 @@ export default function Home({
                     <div className="flex justify-between items-center py-1.5">
                         <span className="text-stone-500 dark:text-gray-400">Open Shortcuts Help</span>
                         <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-stone-750 dark:text-stone-300 font-bold border border-stone-200 dark:border-white/15">?</kbd>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Clear Canvas Confirmation Modal */}
+            <Modal
+                opened={clearCanvasModalOpen}
+                onClose={() => setClearCanvasModalOpen(false)}
+                title=""
+                centered
+                size="sm"
+                classNames={{
+                    content: "bg-white dark:bg-[#18181c] text-stone-800 dark:text-white border border-stone-200 dark:border-stone-800/80 rounded-2xl shadow-2xl p-5 flex flex-col font-sans",
+                    header: "bg-transparent pb-0 min-h-0"
+                }}
+            >
+                <div className="text-center py-2 px-1">
+                    <div className="w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 mx-auto flex items-center justify-center mb-3.5 shadow-inner">
+                        <Trash2 size={24} />
+                    </div>
+                    <h3 className="text-lg font-bold text-stone-900 dark:text-white mb-2">
+                        Clear Canvas?
+                    </h3>
+                    <p className="text-xs sm:text-sm text-stone-500 dark:text-stone-400 mb-6 leading-relaxed font-medium">
+                        Clear this canvas? This can't be undone.
+                    </p>
+                    <div className="flex gap-2.5 justify-end">
+                        <Button
+                            variant="ghost"
+                            onClick={() => setClearCanvasModalOpen(false)}
+                            className="flex-1 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-white/10 font-semibold py-2.5 rounded-xl text-sm"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleClearCanvas}
+                            className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl shadow-sm text-sm"
+                        >
+                            Clear
+                        </Button>
                     </div>
                 </div>
             </Modal>

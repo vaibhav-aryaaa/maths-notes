@@ -78,7 +78,7 @@ define(['./workbox-aeb6ecaf'], (function (workbox) { 'use strict';
    */
   workbox.precacheAndRoute([{
     "url": "index.html",
-    "revision": "0.mu2u6sae4o8"
+    "revision": "0.8f6v28ner3o"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
@@ -87,7 +87,7 @@ define(['./workbox-aeb6ecaf'], (function (workbox) { 'use strict';
   workbox.registerRoute(({
     url
   }) => {
-    return url.pathname.includes("/calculate") || url.pathname.includes("/copilot") || url.pathname.includes("/history") || url.pathname.includes("/share");
+    return url.pathname.includes("/calculate") || url.pathname.includes("/copilot") || url.pathname.includes("/history") || url.pathname.includes("/canvases") || url.pathname.includes("/folders") || url.pathname.includes("/share");
   }, new workbox.NetworkOnly(), 'GET');
 
 }));
