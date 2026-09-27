@@ -159,12 +159,13 @@ export default function Home({
         return loadedHistoryEntryIdRef.current;
     }, []);
 
-    const selectionSolveRef = useRef<((selection: any) => void) | null>(null);
+    const selectionSolveRef = useRef<((selection: any, onStartScan?: (bounds: any) => void) => void) | null>(null);
     const handleSelectionSolve = useCallback((selection: { type: 'rect' | 'lasso'; points: { x: number; y: number }[]; bounds: { minX: number; minY: number; maxX: number; maxY: number } }) => {
-        setActiveSolveRegion({ bounds: selection.bounds, status: 'scanning' });
-        setSkeletonRegion({ bounds: selection.bounds });
-        setSkeletonVisible(true);
-        selectionSolveRef.current?.(selection);
+        selectionSolveRef.current?.(selection, (bounds) => {
+            setActiveSolveRegion({ bounds, status: 'scanning' });
+            setSkeletonRegion({ bounds });
+            setSkeletonVisible(true);
+        });
     }, []);
 
     const cardOffsetsRef = useRef<Record<string, { x: number; y: number }>>({});

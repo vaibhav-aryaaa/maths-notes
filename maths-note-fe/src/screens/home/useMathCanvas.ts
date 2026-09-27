@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Stroke, CanvasElement, ImageElement, DictOfVars, GeneratedResult } from '@/types';
-import { getStrokeOutline, getElementBounds, getElementCenter, drawElement, getStrokeBounds } from './canvasUtils';
+import { getStrokeOutline, getElementBounds, drawElement, getStrokeBounds, getElementsInSelection, isPointInPolygon } from './canvasUtils';
 import { CANVAS_BACKGROUND_COLOR } from '@/constants';
 import { saveLiveCanvas, loadLiveCanvas, clearLiveCanvas, DEFAULT_CANVAS_ID, syncLiveCanvasToBackend, resolveLiveCanvasWithRemote, type LiveCanvasData } from '@/lib/liveCanvasPersistence';
 import { fetchCanvasDetail } from '@/lib/canvasesApi';
@@ -101,18 +101,6 @@ const cloneCanvasElement = (el: CanvasElement): CanvasElement => {
     }
 };
 
-const isPointInPolygon = (px: number, py: number, polygon: { x: number; y: number }[]): boolean => {
-    let inside = false;
-    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-        const xi = polygon[i].x, yi = polygon[i].y;
-        const xj = polygon[j].x, yj = polygon[j].y;
-        const intersect = ((yi > py) !== (yj > py))
-            && (px < (xj - xi) * (py - yi) / (yj - yi) + xi);
-        if (intersect) inside = !inside;
-    }
-    return inside;
-};
-
 const hitTestElement = (ex: number, ey: number, element: CanvasElement, threshold: number = 8) => {
     if (element.kind === 'text' || element.kind === 'image') {
         const bounds = getElementBounds(element);
@@ -134,57 +122,6 @@ const getElementAtPosition = (ex: number, ey: number, elements: CanvasElement[])
         }
     }
     return null;
-};
-
-const getElementsInSelection = (
-    elements: CanvasElement[],
-    boundary: any,
-    shape: 'rectangle' | 'lasso'
-): string[] => {
-    const selectedIds: string[] = [];
-
-    for (const el of elements) {
-        if (shape === 'rectangle') {
-            if (el.kind === 'text' || el.kind === 'image') {
-                const center = getElementCenter(el);
-                if (
-                    center.x >= boundary.minX &&
-                    center.x <= boundary.maxX &&
-                    center.y >= boundary.minY &&
-                    center.y <= boundary.maxY
-                ) {
-                    selectedIds.push(el.id);
-                }
-            } else {
-                const hasPointInside = el.points.some(pt =>
-                    pt.x >= boundary.minX && pt.x <= boundary.maxX &&
-                    pt.y >= boundary.minY && pt.y <= boundary.maxY
-                );
-                if (hasPointInside) {
-                    selectedIds.push(el.id);
-                }
-            }
-        } else if (shape === 'lasso') {
-            const polygon = boundary as { x: number; y: number }[];
-            if (polygon.length < 3) continue;
-
-            if (el.kind === 'text' || el.kind === 'image') {
-                const center = getElementCenter(el);
-                if (isPointInPolygon(center.x, center.y, polygon)) {
-                    selectedIds.push(el.id);
-                }
-            } else {
-                const hasPointInside = el.points.some(pt =>
-                    isPointInPolygon(pt.x, pt.y, polygon)
-                );
-                if (hasPointInside) {
-                    selectedIds.push(el.id);
-                }
-            }
-        }
-    }
-
-    return selectedIds;
 };
 
 export const useMathCanvas = (

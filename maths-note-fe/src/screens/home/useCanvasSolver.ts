@@ -3,7 +3,7 @@ import axios from 'axios';
 import { notifications } from '@mantine/notifications';
 import type { GeneratedResult, DictOfVars, CalculateResponseItem, CanvasElement } from '@/types';
 import { trackEvent } from '@/lib/analytics';
-import { rasterizeRegion } from './canvasUtils';
+import { rasterizeRegion, getElementsInSelection } from './canvasUtils';
 import { hasReachedGuestSolveCap, incrementGuestSolveCount } from '@/lib/guestSession';
 
 export const useCanvasSolver = (
@@ -57,6 +57,20 @@ export const useCanvasSolver = (
                 autoClose: 4000
             });
             return;
+        }
+
+        if (selection) {
+            const boundary = selection.type === 'lasso' ? selection.points : selection.bounds;
+            const containedElements = getElementsInSelection(elements, boundary, selection.type);
+            if (containedElements.length === 0) {
+                notifications.show({
+                    title: 'Empty Selection',
+                    message: "That selection doesn't contain anything to solve — draw something first!",
+                    color: 'yellow',
+                    autoClose: 4000
+                });
+                return;
+            }
         }
 
         if (onStartScan) {

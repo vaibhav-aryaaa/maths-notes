@@ -333,4 +333,78 @@ export function rasterizeRegion(
     return canvas;
 }
 
+export const isPointInPolygon = (px: number, py: number, polygon: { x: number; y: number }[]): boolean => {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i].x, yi = polygon[i].y;
+        const xj = polygon[j].x, yj = polygon[j].y;
+        const intersect = ((yi > py) !== (yj > py))
+            && (px < (xj - xi) * (py - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
+};
+
+export const getElementsInSelection = (
+    elements: CanvasElement[],
+    boundary: any,
+    shape: 'rectangle' | 'rect' | 'lasso'
+): string[] => {
+    const selectedIds: string[] = [];
+
+    for (const el of elements) {
+        if (shape === 'rectangle' || shape === 'rect') {
+            const b = (boundary && typeof boundary === 'object' && 'minX' in boundary)
+                ? boundary
+                : (Array.isArray(boundary) && boundary.length > 0)
+                    ? {
+                        minX: Math.min(...boundary.map((p: any) => p.x)),
+                        maxX: Math.max(...boundary.map((p: any) => p.x)),
+                        minY: Math.min(...boundary.map((p: any) => p.y)),
+                        maxY: Math.max(...boundary.map((p: any) => p.y)),
+                    }
+                    : { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+
+            if (el.kind === 'text' || el.kind === 'image') {
+                const center = getElementCenter(el);
+                if (
+                    center.x >= b.minX &&
+                    center.x <= b.maxX &&
+                    center.y >= b.minY &&
+                    center.y <= b.maxY
+                ) {
+                    selectedIds.push(el.id);
+                }
+            } else {
+                const hasPointInside = el.points.some(pt =>
+                    pt.x >= b.minX && pt.x <= b.maxX &&
+                    pt.y >= b.minY && pt.y <= b.maxY
+                );
+                if (hasPointInside) {
+                    selectedIds.push(el.id);
+                }
+            }
+        } else if (shape === 'lasso') {
+            const polygon = boundary as { x: number; y: number }[];
+            if (polygon.length < 3) continue;
+
+            if (el.kind === 'text' || el.kind === 'image') {
+                const center = getElementCenter(el);
+                if (isPointInPolygon(center.x, center.y, polygon)) {
+                    selectedIds.push(el.id);
+                }
+            } else {
+                const hasPointInside = el.points.some(pt =>
+                    isPointInPolygon(pt.x, pt.y, polygon)
+                );
+                if (hasPointInside) {
+                    selectedIds.push(el.id);
+                }
+            }
+        }
+    }
+
+    return selectedIds;
+};
+
 

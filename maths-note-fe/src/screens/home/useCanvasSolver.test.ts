@@ -335,4 +335,80 @@ describe('useCanvasSolver', () => {
 
         document.createElement = origCreateElement;
     });
+
+    it('should show toast and skip API call when lasso selection contains no elements', async () => {
+        const { notifications } = await import('@mantine/notifications');
+        const { result } = renderHook(() => useCanvasSolver(
+            canvasRef,
+            strokesRef,
+            drawBoundsRef
+        ));
+
+        // Selection in empty area far away from stroke at (100, 150) -> (300, 350)
+        const emptyLassoSelection = {
+            type: 'lasso' as const,
+            points: [{ x: 800, y: 800 }, { x: 900, y: 800 }, { x: 900, y: 900 }, { x: 800, y: 900 }],
+            bounds: { minX: 800, minY: 800, maxX: 900, maxY: 900 }
+        };
+
+        await act(async () => {
+            await result.current.runRoute(emptyLassoSelection);
+        });
+
+        expect(axios).not.toHaveBeenCalled();
+        expect(notifications.show).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Empty Selection',
+            message: "That selection doesn't contain anything to solve — draw something first!",
+            color: 'yellow'
+        }));
+    });
+
+    it('should show toast and skip API call when rect selection contains no elements', async () => {
+        const { notifications } = await import('@mantine/notifications');
+        const { result } = renderHook(() => useCanvasSolver(
+            canvasRef,
+            strokesRef,
+            drawBoundsRef
+        ));
+
+        const emptyRectSelection = {
+            type: 'rect' as const,
+            points: [{ x: 800, y: 800 }, { x: 900, y: 900 }],
+            bounds: { minX: 800, minY: 800, maxX: 900, maxY: 900 }
+        };
+
+        await act(async () => {
+            await result.current.runRoute(emptyRectSelection);
+        });
+
+        expect(axios).not.toHaveBeenCalled();
+        expect(notifications.show).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Empty Selection',
+            message: "That selection doesn't contain anything to solve — draw something first!",
+            color: 'yellow'
+        }));
+    });
+
+    it('should show toast and skip API call when canvas has no elements and no selection is passed', async () => {
+        const { notifications } = await import('@mantine/notifications');
+        const emptyStrokesRef = { current: [] };
+        const emptyDrawBoundsRef = { current: { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity } };
+
+        const { result } = renderHook(() => useCanvasSolver(
+            canvasRef,
+            emptyStrokesRef,
+            emptyDrawBoundsRef
+        ));
+
+        await act(async () => {
+            await result.current.runRoute();
+        });
+
+        expect(axios).not.toHaveBeenCalled();
+        expect(notifications.show).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Empty Canvas',
+            message: 'Please draw something on the canvas first!',
+            color: 'yellow'
+        }));
+    });
 });
