@@ -1079,7 +1079,7 @@ export default function Home({
         markCanvasClean();
     }, [activeCanvasId, clearHistory, resetCanvas, setResults, setDictOfVars, markCanvasClean]);
 
-    const showExamples = isCanvasEmpty && results.length === 0 && !isFocusMode;
+    const showExamples = isCanvasEmpty && !canUndo && !canRedo && results.length === 0 && !isFocusMode;
 
     const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
