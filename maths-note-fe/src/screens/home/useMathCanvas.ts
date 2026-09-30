@@ -101,6 +101,30 @@ const cloneCanvasElement = (el: CanvasElement): CanvasElement => {
     }
 };
 
+const offsetCanvasElement = (el: CanvasElement, offset: number = 20): CanvasElement => {
+    const cloned = cloneCanvasElement(el);
+    cloned.id = generateUUID();
+    if (cloned.kind === 'text' || cloned.kind === 'image') {
+        cloned.x += offset;
+        cloned.y += offset;
+    } else {
+        cloned.points = cloned.points.map(pt => ({
+            ...pt,
+            x: pt.x + offset,
+            y: pt.y + offset
+        }));
+        if (cloned.bounds) {
+            cloned.bounds = {
+                minX: cloned.bounds.minX + offset,
+                minY: cloned.bounds.minY + offset,
+                maxX: cloned.bounds.maxX + offset,
+                maxY: cloned.bounds.maxY + offset
+            };
+        }
+    }
+    return cloned;
+};
+
 const hitTestElement = (ex: number, ey: number, element: CanvasElement, threshold: number = 8) => {
     if (element.kind === 'text' || element.kind === 'image') {
         const bounds = getElementBounds(element);
@@ -2520,7 +2544,73 @@ export const useMathCanvas = (
         img.src = objectUrl;
     }, [windowSize, getWordCoords, saveState, redrawViewCanvas, setIsCanvasEmpty]);
 
+    const clipboardRef = useRef<CanvasElement[]>([]);
+
+    const copySelectedElements = useCallback(() => {
+        if (activeTool !== 'select' || selectedElementIds.length === 0) return;
+        const selectedElements = elementsRef.current.filter(el => selectedElementIds.includes(el.id));
+        if (selectedElements.length === 0) return;
+        clipboardRef.current = selectedElements.map(cloneCanvasElement);
+    }, [activeTool, selectedElementIds]);
+
+    const pasteElements = useCallback((offset: number = 20) => {
+        if (activeTool !== 'select' || clipboardRef.current.length === 0) return;
+
+        saveState();
+
+        const newElements = clipboardRef.current.map(el => offsetCanvasElement(el, offset));
+        const newIds = newElements.map(el => el.id);
+
+        newElements.forEach(el => {
+            const bounds = getElementBounds(el);
+            if (bounds.minX < drawBoundsRef.current.minX) drawBoundsRef.current.minX = bounds.minX;
+            if (bounds.maxX > drawBoundsRef.current.maxX) drawBoundsRef.current.maxX = bounds.maxX;
+            if (bounds.minY < drawBoundsRef.current.minY) drawBoundsRef.current.minY = bounds.minY;
+            if (bounds.maxY > drawBoundsRef.current.maxY) drawBoundsRef.current.maxY = bounds.maxY;
+        });
+
+        elementsRef.current = [...elementsRef.current, ...newElements];
+        clipboardRef.current = newElements.map(cloneCanvasElement);
+
+        setSelectedElementIds(newIds);
+        setIsCanvasEmpty(elementsRef.current.length === 0);
+        isCanvasDirtyRef.current = true;
+        scheduleAutosave();
+        redrawViewCanvas();
+    }, [activeTool, saveState, scheduleAutosave, redrawViewCanvas]);
+
+    const duplicateSelectedElements = useCallback((offset: number = 20) => {
+        if (activeTool !== 'select' || selectedElementIds.length === 0) return;
+        const selectedElements = elementsRef.current.filter(el => selectedElementIds.includes(el.id));
+        if (selectedElements.length === 0) return;
+
+        saveState();
+
+        const newElements = selectedElements.map(el => offsetCanvasElement(el, offset));
+        const newIds = newElements.map(el => el.id);
+
+        newElements.forEach(el => {
+            const bounds = getElementBounds(el);
+            if (bounds.minX < drawBoundsRef.current.minX) drawBoundsRef.current.minX = bounds.minX;
+            if (bounds.maxX > drawBoundsRef.current.maxX) drawBoundsRef.current.maxX = bounds.maxX;
+            if (bounds.minY < drawBoundsRef.current.minY) drawBoundsRef.current.minY = bounds.minY;
+            if (bounds.maxY > drawBoundsRef.current.maxY) drawBoundsRef.current.maxY = bounds.maxY;
+        });
+
+        elementsRef.current = [...elementsRef.current, ...newElements];
+        clipboardRef.current = newElements.map(cloneCanvasElement);
+
+        setSelectedElementIds(newIds);
+        setIsCanvasEmpty(elementsRef.current.length === 0);
+        isCanvasDirtyRef.current = true;
+        scheduleAutosave();
+        redrawViewCanvas();
+    }, [activeTool, selectedElementIds, saveState, scheduleAutosave, redrawViewCanvas]);
+
     return {
+        copySelectedElements,
+        pasteElements,
+        duplicateSelectedElements,
         insertImageFile,
         canvasRef,
         masterCanvasRef,

@@ -286,6 +286,9 @@ export default function Home({
         setStrokeWidth,
         eraserWidth,
         setEraserWidth,
+        copySelectedElements,
+        pasteElements,
+        duplicateSelectedElements,
         selectedShape,
         setSelectedShape,
         isShapeMenuOpen,
@@ -1090,11 +1093,40 @@ export default function Home({
                 return;
             }
 
+            // Don't intercept shortcuts when editing text on the canvas
+            if (activeTextEdit) {
+                return;
+            }
+
             const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
             const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
 
+            // Copy: cmd/ctrl + c
+            if (cmdOrCtrl && !e.shiftKey && e.key.toLowerCase() === 'c') {
+                if (activeTool === 'select' && selectedElementIds.length > 0) {
+                    e.preventDefault();
+                    copySelectedElements();
+                    return;
+                }
+            }
+            // Paste: cmd/ctrl + v
+            else if (cmdOrCtrl && !e.shiftKey && e.key.toLowerCase() === 'v') {
+                if (activeTool === 'select') {
+                    e.preventDefault();
+                    pasteElements();
+                    return;
+                }
+            }
+            // Duplicate: cmd/ctrl + d
+            else if (cmdOrCtrl && !e.shiftKey && e.key.toLowerCase() === 'd') {
+                if (activeTool === 'select' && selectedElementIds.length > 0) {
+                    e.preventDefault();
+                    duplicateSelectedElements();
+                    return;
+                }
+            }
             // Undo: cmd/ctrl + z
-            if (cmdOrCtrl && !e.shiftKey && e.key.toLowerCase() === 'z') {
+            else if (cmdOrCtrl && !e.shiftKey && e.key.toLowerCase() === 'z') {
                 e.preventDefault();
                 undo();
                 return;
@@ -1165,7 +1197,7 @@ export default function Home({
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [undo, redo, setIsEraser, setSelectedShape, toggleFocusMode, setSelectedElementIds, activeTool, setActiveTool]);
+    }, [undo, redo, setIsEraser, setSelectedShape, toggleFocusMode, setSelectedElementIds, activeTool, setActiveTool, activeTextEdit, copySelectedElements, pasteElements, duplicateSelectedElements, selectedElementIds]);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -1893,6 +1925,18 @@ export default function Home({
                     <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
                         <span className="text-stone-500 dark:text-gray-400">Redo stroke</span>
                         <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-stone-750 dark:text-stone-300 font-bold border border-stone-200 dark:border-white/15">Ctrl + Shift + Z / ⌘ + Shift + Z</kbd>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
+                        <span className="text-stone-500 dark:text-gray-400">Copy selected</span>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-stone-750 dark:text-stone-300 font-bold border border-stone-200 dark:border-white/15">Ctrl + C / ⌘ + C</kbd>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
+                        <span className="text-stone-500 dark:text-gray-400">Paste elements</span>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-stone-750 dark:text-stone-300 font-bold border border-stone-200 dark:border-white/15">Ctrl + V / ⌘ + V</kbd>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
+                        <span className="text-stone-500 dark:text-gray-400">Duplicate selection</span>
+                        <kbd className="px-2 py-1 bg-stone-100 dark:bg-white/10 rounded text-xs font-mono text-stone-750 dark:text-stone-300 font-bold border border-stone-200 dark:border-white/15">Ctrl + D / ⌘ + D</kbd>
                     </div>
                     <div className="flex justify-between items-center py-1.5 border-b border-stone-200 dark:border-white/5">
                         <span className="text-stone-500 dark:text-gray-400">Pen (Freehand)</span>
