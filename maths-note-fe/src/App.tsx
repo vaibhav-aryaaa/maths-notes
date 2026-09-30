@@ -1,19 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import '@mantine/core/styles.css';
 import { MantineProvider, useMantineColorScheme } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import '@mantine/notifications/styles.css';
+import { Loader2 } from 'lucide-react';
 
 import Home from '@/screens/home';
 import Landing from '@/screens/landing';
-import ShareView from '@/screens/share';
-import ResetPassword from '@/screens/reset-password/ResetPassword';
-import LibraryScreen from '@/screens/library';
+
+const LibraryScreen = lazy(() => import('@/screens/library'));
+const ShareView = lazy(() => import('@/screens/share'));
+const ResetPassword = lazy(() => import('@/screens/reset-password/ResetPassword'));
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 import '@/index.css';
+
+const RouteFallback = () => (
+    <div className="w-full h-screen flex items-center justify-center bg-slate-50 dark:bg-black">
+        <Loader2 className="w-8 h-8 animate-spin text-teal-600 dark:text-teal-400" />
+    </div>
+);
 
 const ThemeSync = ({ children }: { children: React.ReactNode }) => {
     const { colorScheme } = useMantineColorScheme();
@@ -77,14 +85,16 @@ const App = () => {
             <Notifications />
             <ThemeSync>
                 <BrowserRouter>
-                    <Routes>
-                        <Route path="/" element={<ErrorBoundary name="Home Screen"><AppContent /></ErrorBoundary>} />
-                        <Route path="/canvas/:id" element={<ErrorBoundary name="Canvas Screen"><Home /></ErrorBoundary>} />
-                        <Route path="/library" element={<ErrorBoundary name="Library Screen"><LibraryScreen /></ErrorBoundary>} />
-                        <Route path="/library/folder/:folderId" element={<ErrorBoundary name="Library Folder Screen"><LibraryScreen /></ErrorBoundary>} />
-                        <Route path="/share/:shareId" element={<ErrorBoundary name="Share View"><ShareView /></ErrorBoundary>} />
-                        <Route path="/reset-password" element={<ErrorBoundary name="Reset Password"><ResetPassword /></ErrorBoundary>} />
-                    </Routes>
+                    <Suspense fallback={<RouteFallback />}>
+                        <Routes>
+                            <Route path="/" element={<ErrorBoundary name="Home Screen"><AppContent /></ErrorBoundary>} />
+                            <Route path="/canvas/:id" element={<ErrorBoundary name="Canvas Screen"><Home /></ErrorBoundary>} />
+                            <Route path="/library" element={<ErrorBoundary name="Library Screen"><LibraryScreen /></ErrorBoundary>} />
+                            <Route path="/library/folder/:folderId" element={<ErrorBoundary name="Library Folder Screen"><LibraryScreen /></ErrorBoundary>} />
+                            <Route path="/share/:shareId" element={<ErrorBoundary name="Share View"><ShareView /></ErrorBoundary>} />
+                            <Route path="/reset-password" element={<ErrorBoundary name="Reset Password"><ResetPassword /></ErrorBoundary>} />
+                        </Routes>
+                    </Suspense>
                 </BrowserRouter>
             </ThemeSync>
         </MantineProvider>

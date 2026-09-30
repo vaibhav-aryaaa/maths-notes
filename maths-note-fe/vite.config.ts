@@ -44,7 +44,19 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        globIgnores: ['**/heic2any*.js'],
         runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.includes('heic2any'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'heic2any-runtime-cache',
+              expiration: {
+                maxEntries: 2,
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+              },
+            },
+          },
           {
             urlPattern: ({ url }) => {
               return url.pathname.includes('/calculate') ||
