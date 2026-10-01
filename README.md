@@ -1,157 +1,295 @@
-# 🌌 SolveIQ: AI-Powered Mathematical Intelligence Canvas
-
-![SolveIQ Landing](./assets/landing.png)
+# SolveIQ: AI-Powered Mathematical Intelligence Canvas & Workspace
 
 [![CI Pipeline](https://github.com/vaibhav-aryaaa/maths-notes/actions/workflows/ci.yml/badge.svg)](https://github.com/vaibhav-aryaaa/maths-notes/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688.svg?style=flat&logo=FastAPI&logoColor=white)](https://fastapi.tiangolo.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB.svg?style=flat&logo=React&logoColor=black)](https://reactjs.org/)
-[![Gemini](https://img.shields.io/badge/AI-Gemini%202.5%20Flash-blue.svg)](https://deepmind.google/technologies/gemini/)
+[![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688.svg?style=flat&logo=FastAPI&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Gemini](https://img.shields.io/badge/AI-Gemini%203.5%20Flash--Lite%20%7C%20Flash-blue.svg)](https://deepmind.google/technologies/gemini/)
+[![Supabase](https://img.shields.io/badge/Database-Supabase%20%7C%20Postgres-3ECF8E.svg?style=flat&logo=Supabase&logoColor=white)](https://supabase.com/)
 
-**SolveIQ** is a next-generation mathematical playground that bridges the gap between digital ink and artificial intelligence. Built with a high-performance FastAPI backend and a sleek, glassmorphic React frontend, SolveIQ allows users to draw mathematical problems directly onto a canvas and receive real-time, step-by-step solutions powered by state-of-the-art Large Multimodal Models (LMMs).
-
----
-
-## 📸 Demo
-
-![SolveIQ Demo](./assets/demo.png)
+[**🚀 Live Application**](https://solveiq-two.vercel.app)
 
 ---
 
-## ✨ Key Features
+## What is SolveIQ?
 
-- **🎨 Mathematical Canvas**: Draw equations, diagrams, and word problems with pen, eraser, and shape tools (line, rectangle, circle, triangle) on an HTML5 canvas, with mouse and touch support. Solved regions are auto-cropped (with padding) before being sent to the AI, so only the relevant area is analyzed.
-- **🤖 AI Solver**: Sends the cropped canvas image to **Google Gemini 2.5 Flash**, which is prompted to classify the drawing into one of five cases (simple expressions, equation systems, variable assignment, graphical/word problems, or abstract concepts) and return a structured JSON result with a thought process and confidence score.
-- **💬 Math Co-Pilot Chat**: A session-aware follow-up chat powered by **Groq (Llama 3.3 70B)**. It's currently **text-only** — it reasons over the Agent Memory and the AI's past solved results (expression, answer, thought process), but does not see the live canvas image. Chat history is kept in an in-memory session store on the backend, so it resets on server restart/redeploy.
-- **🧠 Agentic Memory**: A client-side state system that "remembers" variables (e.g., `x = 5`) whenever the AI marks a result as an assignment, feeding them back into future canvas solves.
-- **🧬 Transparent Reasoning**: Draggable, resizable result cards show the AI's "Thought Process" and confidence score, and report per-request latency.
-- **📱 Responsive Glassmorphic UI**: A dark-mode-first interface built with Mantine, TailwindCSS, and shadcn/Radix components, with an animated canvas/CSS-based 3D-style background.
+**SolveIQ** is a full-featured, AI-native mathematical workspace that bridges digital handwriting, vector canvas sketching, and Large Multimodal Models (LMMs).
 
----
+Unlike single-shot camera calculators (Photomath, Mathway) that treat math as a one-off scan from a phone lens, SolveIQ is built as an **active, persistent digital whiteboard**:
 
-## 🛠️ Tech Stack
-
-### Frontend
-- **Framework**: React 19 (Vite)
-- **Language**: TypeScript
-- **Styling**: TailwindCSS v4 + Mantine UI + shadcn/Radix UI primitives
-- **Canvas Engine**: HTML5 Canvas API (single-file implementation in `screens/home`), plus a hand-rolled canvas/CSS animated background (no Three.js)
-- **Math Rendering**: MathJax, loaded dynamically via a `<script>` tag at runtime (not an npm package)
-- **State Management**: React Hooks, `react-draggable` for result cards
-- **Routing**: react-router-dom
-- **HTTP**: axios
-- **Icons**: Lucide React
-
-### Backend
-- **Framework**: FastAPI (Python)
-- **AI Orchestration**: `google-generativeai` calling **`gemini-2.5-flash`** for image solving; `groq` SDK calling **`llama-3.3-70b-versatile`** for the copilot chat (in-memory session store, no database)
-- **Processing**: Pillow (Image Processing), Pydantic (Data Validation)
-- **Deployment**: Dockerized (Ready for Render/Vercel)
+1. **Persistent Multi-Canvas Notebooks**: Organize equations, proofs, and lecture notes across hierarchical folders, rather than throwing everything onto an ephemeral scratchpad.
+2. **Tiered AI Intelligence**: Fast, low-latency parsing (`gemini-3.5-flash-lite`) for instant math solutions, paired with on-demand procedural explanations (`gemini-3.5-flash`) that only load when you need them.
+3. **Conversational Math Co-Pilot (Vector)**: A streaming conversational assistant that maintains full context of your canvas formulas, assigned variables, and previous derivations.
+4. **Offline-First Resilience & Cloud Sync**: Draw freely offline with instant IndexedDB v3 local caching, seamless background cloud synchronization, and automatic guest-to-account notebook migration.
 
 ---
 
-## 🚀 Getting Started
+## Key Features
 
-### Prerequisites
-- Python 3.10+
-- Node.js 18+
-- API Keys for Google Gemini and Groq
+### 📁 1. Notebooks & Organization
+* **Modern Library (`/library`)**: Centralized dashboard to view, search, filter, and organize all notebooks with both Grid and List layouts.
+* **Hierarchical Folders**: Two-level folder categorization (CollaNote-style) to organize homework, courses, and research topics.
+* **Trash & Soft-Delete**: Safe deletion lifecycle with dedicated Trash management for instant restoration or permanent deletion.
 
-### 1. Backend Setup
-```bash
-cd maths-note-be
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env  # Add your API keys here
-uvicorn main:app --reload
-```
+### 2. Mathematical Canvas Engine
+* **Infinite Viewport**: 12,000 × 12,000 coordinate workspace with smooth pan, trackpad pinch zoom, touch gestures, and grid toggling.
+* **Vector Pen System**: Specialized inking tools including **Pen**, **Fountain Pen**, **Marker**, and blend-aware **Highlighter** with custom stroke widths and opacities.
+* **Continuous Gradient Color Picker**: Dynamic gradient selector alongside an adaptive dark/light mode palette.
+* **Geometric Shapes**: Interactive drawing of lines, rectangles, circles, and arrows.
+* **Multi-Modal Content**: Rich text boxes and image insertion supporting drag-and-drop, clipboard paste, and on-demand HEIC decoding.
+* **Object Selection & Manipulation**: Marquee/lasso selection, drag repositioning, resize handles, and full **Copy / Paste / Duplicate (`Ctrl+C`, `Ctrl+V`, `Ctrl+D`)** with single-step undo.
+* **Clean State UX**: Derived undo/redo engine that prevents jarring onboarding popups during active sketching sessions.
 
-### 2. Frontend Setup
-```bash
-cd maths-note-fe
-npm install
-cp .env.example .env.local  # Point VITE_API_URL to your backend
-npm run dev
-```
+### 3. AI Solving Engine
+* **Two-Tiered Fast / Detailed Split**:
+  * **Fast Path (`/calculate`)**: Uses `gemini-3.5-flash-lite` to instantly identify handwritten math, evaluate expressions, solve equations, and render interactive LaTeX answer cards in $<2$s.
+  * **On-Demand Explanation Path (`/calculate/explain`)**: When expanding "View Thought Process", `gemini-3.5-flash` lazily generates structured step-by-step procedural derivations without slowing down the initial solve.
+* **Variable Dependency Memory**: Client-side agentic memory that tracks assignments (e.g. $x = 10 \implies 2x + y = 30$) across multiple equations.
+* **Targeted Region Solving**: Solve tool with Rectangle or Lasso modes to isolate specific calculations on a crowded canvas.
+* **Zero-Waste Guards**: Aborts execution with friendly alerts on empty selections or blank canvases to save API compute.
+
+### 4. Vector: Conversational Math Co-Pilot
+* **Context-Aware Sidebar**: Streaming chat assistant powered by Groq (Llama 3.3 70B) and Gemini.
+* **Grounding in Session State**: Vector receives the full context of all active canvas variables, solved formulas, and history entries to answer questions like *"Why did we use the substitution method in step 2?"*.
+
+### 5. Accounts, Sync & Guest Mode
+* **Guest Mode**: Try the app instantly without an account. Includes a 5-solve limit, isolated `sessionStorage` persistence, and zero backend writes.
+* **Seamless Migration**: Mid-session sign-up or sign-in automatically migrates guest strokes, answer cards, and camera offsets into a new notebook in the user's permanent account.
+* **Full Authentication**: Supabase Auth (Email/Password + Google OAuth), password recovery, and secure JWKS token verification.
+* **Cross-Device Sync**: IndexedDB v3 client caching with background synchronization to Supabase PostgreSQL.
+
+### 6. Production Engineering
+* **PWA Optimization**: Service Worker with lazy-loaded WASM HEIC chunk, reducing initial install precache size by ~1.32 MB.
+* **Route Code Splitting**: `React.lazy()` chunking on `/library`, `/share`, and `/reset-password` routes.
+* **Security & Rate Limiting**: Global request size limits (8 MB) and per-IP endpoint rate limiting via `slowapi`.
+* **Telemetry & Monitoring**: Optional Sentry error tracking and privacy-focused PostHog event analytics.
+* **Testing Suite**: 65+ automated frontend unit tests (Vitest) and backend test suites.
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```mermaid
-graph TD
-    User((User)) -->|Draws on Canvas| FE[React Frontend]
-    FE -->|Cropped Base64 Image + Agent Memory| BE_C["/calculate (FastAPI)"]
-    BE_C -->|Multimodal Prompt| Gemini[Gemini 2.5 Flash]
-    Gemini -->|Structured JSON: expr/result/thought/confidence| BE_C
-    BE_C -->|Typed Response| FE
-    FE -->|Render LaTeX| User
+flowchart TD
+    User([User / Stylus]) -->|Draw / Sketch / Select| FE[React 19 Canvas Frontend]
 
-    FE -->|"Text only: message + agent memory + past results"| BE_P["/copilot (FastAPI)"]
-    BE_P -->|Chat Completion| Groq[Groq · Llama 3.3 70B]
-    Groq -->|Reply| BE_P
-    BE_P -->|Reply| FE
+    subgraph Client [Client Storage & Cache]
+        FE <-->|Instant Offline Cache| IDB[(IndexedDB v3 - Dexie)]
+        FE <-->|Guest State| SS[(sessionStorage)]
+    end
+
+    subgraph AI_Engine [AI Solving Pipeline]
+        FE -->|Cropped Base64 + Variables| API_Calc["/calculate (FastAPI)"]
+        API_Calc -->|Low-Latency OCR & Solve| GeminiFast["Gemini 3.5 Flash-Lite"]
+        GeminiFast -->|LaTeX + Result JSON| API_Calc
+        API_Calc -->|Render Answer Card| FE
+
+        FE -.->|On-Demand Expand 'View Steps'| API_Explain["/calculate/explain (FastAPI)"]
+        API_Explain -->|Procedural Step Derivation| GeminiExplain["Gemini 3.5 Flash"]
+        GeminiExplain -->|Step Breakdown| API_Explain
+        API_Explain -.->|Lazy Loaded Steps| FE
+    end
+
+    subgraph Copilot_Engine [Conversational Co-Pilot]
+        FE -->|Chat Query + Canvas Context| API_Copilot["/copilot (FastAPI)"]
+        API_Copilot -->|Streaming Reasoning| GroqLlama["Groq · Llama 3.3 70B / Gemini"]
+        GroqLlama -->|SSE Stream| FE
+    end
+
+    subgraph Cloud_Backend [Cloud & Database Layer]
+        FE <-->|JWT Authenticated Sync| API_Canvases["/canvases & /folders"]
+        API_Canvases <-->|Notebooks & Folders CRUD| Postgres[(Supabase PostgreSQL / SQLite)]
+        FE <-->|User Auth & OAuth| SupabaseAuth[Supabase Auth Service]
+    end
 ```
 
-> Note: the Co-Pilot does **not** currently receive the canvas image — it answers using only the text of past solved results and the Agent Memory dictionary.
+---
+
+## Tech Stack
+
+| Layer | Technology | Version / Model | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Frontend** | React | 19.x | Component UI architecture |
+| **Build Tool** | Vite | 8.x | High-speed bundling & HMR |
+| **Language** | TypeScript | 5.x | Type safety across models & events |
+| **UI & Styling** | Tailwind CSS + Mantine | v4 / Mantine v7 | Styling, dialogs, color picker, notifications |
+| **Inking Engine** | HTML5 Canvas + Custom Splines | Custom | Multi-tool vector stroke engine with pinch/pan |
+| **Local Storage** | IndexedDB / Dexie.js | v3 | Offline-first canvas persistence & metadata |
+| **Backend API** | FastAPI | Python 3.10+ | High-performance async REST API |
+| **Fast Math AI** | Google Gemini | `gemini-3.5-flash-lite` | Instant multimodal math OCR and calculation |
+| **Explain AI** | Google Gemini | `gemini-3.5-flash` | On-demand procedural step-by-step explanations |
+| **Co-Pilot AI** | Groq / Llama | `llama-3.3-70b-versatile` | Contextual conversational math assistant |
+| **Database & Auth** | Supabase | PostgreSQL 15 | Cloud notebooks, folders, and JWT auth |
+| **PWA & Offline** | Vite PWA / Workbox | 1.3.x | Service worker caching & installable web app |
+| **Testing** | Vitest + React Testing Library | 4.x | Unit and component testing suite |
 
 ---
 
-## 🔒 API Specifications & Security
+## Getting Started
 
-### Request Size Limit
-*   The API enforces a global request body limit of **8 MB**. Any request exceeding this limit will immediately return a `413 Payload Too Large` error.
-
-### Error Handling & Validation
-*   All routes implement consistent request body validation. If a request body is malformed or violates schema validation (e.g. invalid base64 image strings), the server will return a clean and structured `422 Unprocessable Content` response containing validation details:
-    ```json
-    {
-      "detail": "Request validation failed",
-      "errors": [
-        {
-          "field": "image",
-          "message": "Value error, Image string cannot be empty",
-          "type": "value_error"
-        }
-      ]
-    }
-    ```
+### Prerequisites
+* **Node.js**: 18.0 or newer
+* **Python**: 3.10 or newer
+* **Google Gemini API Key**: [Get a Gemini API key](https://aistudio.google.com/)
+* *(Optional)* **Supabase Project**: [Create a free Supabase project](https://supabase.com/) for cloud accounts & sync (the app runs 100% in Guest Mode without Supabase).
+* *(Optional)* **Groq API Key**: [Get a Groq API key](https://console.groq.com/) for the Co-Pilot.
 
 ---
 
-## 🗺️ Roadmap & Future Enhancements
+### 1. Backend Setup (`maths-note-be`)
 
-- [ ] **Copilot Canvas Vision**: Give the Co-Pilot the actual canvas image (via Gemini) instead of text-only context, so it can genuinely reason about what's drawn.
-- [ ] **Persistent Chat Sessions**: Replace the in-memory `_sessions` dict with real storage (e.g. Redis/Postgres) so copilot history survives redeploys.
-- [ ] **Multi-Modal Upload**: Paste screenshots or upload PDFs directly to the canvas.
-- [ ] **Dynamic Graphing**: Render interactive 2D/3D plots for functions using Recharts.
-- [ ] **Cloud Workspace**: Supabase integration for saving and sharing math notes.
-- [ ] **WolframAlpha Integration**: For hyper-precise symbolic computation verification.
+1. Navigate to the backend directory:
+   ```bash
+   cd maths-note-be
+   ```
+2. Create and activate a Python virtual environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Configure environment variables:
+   ```bash
+   cp .env.example .env
+   ```
+5. Start the FastAPI server:
+   ```bash
+   uvicorn main:app --host 0.0.0.0 --port 8900 --reload
+   ```
 
-## 🔒 Privacy & Analytics
+---
 
-SolveIQ is built with privacy in mind. We use **PostHog** to track basic, anonymous product usage statistics (like pageviews, buttons clicked, and error rates) to help us understand how users interact with the app.
+### 2. Frontend Setup (`maths-note-fe`)
 
-**What we track:**
-- Anonymized user actions (e.g., "clicked sample gallery", "triggered solve", "message sent to copilot").
-- General diagnostic metadata (e.g., response count, API success/failure rate, latency).
+1. Navigate to the frontend directory:
+   ```bash
+   cd maths-note-fe
+   ```
+2. Install npm dependencies:
+   ```bash
+   npm install
+   ```
+3. Configure environment variables:
+   ```bash
+   cp .env.example .env.local
+   ```
+4. Start the Vite development server:
+   ```bash
+   npm run dev
+   ```
+5. Open your browser at `http://localhost:5173`.
 
-**What we NEVER track:**
-- Your canvas drawing content or raw stroke coordinates.
-- The solved math equations, variable assignments, or response contents.
-- Any Personally Identifiable Information (PII).
+---
 
-All analytics event tracking is fully transparent and can be easily disabled by removing the `VITE_POSTHOG_KEY` environment variable.
+## Environment Variables Reference
+
+### Frontend (`maths-note-fe/.env.local`)
+
+| Variable | Required | Default | Description |
+| :--- | :---: | :--- | :--- |
+| `VITE_API_URL` | **Yes** | `http://localhost:8900` | URL of the running FastAPI backend |
+| `VITE_APP_KEY` | **Yes** | — | Shared secret header (`X-App-Key`) matching backend `APP_SECRET` |
+| `VITE_SUPABASE_URL` | No | — | Supabase project URL (enables account sign-in & cloud sync) |
+| `VITE_SUPABASE_ANON_KEY` | No | — | Supabase public anonymous API key |
+| `VITE_SENTRY_DSN` | No | — | Sentry DSN for frontend crash reporting |
+| `VITE_POSTHOG_KEY` | No | — | PostHog public project key for anonymous telemetry |
+| `VITE_POSTHOG_HOST` | No | `https://us.i.posthog.com` | PostHog telemetry ingestion host |
+
+> 💡 **Note**: If `VITE_SUPABASE_URL` is omitted, SolveIQ automatically runs in **Guest Mode**, allowing full canvas usage and local problem solving without requiring a database.
+
+---
+
+### Backend (`maths-note-be/.env`)
+
+| Variable | Required | Default | Description |
+| :--- | :---: | :--- | :--- |
+| `APP_SECRET` | **Yes** | — | Shared gateway secret key verified on API requests |
+| `GEMINI_API_KEY` | **Yes** | — | Google Gemini API key for multimodal solving |
+| `DATABASE_URL` | No | SQLite (`shares.db`) | PostgreSQL connection string (e.g. Supabase DB URL) |
+| `SUPABASE_URL` | No | — | Supabase project URL for JWT JWKS token decoding |
+| `SUPABASE_ANON_KEY` | No | — | Supabase API key for public key verification |
+| `GROQ_API_KEY` | No | — | Groq API key for Llama 3.3 Co-Pilot chat |
+| `ALLOWED_ORIGINS` | No | `https://solveiq-two.vercel.app,http://localhost:5173` | Allowed CORS origins |
+| `GEMINI_MODEL_FAST` | No | `gemini-3.5-flash-lite` | Model identifier for fast math recognition |
+| `GEMINI_MODEL_EXPLAIN` | No | `gemini-3.5-flash` | Model identifier for step-by-step reasoning |
+| `SENTRY_DSN` | No | — | Sentry DSN for backend exception tracking |
+
+---
+
+## Project Structure
+
+```
+math-note/
+├── LICENSE                     # MIT License
+├── README.md                   # Project documentation
+├── future.md                   # Feature exploration & roadmap
+├── docker-compose.yml          # Container configuration
+│
+├── maths-note-fe/              # React 19 Frontend
+│   ├── src/
+│   │   ├── components/         # Reusable UI (DraggableResultCard, CopilotPanel, ColorPicker)
+│   │   ├── data/               # Preset math onboarding examples
+│   │   ├── hooks/              # Custom hooks (useSolveHistory)
+│   │   ├── lib/                # Supabase client, IndexedDB persistence, Analytics
+│   │   ├── screens/
+│   │   │   ├── home/           # Main whiteboard canvas & hook architecture
+│   │   │   ├── landing/        # Interactive landing page curtain
+│   │   │   ├── library/        # Multi-notebook & folder workspace
+│   │   │   ├── reset-password/ # Password recovery screen
+│   │   │   └── share/          # Read-only snapshot viewer
+│   │   ├── App.tsx             # Root router with Suspense code splitting
+│   │   └── main.tsx            # Entry point with Sentry & PostHog init
+│   ├── vite.config.ts          # Vite & PWA Workbox configuration
+│   └── package.json
+│
+└── maths-note-be/              # FastAPI Python Backend
+    ├── apps/
+    │   ├── calculator/         # Fast solve & lazy explanation endpoints
+    │   ├── canvases/           # Notebooks & folders CRUD routes
+    │   ├── copilot/            # Streaming conversational chat routes
+    │   ├── history/            # Canvas solve history endpoints
+    │   └── share/              # Public share snapshot generation
+    ├── auth.py                 # JWT validation & JWKS key provider
+    ├── db.py                   # PostgreSQL / SQLite connection layer
+    ├── rate_limiter.py         # Slowapi rate limiting
+    ├── main.py                 # FastAPI application root & middleware
+    └── requirements.txt
+```
+
+---
+
+## Roadmap & Current Focus
+
+See [future.md](./future.md) for upcoming architecture plans and exploratory features:
+
+- [x] **Notebooks & Folders Workspace**
+- [x] **Guest Mode Rework & Account Migration**
+- [x] **Skip AI Call on Empty Selection**
+- [x] **Copy / Paste / Duplicate Canvas Elements**
+- [x] **PWA Precache Reduction & Route Splitting**
+- [ ] **Dynamic 2D/3D Function Plotting** (Interactive curves & graphs via Plotly / Desmos)
+- [ ] **Multi-Page PDF Note Export** (Formatted export of canvas, formulas, and derivations)
+- [ ] **Apple Pencil Pressure & Stylus Dynamics** (`PointerEvent.pressure` sensitivity)
+- [ ] **Realtime Multiplayer Collaboration** (Live co-editing via WebSockets / Supabase Realtime)
+
+---
+
+## Privacy & Data Policy
+
+SolveIQ is designed with data minimization:
+* **No Raw Drawing Capture**: Stroke coordinates and raw canvas drawings are never recorded into telemetry.
+* **Ephemeral Processing**: Base64 image crops sent to the `/calculate` endpoint are processed in memory and never written to disk or stored on backend servers.
+* **Opt-Out Telemetry**: PostHog telemetry is strictly diagnostic (e.g. error counts, solve latency) and can be disabled completely by omitting `VITE_POSTHOG_KEY`.
 
 ---
 
 ## 📄 License
 
-Distributed under the MIT License. See `LICENSE` for more information.
-
----
+This project is licensed under the MIT License — see the [LICENSE](./LICENSE) file for details.
 
 <p align="center">
-  Built with ❤️ by [Vaibhav Arya]
+  Built with ❤️ by <a href="https://github.com/vaibhav-aryaaa">Vaibhav Arya</a>
 </p>
