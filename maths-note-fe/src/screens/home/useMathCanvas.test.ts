@@ -271,4 +271,94 @@ describe('useMathCanvas', () => {
         });
         expect(result.current.elementsRef.current.length).toBe(4);
     });
+
+    it('should correctly erase strokes on pointer drag with eraser tool', () => {
+        const { result } = renderHook(() => useMathCanvas());
+
+        const mockCanvas = document.createElement('canvas');
+        mockCanvas.getContext = (() => ({
+            clearRect: () => {},
+            beginPath: () => {},
+            moveTo: () => {},
+            lineTo: () => {},
+            stroke: () => {},
+            setTransform: () => {},
+            fillRect: () => {},
+            strokeRect: () => {},
+            setLineDash: () => {},
+            save: () => {},
+            restore: () => {},
+            drawImage: () => {},
+            scale: () => {},
+            translate: () => {},
+            closePath: () => {},
+            fill: () => {},
+            arc: () => {},
+            rect: () => {},
+            quadraticCurveTo: () => {},
+        } as unknown as CanvasRenderingContext2D)) as any;
+
+        Object.defineProperty(result.current.canvasRef, 'current', {
+            value: mockCanvas,
+            writable: true
+        });
+
+        // Draw a stroke using pen pointer events
+        act(() => {
+            result.current.startDrawing({
+                clientX: 100,
+                clientY: 100,
+                button: 0,
+            } as any);
+        });
+        act(() => {
+            result.current.draw({
+                clientX: 110,
+                clientY: 110,
+                buttons: 1,
+            } as any);
+        });
+        act(() => {
+            result.current.stopDrawing({
+                clientX: 110,
+                clientY: 110,
+            } as any);
+        });
+        expect(result.current.elementsRef.current.length).toBe(1);
+
+        // Switch to eraser tool
+        act(() => {
+            result.current.setActiveTool('eraser');
+        });
+
+        // Start drawing eraser over the stroke
+        act(() => {
+            result.current.startDrawing({
+                clientX: 105,
+                clientY: 105,
+                button: 0,
+            } as any);
+        });
+
+        // Drag eraser
+        act(() => {
+            result.current.draw({
+                clientX: 108,
+                clientY: 108,
+                buttons: 1,
+            } as any);
+        });
+
+        // Stop drawing eraser
+        act(() => {
+            result.current.stopDrawing({
+                clientX: 108,
+                clientY: 108,
+            } as any);
+        });
+
+        // Stroke should be erased
+        expect(result.current.elementsRef.current.length).toBe(0);
+    });
 });
+

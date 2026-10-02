@@ -252,6 +252,7 @@ export const useMathCanvas = (
     const startPosRef = useRef({ x: 0, y: 0 });
     const lastActivePosRef = useRef({ x: 0, y: 0 });
     const activeStrokePointsRef = useRef<{ x: number; y: number; timestamp: number }[]>([]);
+    const eraserTrailPointsRef = useRef<{ x: number; y: number; timestamp: number }[]>([]);
     
     // Bounds tracking for canvas crop optimization (stores world coordinates on master canvas)
     const drawBoundsRef = useRef({ minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
@@ -667,16 +668,132 @@ export const useMathCanvas = (
             if (viewCtx.restore) viewCtx.restore();
         }
 
-        // Draw eraser cursor circle outline
-        if (activeTool === 'eraser' && lastActivePosRef.current) {
-            viewCtx.beginPath();
-            viewCtx.arc(lastActivePosRef.current.x, lastActivePosRef.current.y, eraserWidthRef.current / 2, 0, 2 * Math.PI);
-            viewCtx.lineWidth = 1.5 / scale;
-            viewCtx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-            viewCtx.setLineDash([4 / scale, 4 / scale]);
-            viewCtx.globalCompositeOperation = 'source-over';
-            viewCtx.stroke();
-            viewCtx.setLineDash([]);
+        // Draw eraser trail & cursor circle outline
+        if (activeTool === 'eraser') {
+            const now = Date.now();
+            const maxAge = 250;
+            eraserTrailPointsRef.current = eraserTrailPointsRef.current.filter(pt => now - pt.timestamp <= maxAge);
+            const rawTrail = eraserTrailPointsRef.current;
+
+            // Filter points too close to each other (< 1.5px) for smooth tangents
+            const trail: { x: number; y: number; timestamp: number }[] = [];
+            for (let i = 0; i < rawTrail.length; i++) {
+                if (trail.length === 0) {
+                    trail.push(rawTrail[i]);
+                } else {
+                    const last = trail[trail.length - 1];
+                    const d = Math.hypot(rawTrail[i].x - last.x, rawTrail[i].y - last.y);
+                    if (d >= 1.5 || i === rawTrail.length - 1) {
+                        trail.push(rawTrail[i]);
+                    }
+                }
+            }
+
+            const isActivelyErasing = isDrawing && trail.length > 0;
+
+            if (isActivelyErasing) {
+                viewCtx.save();
+                viewCtx.globalCompositeOperation = 'source-over';
+                const fillColor = isInverted ? 'rgba(0, 0, 0, 0.12)' : 'rgba(235, 240, 255, 0.22)';
+
+                if (trail.length === 1) {
+                    // Single point click: draw a soft filled circle
+                    viewCtx.beginPath();
+                    viewCtx.arc(trail[0].x, trail[0].y, eraserWidthRef.current / 2, 0, 2 * Math.PI);
+                    viewCtx.fillStyle = fillColor;
+                    viewCtx.fill();
+                } else {
+                    // Compute left and right boundary outlines
+                    const n = trail.length;
+                    const leftPts: { x: number; y: number }[] = [];
+                    const rightPts: { x: number; y: number }[] = [];
+                    const maxRadius = eraserWidthRef.current / 2;
+
+                    for (let i = 0; i < n; i++) {
+                        const progress = i / (n - 1);
+                        const ageFactor = Math.max(0.1, 1 - (now - trail[i].timestamp) / maxAge);
+                        const radius = maxRadius * Math.pow(progress * ageFactor, 0.85);
+
+                        let dx: number;
+                        let dy: number;
+                        if (i === 0) {
+                            dx = trail[1].x - trail[0].x;
+                            dy = trail[1].y - trail[0].y;
+                        } else if (i === n - 1) {
+                            dx = trail[n - 1].x - trail[n - 2].x;
+                            dy = trail[n - 1].y - trail[n - 2].y;
+                        } else {
+                            dx = trail[i + 1].x - trail[i - 1].x;
+                            dy = trail[i + 1].y - trail[i - 1].y;
+                        }
+
+                        const len = Math.hypot(dx, dy) || 1;
+                        const nx = -dy / len;
+                        const ny = dx / len;
+
+                        leftPts.push({ x: trail[i].x + nx * radius, y: trail[i].y + ny * radius });
+                        rightPts.push({ x: trail[i].x - nx * radius, y: trail[i].y - ny * radius });
+                    }
+
+                    // Build single contiguous closed path
+                    viewCtx.beginPath();
+                    viewCtx.moveTo(leftPts[0].x, leftPts[0].y);
+
+                    // Forward along left boundary using smooth quadratic curves
+                    for (let i = 0; i < n - 1; i++) {
+                        const mx = (leftPts[i].x + leftPts[i + 1].x) / 2;
+                        const my = (leftPts[i].y + leftPts[i + 1].y) / 2;
+                        if (typeof viewCtx.quadraticCurveTo === 'function') {
+                            viewCtx.quadraticCurveTo(leftPts[i].x, leftPts[i].y, mx, my);
+                        } else {
+                            viewCtx.lineTo(mx, my);
+                        }
+                    }
+                    viewCtx.lineTo(leftPts[n - 1].x, leftPts[n - 1].y);
+
+                    // Semicircle arc at the head
+                    const headPt = trail[n - 1];
+                    const headRadius = maxRadius;
+                    const lastDx = trail[n - 1].x - trail[n - 2].x;
+                    const lastDy = trail[n - 1].y - trail[n - 2].y;
+                    const headAngle = Math.atan2(lastDy, lastDx);
+                    if (typeof viewCtx.arc === 'function') {
+                        viewCtx.arc(headPt.x, headPt.y, headRadius, headAngle + Math.PI / 2, headAngle - Math.PI / 2, true);
+                    }
+
+                    // Backward along right boundary using smooth quadratic curves
+                    for (let i = n - 1; i > 0; i--) {
+                        const mx = (rightPts[i].x + rightPts[i - 1].x) / 2;
+                        const my = (rightPts[i].y + rightPts[i - 1].y) / 2;
+                        if (typeof viewCtx.quadraticCurveTo === 'function') {
+                            viewCtx.quadraticCurveTo(rightPts[i].x, rightPts[i].y, mx, my);
+                        } else {
+                            viewCtx.lineTo(mx, my);
+                        }
+                    }
+                    viewCtx.lineTo(rightPts[0].x, rightPts[0].y);
+
+                    // Close at the tail
+                    viewCtx.lineTo(trail[0].x, trail[0].y);
+                    viewCtx.closePath();
+
+                    viewCtx.fillStyle = fillColor;
+                    viewCtx.fill();
+                }
+                viewCtx.restore();
+            }
+
+            // Draw dashed circle cursor ONLY when hovering (not actively dragging/erasing)
+            if (!isActivelyErasing && lastActivePosRef.current) {
+                viewCtx.beginPath();
+                viewCtx.arc(lastActivePosRef.current.x, lastActivePosRef.current.y, eraserWidthRef.current / 2, 0, 2 * Math.PI);
+                viewCtx.lineWidth = 1.5 / scale;
+                viewCtx.strokeStyle = isInverted ? 'rgba(0, 0, 0, 0.4)' : 'rgba(255, 255, 255, 0.4)';
+                viewCtx.setLineDash([4 / scale, 4 / scale]);
+                viewCtx.globalCompositeOperation = 'source-over';
+                viewCtx.stroke();
+                viewCtx.setLineDash([]);
+            }
         }
 
         // Draw selected elements outline/bounding box
@@ -1130,6 +1247,7 @@ export const useMathCanvas = (
         isCanvasDirtyRef.current = false;
         elementsRef.current = [];
         setSelectedElementIds([]);
+        eraserTrailPointsRef.current = [];
         drawBoundsRef.current = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
         setIsCanvasEmpty(true);
         undoStackRef.current = [];
@@ -1383,6 +1501,21 @@ export const useMathCanvas = (
             return;
         }
 
+        if (activeTool === 'eraser') {
+            saveState();
+            setIsDrawing(true);
+            lastActivePosRef.current = { x: worldPos.x, y: worldPos.y };
+            eraserTrailPointsRef.current = [{ x: worldPos.x, y: worldPos.y, timestamp: Date.now() }];
+            const eraserRadius = eraserWidthRef.current / 2;
+            const originalLength = elementsRef.current.length;
+            elementsRef.current = elementsRef.current.filter(el => !hitTestElement(worldPos.x, worldPos.y, el, eraserRadius));
+            if (elementsRef.current.length !== originalLength) {
+                setIsCanvasEmpty(elementsRef.current.length === 0);
+            }
+            redrawViewCanvas();
+            return;
+        }
+
         saveState();
         setIsDrawing(true);
         setIsCanvasEmpty(false);
@@ -1422,12 +1555,18 @@ export const useMathCanvas = (
 
         if (activeTool === 'eraser') {
             if (e.buttons === 1) { // Left button pressed
+                const now = Date.now();
+                eraserTrailPointsRef.current.push({ x: worldPos.x, y: worldPos.y, timestamp: now });
+                eraserTrailPointsRef.current = eraserTrailPointsRef.current.filter(pt => now - pt.timestamp <= 250);
+
                 const eraserRadius = eraserWidthRef.current / 2;
                 const originalLength = elementsRef.current.length;
                 elementsRef.current = elementsRef.current.filter(el => !hitTestElement(worldPos.x, worldPos.y, el, eraserRadius));
                 if (elementsRef.current.length !== originalLength) {
                     setIsCanvasEmpty(elementsRef.current.length === 0);
                 }
+            } else {
+                eraserTrailPointsRef.current = [];
             }
             redrawViewCanvas(); // Always redraw to update eraser cursor preview
             return;
@@ -1662,6 +1801,7 @@ export const useMathCanvas = (
         setIsDrawing(false);
 
         if (activeTool === 'eraser') {
+            eraserTrailPointsRef.current = [];
             activeStrokePointsRef.current = [];
             redrawViewCanvas();
             return;
@@ -1875,6 +2015,21 @@ export const useMathCanvas = (
             return;
         }
 
+        if (activeTool === 'eraser') {
+            saveState();
+            setIsDrawing(true);
+            lastActivePosRef.current = { x: worldPos.x, y: worldPos.y };
+            eraserTrailPointsRef.current = [{ x: worldPos.x, y: worldPos.y, timestamp: Date.now() }];
+            const eraserRadius = eraserWidthRef.current / 2;
+            const originalLength = elementsRef.current.length;
+            elementsRef.current = elementsRef.current.filter(el => !hitTestElement(worldPos.x, worldPos.y, el, eraserRadius));
+            if (elementsRef.current.length !== originalLength) {
+                setIsCanvasEmpty(elementsRef.current.length === 0);
+            }
+            redrawViewCanvas();
+            return;
+        }
+
         saveState();
         setIsDrawing(true);
         setIsCanvasEmpty(false);
@@ -1934,6 +2089,10 @@ export const useMathCanvas = (
         lastActivePosRef.current = { x: worldPos.x, y: worldPos.y };
 
         if (activeTool === 'eraser') {
+            const now = Date.now();
+            eraserTrailPointsRef.current.push({ x: worldPos.x, y: worldPos.y, timestamp: now });
+            eraserTrailPointsRef.current = eraserTrailPointsRef.current.filter(pt => now - pt.timestamp <= 250);
+
             const eraserRadius = eraserWidthRef.current / 2;
             const originalLength = elementsRef.current.length;
             elementsRef.current = elementsRef.current.filter(el => !hitTestElement(worldPos.x, worldPos.y, el, eraserRadius));
@@ -2145,6 +2304,7 @@ export const useMathCanvas = (
         setIsDrawing(false);
 
         if (activeTool === 'eraser') {
+            eraserTrailPointsRef.current = [];
             activeStrokePointsRef.current = [];
             redrawViewCanvas();
             return;
