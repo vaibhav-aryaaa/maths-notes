@@ -7,21 +7,23 @@ import { LogOut, Trash2, Cloud, Mail, Lock, User as UserIcon, X, LogIn } from 'l
 import type { User } from '@supabase/supabase-js';
 
 interface AuthManagerProps {
-    user: User | null;
-    clearHistory: () => Promise<void>;
+    user?: User | null;
+    clearHistory?: () => Promise<void>;
     isFocusMode?: boolean;
     opened?: boolean;
     onOpenedChange?: (opened: boolean) => void;
     initialSignUp?: boolean;
+    modalOnly?: boolean;
 }
 
 export function AuthManager({
-    user,
-    clearHistory,
+    user = null,
+    clearHistory = async () => {},
     isFocusMode = false,
     opened: externalOpened,
     onOpenedChange,
-    initialSignUp = false
+    initialSignUp = false,
+    modalOnly = false
 }: AuthManagerProps) {
     const [internalOpened, setInternalOpened] = useState(false);
     const isControlled = typeof externalOpened === 'boolean';
@@ -36,7 +38,13 @@ export function AuthManager({
         }
     };
 
+    const [prevInitialSignUp, setPrevInitialSignUp] = useState(initialSignUp);
     const [isSignUp, setIsSignUp] = useState(initialSignUp);
+
+    if (prevInitialSignUp !== initialSignUp) {
+        setPrevInitialSignUp(initialSignUp);
+        setIsSignUp(initialSignUp);
+    }
     const [isForgotPassword, setIsForgotPassword] = useState(false);
     const [regDisplayName, setRegDisplayName] = useState('');
     const [email, setEmail] = useState('');
@@ -245,128 +253,26 @@ export function AuthManager({
 
     const displayName = user?.user_metadata?.display_name || user?.user_metadata?.full_name || '';
 
-    return (
-        <div className={`transition-opacity duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-            {user ? (
-                /* Signed In: Avatar (Google image or initials) with Dropdown Menu */
-                <Menu shadow="md" width={220} position="bottom-end" transitionProps={{ transition: 'fade', duration: 150 }}>
-                    <Menu.Target>
-                        <button
-                            className="bg-amber-500 hover:bg-amber-600 text-white font-bold h-9 w-9 rounded-full flex items-center justify-center cursor-pointer shadow-md select-none hover:scale-105 active:scale-95 transition-all font-sans text-sm border-none outline-none relative"
-                            title={`Signed in as ${user.email}`}
-                            aria-label={`Signed in as ${user.email}`}
-                        >
-                            <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-amber-500">
-                                {user.user_metadata?.avatar_url ? (
-                                    <img 
-                                        src={user.user_metadata.avatar_url} 
-                                        alt="Profile" 
-                                        className="w-full h-full object-cover" 
-                                        referrerPolicy="no-referrer"
-                                    />
-                                ) : (
-                                    getInitials()
-                                )}
-                            </div>
-                            <span className="absolute bottom-0 right-0 flex h-2.5 w-2.5 translate-x-0.5 translate-y-0.5">
-                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-teal-400 border-2 border-slate-50 dark:border-black"></span>
-                            </span>
-                        </button>
-                    </Menu.Target>
+    const modalElement = (
+        <Modal
+            opened={opened}
+            onClose={() => setOpened(false)}
+            title={user ? "Account Settings" : ""}
+            withCloseButton={!!user}
+            centered
+            size="sm"
+            classNames={{
+                content: "bg-white dark:bg-[#18181c] text-stone-800 dark:text-white border border-stone-200 dark:border-stone-800/80 rounded-2xl shadow-2xl p-4 flex flex-col font-sans",
+                header: "bg-white dark:bg-[#18181c] text-stone-800 dark:text-white border-b border-stone-100 dark:border-stone-800/60 pb-3",
+                title: "font-black font-sans text-base tracking-tight text-stone-900 dark:text-white"
+            }}
+        >
+            <div className="relative p-1">
+                <LoadingOverlay visible={loading} zIndex={1000} overlayProps={{ blur: 2 }} />
 
-                    <Menu.Dropdown className="bg-white dark:bg-[#18181c] border border-stone-200 dark:border-[#2d2d30] p-1.5 rounded-xl shadow-2xl z-50">
-                        <div className="px-3 py-2 select-none border-b border-stone-100 dark:border-stone-800/60 mb-1.5 flex flex-col gap-0.5 max-w-[200px]">
-                            {displayName && (
-                                <div className="flex items-center gap-1.5">
-                                    <Text size="xs" className="font-extrabold text-stone-850 dark:text-stone-100 font-sans tracking-tight truncate">
-                                        {displayName}
-                                    </Text>
-                                    {user.app_metadata?.provider === 'google' && (
-                                        <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 select-none shrink-0 bg-blue-50 dark:bg-blue-900/30 px-1 py-0.2 rounded border border-blue-100 dark:border-blue-900/40">G</span>
-                                    )}
-                                </div>
-                            )}
-                            <Text size="10px" className="font-mono text-stone-500 dark:text-gray-400 truncate">
-                                {user.email}
-                            </Text>
-                        </div>
-
-                        <Menu.Item
-                            onClick={() => {
-                                setErrorMsg(null);
-                                setConfirmPurge(false);
-                                setIsForgotPassword(false);
-                                setOpened(true);
-                            }}
-                            leftSection={<Cloud size={14} className="text-stone-500 dark:text-gray-400" />}
-                            className="hover:bg-stone-100 dark:hover:bg-white/5 text-xs text-stone-700 dark:text-white rounded-lg transition-colors p-2 font-sans"
-                        >
-                            Account Settings
-                        </Menu.Item>
-
-                        <Menu.Item
-                            onClick={handleSignOut}
-                            leftSection={<LogOut size={14} className="text-stone-500 dark:text-gray-400" />}
-                            className="hover:bg-stone-100 dark:hover:bg-white/5 text-xs text-stone-700 dark:text-white rounded-lg transition-colors p-2 font-sans"
-                        >
-                            Sign Out
-                        </Menu.Item>
-
-                        <Menu.Divider className="border-stone-100 dark:border-stone-800/60 my-1" />
-
-                        <Menu.Item
-                            onClick={() => {
-                                setErrorMsg(null);
-                                setConfirmPurge(true);
-                                setIsForgotPassword(false);
-                                setOpened(true);
-                            }}
-                            color="red"
-                            leftSection={<Trash2 size={14} className="text-red-500" />}
-                            className="hover:bg-red-50 dark:hover:bg-red-950/20 text-xs text-red-650 dark:text-red-400 rounded-lg transition-colors p-2 font-sans font-semibold"
-                        >
-                            Delete My Data
-                        </Menu.Item>
-                    </Menu.Dropdown>
-                </Menu>
-            ) : (
-                /* Signed Out: Clearly Labeled "Sign In" Button */
-                <button
-                    onClick={() => {
-                        setErrorMsg(null);
-                        setConfirmPurge(false);
-                        setIsForgotPassword(false);
-                        setOpened(true);
-                    }}
-                    className="sketch-button h-9 px-4.5 rounded-full transition-all cursor-pointer flex items-center justify-center gap-1.5 border-[1.5px] border-stone-800 text-stone-850 bg-white hover:bg-stone-50/50 dark:border-stone-300 dark:text-stone-100 dark:bg-[#18181c] dark:hover:bg-white/5 font-bold text-base select-none outline-none shadow-sm"
-                    title="Sign in to sync history across devices"
-                    aria-label="Sign in to sync history across devices"
-                >
-                    <LogIn size={14} strokeWidth={2} className="shrink-0" />
-                    <span className="font-bold text-base tracking-wide">Sign In</span>
-                </button>
-            )}
-
-            {/* Auth / Account Management Modal */}
-            <Modal
-                opened={opened}
-                onClose={() => setOpened(false)}
-                title={user ? "Account Settings" : ""}
-                withCloseButton={!!user}
-                centered
-                size="sm"
-                classNames={{
-                    content: "bg-white dark:bg-[#18181c] text-stone-800 dark:text-white border border-stone-200 dark:border-stone-800/80 rounded-2xl shadow-2xl p-4 flex flex-col font-sans",
-                    header: "bg-white dark:bg-[#18181c] text-stone-800 dark:text-white border-b border-stone-100 dark:border-stone-800/60 pb-3",
-                    title: "font-black font-sans text-base tracking-tight text-stone-900 dark:text-white"
-                }}
-            >
-                <div className="relative p-1">
-                    <LoadingOverlay visible={loading} zIndex={1000} overlayProps={{ blur: 2 }} />
-
-                    {user ? (
-                        /* Logged In View */
-                        <Stack gap="md">
+                {user ? (
+                    /* Logged In View */
+                    <Stack gap="md">
                             <Alert color="teal" title="Sync Status: Active" icon={<Cloud size={16} />} classNames={{ root: "rounded-xl border border-teal-200/50 dark:border-teal-900/30" }}>
                                 Your canvas solves and history entries are actively synced to secure cloud storage.
                             </Alert>
@@ -628,6 +534,114 @@ export function AuthManager({
                     )}
                 </div>
             </Modal>
+    );
+
+    if (modalOnly) {
+        return modalElement;
+    }
+
+    return (
+        <div className={`transition-opacity duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            {user ? (
+                /* Signed In: Avatar (Google image or initials) with Dropdown Menu */
+                <Menu shadow="md" width={220} position="bottom-end" transitionProps={{ transition: 'fade', duration: 150 }}>
+                    <Menu.Target>
+                        <button
+                            className="bg-amber-500 hover:bg-amber-600 text-white font-bold h-9 w-9 rounded-full flex items-center justify-center cursor-pointer shadow-md select-none hover:scale-105 active:scale-95 transition-all font-sans text-sm border-none outline-none relative"
+                            title={`Signed in as ${user.email}`}
+                            aria-label={`Signed in as ${user.email}`}
+                        >
+                            <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-amber-500">
+                                {user.user_metadata?.avatar_url ? (
+                                    <img 
+                                        src={user.user_metadata.avatar_url} 
+                                        alt="Profile" 
+                                        className="w-full h-full object-cover" 
+                                        referrerPolicy="no-referrer"
+                                    />
+                                ) : (
+                                    getInitials()
+                                )}
+                            </div>
+                            <span className="absolute bottom-0 right-0 flex h-2.5 w-2.5 translate-x-0.5 translate-y-0.5">
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-teal-400 border-2 border-slate-50 dark:border-black"></span>
+                            </span>
+                        </button>
+                    </Menu.Target>
+
+                    <Menu.Dropdown className="bg-white dark:bg-[#18181c] border border-stone-200 dark:border-[#2d2d30] p-1.5 rounded-xl shadow-2xl z-50">
+                        <div className="px-3 py-2 select-none border-b border-stone-100 dark:border-stone-800/60 mb-1.5 flex flex-col gap-0.5 max-w-[200px]">
+                            {displayName && (
+                                <div className="flex items-center gap-1.5">
+                                    <Text size="xs" className="font-extrabold text-stone-850 dark:text-stone-100 font-sans tracking-tight truncate">
+                                        {displayName}
+                                    </Text>
+                                    {user.app_metadata?.provider === 'google' && (
+                                        <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 select-none shrink-0 bg-blue-50 dark:bg-blue-900/30 px-1 py-0.2 rounded border border-blue-100 dark:border-blue-900/40">G</span>
+                                    )}
+                                </div>
+                            )}
+                            <Text size="10px" className="font-mono text-stone-500 dark:text-gray-400 truncate">
+                                {user.email}
+                            </Text>
+                        </div>
+
+                        <Menu.Item
+                            onClick={() => {
+                                setErrorMsg(null);
+                                setConfirmPurge(false);
+                                setIsForgotPassword(false);
+                                setOpened(true);
+                            }}
+                            leftSection={<Cloud size={14} className="text-stone-500 dark:text-gray-400" />}
+                            className="hover:bg-stone-100 dark:hover:bg-white/5 text-xs text-stone-700 dark:text-white rounded-lg transition-colors p-2 font-sans"
+                        >
+                            Account Settings
+                        </Menu.Item>
+
+                        <Menu.Item
+                            onClick={handleSignOut}
+                            leftSection={<LogOut size={14} className="text-stone-500 dark:text-gray-400" />}
+                            className="hover:bg-stone-100 dark:hover:bg-white/5 text-xs text-stone-700 dark:text-white rounded-lg transition-colors p-2 font-sans"
+                        >
+                            Sign Out
+                        </Menu.Item>
+
+                        <Menu.Divider className="border-stone-100 dark:border-stone-800/60 my-1" />
+
+                        <Menu.Item
+                            onClick={() => {
+                                setErrorMsg(null);
+                                setConfirmPurge(true);
+                                setIsForgotPassword(false);
+                                setOpened(true);
+                            }}
+                            color="red"
+                            leftSection={<Trash2 size={14} className="text-red-500" />}
+                            className="hover:bg-red-50 dark:hover:bg-red-950/20 text-xs text-red-650 dark:text-red-400 rounded-lg transition-colors p-2 font-sans font-semibold"
+                        >
+                            Delete My Data
+                        </Menu.Item>
+                    </Menu.Dropdown>
+                </Menu>
+            ) : (
+                /* Signed Out: Clearly Labeled "Sign In" Button */
+                <button
+                    onClick={() => {
+                        setErrorMsg(null);
+                        setConfirmPurge(false);
+                        setIsForgotPassword(false);
+                        setOpened(true);
+                    }}
+                    className="sketch-button h-9 px-4.5 rounded-full transition-all cursor-pointer flex items-center justify-center gap-1.5 border-[1.5px] border-stone-800 text-stone-850 bg-white hover:bg-stone-50/50 dark:border-stone-300 dark:text-stone-100 dark:bg-[#18181c] dark:hover:bg-white/5 font-bold text-base select-none outline-none shadow-sm"
+                    title="Sign in to sync history across devices"
+                    aria-label="Sign in to sync history across devices"
+                >
+                    <LogIn size={14} strokeWidth={2} className="shrink-0" />
+                    <span className="font-bold text-base tracking-wide">Sign In</span>
+                </button>
+            )}
+            {modalElement}
         </div>
     );
 }

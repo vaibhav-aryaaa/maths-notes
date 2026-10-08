@@ -292,8 +292,10 @@ export function resolveLiveCanvasWithRemote(
         const remoteDictOfVars = (!isArray && rawPayload?.dictOfVars)
             ?? localData?.dictOfVars;
 
-        const remoteResults = (!isArray && rawPayload?.results)
-            ?? localData?.results;
+        const rawResults = (!isArray && rawPayload?.results);
+        const remoteResults = (rawResults && Array.isArray(rawResults) && rawResults.length > 0)
+            ? rawResults
+            : (localData?.results && localData.results.length > 0 ? localData.results : rawResults);
 
         const remoteHistoryId = (!isArray && rawPayload?.loadedHistoryEntryId)
             ?? localData?.loadedHistoryEntryId;

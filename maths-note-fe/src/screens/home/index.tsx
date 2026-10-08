@@ -6,7 +6,7 @@ import { DraggableResultCard } from '@/components/DraggableResultCard';
 import { ResultSkeleton } from '@/components/ResultSkeleton';
 import { useMathCanvas } from './useMathCanvas';
 import { useCanvasSolver } from './useCanvasSolver';
-import { rasterizeRegion, getElementBounds } from './canvasUtils';
+import { rasterizeRegion, getElementBounds, isDrawableImageSource } from './canvasUtils';
 import { useCopilotChat } from './useCopilotChat';
 import { Modal, useMantineColorScheme, Slider, Popover, Menu as MantineMenu } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -136,11 +136,17 @@ export default function Home({
     const latexPositionRef = useRef({ x: 10, y: 200 });
 
     const handleRestoreLiveCanvas = useCallback((data: any) => {
-        if (data.dictOfVars && setDictOfVarsCallbackRef.current) {
-            setDictOfVarsCallbackRef.current(data.dictOfVars);
+        if (data.dictOfVars) {
+            dictOfVarsRef.current = data.dictOfVars;
+            if (setDictOfVarsCallbackRef.current) {
+                setDictOfVarsCallbackRef.current(data.dictOfVars);
+            }
         }
-        if (data.results && data.results.length > 0 && setResultsCallbackRef.current) {
-            setResultsCallbackRef.current(data.results);
+        if (data.results !== undefined) {
+            resultsRef.current = data.results || [];
+            if (setResultsCallbackRef.current) {
+                setResultsCallbackRef.current(data.results || []);
+            }
         }
         if (data.loadedHistoryEntryId) {
             loadedHistoryEntryIdRef.current = data.loadedHistoryEntryId;
@@ -615,6 +621,10 @@ export default function Home({
     useEffect(() => {
         let isMounted = true;
         if (routeCanvasId && user) {
+            if (routeCanvasId === 'guest') {
+                navigate('/library', { replace: true });
+                return;
+            }
             fetchCanvasDetail(routeCanvasId).then(detail => {
                 if (isMounted && detail?.name) {
                     setCanvasTitle(detail.name);
@@ -624,7 +634,7 @@ export default function Home({
         return () => {
             isMounted = false;
         };
-    }, [routeCanvasId, user]);
+    }, [routeCanvasId, user, navigate]);
 
     const handleSaveTitle = async () => {
         if (!tempTitle.trim()) {
@@ -668,7 +678,12 @@ export default function Home({
         setResultsCallbackRef.current = setResults;
     }, [dictOfVars, setDictOfVars, results, setResults]);
 
+    const isInitialResultsMountRef = useRef(true);
     useEffect(() => {
+        if (isInitialResultsMountRef.current) {
+            isInitialResultsMountRef.current = false;
+            return;
+        }
         scheduleAutosave();
     }, [results, scheduleAutosave]);
 
@@ -916,8 +931,9 @@ export default function Home({
             elementsRef.current = entry.elements.map((el: any) => {
                 if (el.kind === 'text') return { ...el };
                 if (el.kind === 'image') {
-                    const imgEl: ImageElement = { ...el };
-                    if (!imgEl.bitmap && imgEl.src) {
+                    const isDrawable = isDrawableImageSource(el.bitmap);
+                    const imgEl: ImageElement = { ...el, bitmap: isDrawable ? el.bitmap : undefined };
+                    if (!isDrawable && imgEl.src) {
                         const img = new Image();
                         img.src = imgEl.src;
                         img.onload = () => {

@@ -237,6 +237,20 @@ export const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
     if (ctx.restore) ctx.restore();
 };
 
+export const isDrawableImageSource = (source: unknown): source is CanvasImageSource => {
+    if (!source) return false;
+    if (typeof HTMLImageElement !== 'undefined' && source instanceof HTMLImageElement) {
+        return source.complete && source.naturalWidth > 0;
+    }
+    if (typeof ImageBitmap !== 'undefined' && source instanceof ImageBitmap) {
+        return true;
+    }
+    if (typeof HTMLCanvasElement !== 'undefined' && source instanceof HTMLCanvasElement) {
+        return true;
+    }
+    return false;
+};
+
 export const drawElement = (ctx: CanvasRenderingContext2D, element: CanvasElement, isInverted: boolean = false) => {
     if (element.kind === 'text') {
         if (ctx.save) ctx.save();
@@ -250,14 +264,19 @@ export const drawElement = (ctx: CanvasRenderingContext2D, element: CanvasElemen
         });
         if (ctx.restore) ctx.restore();
     } else if (element.kind === 'image') {
-        if (element.bitmap) {
-            if (ctx.save) ctx.save();
-            if (isInverted) {
-                ctx.filter = 'invert(0.93) hue-rotate(180deg)';
+        if (isDrawableImageSource(element.bitmap)) {
+            try {
+                if (ctx.save) ctx.save();
+                if (isInverted) {
+                    ctx.filter = 'invert(0.93) hue-rotate(180deg)';
+                }
+                ctx.drawImage(element.bitmap, element.x, element.y, element.width, element.height);
+                if (ctx.restore) ctx.restore();
+            } catch (err) {
+                console.warn('Failed to draw image element on canvas:', err);
             }
-            ctx.drawImage(element.bitmap, element.x, element.y, element.width, element.height);
-            if (ctx.restore) ctx.restore();
-        } else {
+        } else if (element.src) {
+            element.bitmap = undefined;
             const img = new Image();
             img.src = element.src;
             img.onload = () => {

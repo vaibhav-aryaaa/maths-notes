@@ -562,11 +562,15 @@ export const useMathCanvas = (
             const destWidth = srcWidth * scale;
             const destHeight = srcHeight * scale;
             if (srcWidth > 0 && srcHeight > 0) {
-                viewCtx.drawImage(
-                    masterCanvas,
-                    srcX, srcY, srcWidth, srcHeight,
-                    destX, destY, destWidth, destHeight
-                );
+                try {
+                    viewCtx.drawImage(
+                        masterCanvas,
+                        srcX, srcY, srcWidth, srcHeight,
+                        destX, destY, destWidth, destHeight
+                    );
+                } catch (e) {
+                    console.warn('Failed to draw masterCanvas background:', e);
+                }
             }
         }
 
@@ -1066,7 +1070,7 @@ export const useMathCanvas = (
                 if (!isMounted) return;
                 try {
                     const guestData = loadGuestCanvasData();
-                    if (guestData && (guestData.elements?.length > 0 || guestData.camera)) {
+                    if (guestData) {
                         applyLoadedCanvasData(guestData);
                     }
                 } catch (err) {
@@ -1085,7 +1089,7 @@ export const useMathCanvas = (
             try {
                 localData = await loadLiveCanvas(activeCanvasId);
                 if (!isMounted) return;
-                if (localData && (localData.elements?.length > 0 || localData.camera)) {
+                if (localData) {
                     applyLoadedCanvasData(localData);
                 }
             } catch (err) {
@@ -1093,7 +1097,7 @@ export const useMathCanvas = (
             }
 
             // If we have a real canvas ID, resolve against remote backend
-            if (activeCanvasId && activeCanvasId !== DEFAULT_CANVAS_ID) {
+            if (activeCanvasId && activeCanvasId !== DEFAULT_CANVAS_ID && activeCanvasId !== 'guest') {
                 try {
                     const remoteDetail = await fetchCanvasDetail(activeCanvasId);
                     if (!isMounted) return;
@@ -1147,9 +1151,7 @@ export const useMathCanvas = (
         return () => {
             window.removeEventListener('beforeunload', handleBeforeUnload);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
-            if (autosaveTimerRef.current) {
-                clearTimeout(autosaveTimerRef.current);
-            }
+            flushLiveCanvasSave();
         };
     }, [flushLiveCanvasSave]);
 

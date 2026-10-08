@@ -141,8 +141,7 @@ export const useCanvasSolver = (
                     dictOfVars: { ...dictOfVars }
                 };
 
-                const updatedResults = [...results, newResult];
-                setResults(updatedResults);
+                setResults(prev => [...prev, newResult]);
 
                 // Create a temporary region-sized canvas for history saving (backwards compatibility)
                 const historyCanvas = rasterizeRegion(elements, cropRegion, {
