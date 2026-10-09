@@ -84,7 +84,6 @@ const AppContent = () => {
     return (
         <>
             <Landing 
-                onStart={handleStartGuest}
                 onStartGuest={handleStartGuest}
                 onSignIn={handleSignIn}
             />

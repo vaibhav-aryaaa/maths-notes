@@ -4,31 +4,22 @@ import CursorGrid from '@/components/CursorGrid';
 import TextLoop from '@/components/TextLoop';
 
 interface LandingProps {
-    onStart?: () => void;
     onStartGuest?: () => void;
     onSignIn?: () => void;
 }
 
-export default function Landing({ onStart, onStartGuest, onSignIn }: LandingProps) {
+export default function Landing({ onStartGuest, onSignIn }: LandingProps) {
     const { colorScheme } = useMantineColorScheme();
     const gridColor = colorScheme === 'dark' ? '#ffffff' : '#1c1917';
     const loopRibbonColor = colorScheme === 'dark' ? '#1c1917' : '#f5f5f4';
     const loopTextColor = colorScheme === 'dark' ? '#ffffff' : '#1c1917';
 
     const handleStartGuest = () => {
-        if (onStartGuest) {
-            onStartGuest();
-        } else if (onStart) {
-            onStart();
-        }
+        onStartGuest?.();
     };
 
     const handleSignIn = () => {
-        if (onSignIn) {
-            onSignIn();
-        } else if (onStart) {
-            onStart();
-        }
+        onSignIn?.();
     };
 
     return (

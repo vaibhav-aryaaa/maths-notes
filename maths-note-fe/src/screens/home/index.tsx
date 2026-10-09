@@ -80,17 +80,7 @@ const WIDTH_RANGES: Record<string, { min: number; max: number; default: number }
     text: { min: 12, max: 72, default: 24 }
 };
 
-interface HomeProps {
-    initialAuthOpened?: boolean;
-    onAuthOpenedChange?: (opened: boolean) => void;
-    initialSignUp?: boolean;
-}
-
-export default function Home({
-    initialAuthOpened = false,
-    onAuthOpenedChange,
-    initialSignUp = false
-}: HomeProps = {}) {
+export default function Home() {
     const { colorScheme, toggleColorScheme } = useMantineColorScheme();
 
     const [activeSolveRegion, setActiveSolveRegion] = useState<{
@@ -269,14 +259,8 @@ export default function Home({
     const isGuest = !user;
     const [clearCanvasModalOpen, setClearCanvasModalOpen] = useState(false);
     const [guestLimitModalOpen, setGuestLimitModalOpen] = useState(false);
-    const [internalAuthOpened, setInternalAuthOpened] = useState(false);
-    const [authInitialSignUp, setAuthInitialSignUp] = useState(initialSignUp);
-    const authModalOpened = initialAuthOpened || internalAuthOpened;
-
-    const handleAuthOpenedChange = (opened: boolean) => {
-        setInternalAuthOpened(opened);
-        onAuthOpenedChange?.(opened);
-    };
+    const [authModalOpened, setAuthModalOpened] = useState(false);
+    const [authInitialSignUp, setAuthInitialSignUp] = useState(false);
 
     const {
         canvasRef,
@@ -1240,7 +1224,7 @@ export default function Home({
                     clearHistory={clearHistory}
                     isFocusMode={isFocusMode}
                     opened={authModalOpened}
-                    onOpenedChange={handleAuthOpenedChange}
+                    onOpenedChange={setAuthModalOpened}
                     initialSignUp={authInitialSignUp}
                 />
             </div>
@@ -2068,7 +2052,7 @@ export default function Home({
                             onClick={() => {
                                 setGuestLimitModalOpen(false);
                                 setAuthInitialSignUp(true);
-                                setInternalAuthOpened(true);
+                                setAuthModalOpened(true);
                             }}
                             className="w-full bg-stone-950 hover:bg-stone-800 dark:bg-stone-100 dark:hover:bg-stone-200 text-stone-50 dark:text-stone-950 font-bold py-2.5 rounded-xl shadow-sm text-sm"
                         >
