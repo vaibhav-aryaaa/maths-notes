@@ -47,8 +47,8 @@ function getCanvasThumbnail(canvas: HTMLCanvasElement): string {
     return tempCanvas.toDataURL('image/jpeg', 0.6);
 }
 
-const getApiHost = () => import.meta.env.VITE_API_URL || 'http://localhost:5001';
-const getAppKey = () => import.meta.env.VITE_APP_KEY || import.meta.env.VITE_APP_SECRET || '';
+const getApiHost = () => import.meta.env.VITE_API_URL || 'http://localhost:8900';
+const getAppKey = () => import.meta.env.VITE_APP_KEY || '';
 
 const getAuthHeaders = (token: string) => {
     const headers: Record<string, string> = {

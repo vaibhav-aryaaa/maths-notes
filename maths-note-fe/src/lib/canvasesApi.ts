@@ -30,8 +30,8 @@ export interface TrashData {
     canvases: CanvasMetadata[];
 }
 
-const getApiHost = () => import.meta.env.VITE_API_URL || 'http://localhost:5001';
-const getAppSecret = () => import.meta.env.VITE_APP_KEY || import.meta.env.VITE_APP_SECRET || '';
+const getApiHost = () => import.meta.env.VITE_API_URL || 'http://localhost:8900';
+const getAppSecret = () => import.meta.env.VITE_APP_KEY || '';
 
 export async function getAuthHeaders(providedToken?: string | null): Promise<Record<string, string>> {
     const headers: Record<string, string> = {

@@ -206,16 +206,22 @@ flowchart TD
 
 | Variable | Required | Default | Description |
 | :--- | :---: | :--- | :--- |
-| `APP_SECRET` | **Yes** | — | Shared gateway secret key verified on API requests |
+| `SERVER_URL` | No | `0.0.0.0` | Host address for the FastAPI Uvicorn server |
+| `PORT` | No | `8900` | Port for the FastAPI Uvicorn server |
+| `ENV` | No | `dev` | Runtime environment (`dev`, `prod`, `production`). In `dev`, enables debug logs, auto-reload, and `DEV_BYPASS_TOKEN`. Only `prod` / `production` enables Sentry |
+| `APP_SECRET` | **Yes** | — | Shared gateway secret key verified on API requests (must match `VITE_APP_KEY`) |
 | `GEMINI_API_KEY` | **Yes** | — | Google Gemini API key for multimodal solving |
 | `DATABASE_URL` | No | SQLite (`shares.db`) | PostgreSQL connection string (e.g. Supabase DB URL) |
+| `DB_PATH` | No | `shares.db` | File path for local SQLite database fallback when `DATABASE_URL` is unset |
 | `SUPABASE_URL` | No | — | Supabase project URL for JWT JWKS token decoding |
 | `SUPABASE_ANON_KEY` | No | — | Supabase API key for public key verification |
+| `SUPABASE_PROJECT_ID` | No | Auto-derived | Supabase project reference ID for JWKS verification (auto-extracted from `SUPABASE_URL` or `DATABASE_URL` if omitted) |
+| `DEV_BYPASS_TOKEN` | No | — | Static bearer token for local auth bypass during testing (active only when `ENV=dev`) |
 | `GROQ_API_KEY` | No | — | Groq API key for Llama 3.3 Co-Pilot chat |
 | `ALLOWED_ORIGINS` | No | `https://solveiq-two.vercel.app,http://localhost:5173` | Allowed CORS origins |
 | `GEMINI_MODEL_FAST` | No | `gemini-3.5-flash-lite` | Model identifier for fast math recognition |
 | `GEMINI_MODEL_EXPLAIN` | No | `gemini-3.5-flash` | Model identifier for step-by-step reasoning |
-| `SENTRY_DSN` | No | — | Sentry DSN for backend exception tracking |
+| `SENTRY_DSN` | No | — | Sentry DSN for backend exception tracking (enabled only when `ENV` is `prod` or `production`) |
 
 ---
 

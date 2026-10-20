@@ -810,7 +810,7 @@ export default function Home() {
         });
 
         try {
-            const apiHost = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+            const apiHost = import.meta.env.VITE_API_URL || 'http://localhost:8900';
             
             const solutions = (result.solutions && result.solutions.length > 0)
                 ? result.solutions

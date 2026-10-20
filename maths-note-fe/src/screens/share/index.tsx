@@ -18,7 +18,7 @@ export default function ShareView() {
             try {
                 setLoading(true);
                 setError(null);
-                const apiHost = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+                const apiHost = import.meta.env.VITE_API_URL || 'http://localhost:8900';
                 const response = await axios.get(`${apiHost}/share/${shareId}`);
                 
                 if (response.data && response.data.status === 'success') {
