@@ -219,8 +219,10 @@ flowchart TD
 | `DEV_BYPASS_TOKEN` | No | — | Static bearer token for local auth bypass during testing (active only when `ENV=dev`) |
 | `GROQ_API_KEY` | No | — | Groq API key for Llama 3.3 Co-Pilot chat |
 | `ALLOWED_ORIGINS` | No | `https://solveiq-two.vercel.app,http://localhost:5173` | Allowed CORS origins |
-| `GEMINI_MODEL_FAST` | No | `gemini-3.5-flash-lite` | Model identifier for fast math recognition |
-| `GEMINI_MODEL_EXPLAIN` | No | `gemini-3.5-flash` | Model identifier for step-by-step reasoning |
+| `SOLVER_PROVIDER` | No | `groq` | Math AI solver engine (`groq` or `gemini`). Set to `groq` for free, zero-prepay vision inference |
+| `GROQ_VISION_MODEL` | No | `qwen/qwen3.8-27b` | Model identifier for Groq vision solving |
+| `GEMINI_MODEL_FAST` | No | `gemini-3.5-flash-lite` | Model identifier for fast math recognition (when using Gemini) |
+| `GEMINI_MODEL_EXPLAIN` | No | `gemini-3.5-flash` | Model identifier for step-by-step reasoning (when using Gemini) |
 | `SENTRY_DSN` | No | — | Sentry DSN for backend exception tracking (enabled only when `ENV` is `prod` or `production`) |
 
 ---

@@ -1,21 +1,50 @@
+import base64
 import datetime
+import io
 import json
 import logging
 import time
 from typing import Any
 
-import httpx
 from google import genai
 from google.genai import types
 from google.genai.errors import APIError, ServerError
+from groq import (
+    APIConnectionError,
+    APIStatusError,
+    Groq,
+    InternalServerError,
+    RateLimitError,
+)
+import httpx
 from PIL import Image
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
-from constants import GEMINI_API_KEY, GEMINI_MODEL_EXPLAIN, GEMINI_MODEL_FAST
+from constants import (
+    GEMINI_API_KEY,
+    GEMINI_MODEL_EXPLAIN,
+    GEMINI_MODEL_FAST,
+    GROQ_API_KEY,
+    GROQ_VISION_MODEL,
+    SOLVER_PROVIDER,
+)
 
-client = genai.Client(api_key=GEMINI_API_KEY)
 logger = logging.getLogger(__name__)
 
+# Initialize clients lazily / safely
+gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+
+
+class AIParsingError(Exception):
+    def __init__(self, message, raw_response):
+        super().__init__(message)
+        self.raw_response = raw_response
+
+
+# =====================================================================
+# Retry Predicates
+# =====================================================================
 
 def is_transient_gemini_error(exception):
     if isinstance(exception, ServerError):
@@ -25,16 +54,30 @@ def is_transient_gemini_error(exception):
     return bool(isinstance(exception, (httpx.HTTPError, ConnectionError, TimeoutError)))
 
 
+def is_transient_groq_error(exception):
+    if isinstance(exception, (RateLimitError, InternalServerError, APIConnectionError)):
+        return True
+    if isinstance(exception, APIStatusError) and getattr(exception, "status_code", 0) in (429, 500, 502, 503, 504):
+        return True
+    return bool(isinstance(exception, (httpx.HTTPError, ConnectionError, TimeoutError)))
+
+
+# =====================================================================
+# Low-level API Callers with Retry
+# =====================================================================
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=8),
     retry=retry_if_exception(is_transient_gemini_error),
     reraise=True,
 )
-def _generate_content_with_retry(prompt, img, model: str):
+def _generate_gemini_content(prompt: str, img: Image.Image, model: str):
+    if not gemini_client:
+        raise ValueError("GEMINI_API_KEY is not configured.")
     start_time = time.time()
     try:
-        res = client.models.generate_content(
+        res = gemini_client.models.generate_content(
             model=model,
             contents=[prompt, img],
             config=types.GenerateContentConfig(
@@ -53,13 +96,240 @@ def _generate_content_with_retry(prompt, img, model: str):
         raise
 
 
-class AIParsingError(Exception):
-    def __init__(self, message, raw_response):
-        super().__init__(message)
-        self.raw_response = raw_response
+def _pil_to_base64_url(img: Image.Image) -> str:
+    """Converts a PIL Image to a base64 data URL with minimum dimension guarantee for vision models."""
+    width, height = img.size
+    min_dim = 64
+    if width < min_dim or height < min_dim:
+        scale = max(min_dim / max(width, 1), min_dim / max(height, 1))
+        new_width = max(int(width * scale), min_dim)
+        new_height = max(int(height * scale), min_dim)
+        img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+    buf = io.BytesIO()
+    img_format = img.format if img.format in ("PNG", "JPEG", "WEBP") else "PNG"
+    img.save(buf, format=img_format)
+    mime_type = f"image/{img_format.lower()}"
+    b64_str = base64.b64encode(buf.getvalue()).decode("utf-8")
+    return f"data:{mime_type};base64,{b64_str}"
 
 
-def analyze_image(img: Image, dict_of_vars: dict, is_retry: bool = False):
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=8),
+    retry=retry_if_exception(is_transient_groq_error),
+    reraise=True,
+)
+def _generate_groq_vision_content(prompt: str, img: Image.Image, model: str = GROQ_VISION_MODEL, as_json_object: bool = False):
+    if not groq_client:
+        raise ValueError("GROQ_API_KEY is not configured.")
+    start_time = time.time()
+    try:
+        image_url = _pil_to_base64_url(img)
+        kwargs = {
+            "model": model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": image_url}},
+                    ],
+                }
+            ],
+            "temperature": 0.1,
+        }
+        if as_json_object:
+            kwargs["response_format"] = {"type": "json_object"}
+
+        res = groq_client.chat.completions.create(**kwargs)
+        return res.choices[0].message.content or ""
+    except Exception as e:
+        latency = round((time.time() - start_time) * 1000)
+        logger.warning(
+            "[Groq Vision Retry] Call failed. Latency: %dms. Error class: %s. Error detail: %s",
+            latency,
+            e.__class__.__name__,
+            e,
+        )
+        raise
+
+
+# =====================================================================
+# Main Analysis & Explanation Functions (Dual Provider: Groq + Gemini)
+# =====================================================================
+
+def analyze_image(img: Image.Image, dict_of_vars: dict, is_retry: bool = False):
+    provider = SOLVER_PROVIDER
+    # If primary is groq or fallback is required, handle transparently
+    if provider == "groq":
+        try:
+            return _analyze_image_groq(img, dict_of_vars, is_retry=is_retry)
+        except Exception as e:
+            logger.warning("Groq Vision failed, checking if Gemini is available for fallback: %s", e)
+            if GEMINI_API_KEY:
+                return _analyze_image_gemini(img, dict_of_vars, is_retry=is_retry)
+            raise
+    else:
+        # Default or explicitly set to 'gemini'
+        try:
+            return _analyze_image_gemini(img, dict_of_vars, is_retry=is_retry)
+        except Exception as e:
+            # If Gemini fails with billing/credits (402) or quota, fall back to Groq Vision
+            error_msg = str(e).lower()
+            if ("402" in error_msg or "resource_exhausted" in error_msg or "quota" in error_msg) and GROQ_API_KEY:
+                logger.warning("Gemini credit/quota error detected (%s). Falling back automatically to Groq Vision.", e)
+                return _analyze_image_groq(img, dict_of_vars, is_retry=is_retry)
+            raise
+
+
+def explain_result(
+    img: Image.Image, dict_of_vars: dict, expr: str, result: Any, type: str | None = None, is_retry: bool = False
+):
+    provider = SOLVER_PROVIDER
+    if provider == "groq":
+        try:
+            return _explain_result_groq(img, dict_of_vars, expr, result, type=type, is_retry=is_retry)
+        except Exception as e:
+            logger.warning("Groq explanation failed, checking Gemini fallback: %s", e)
+            if GEMINI_API_KEY:
+                return _explain_result_gemini(img, dict_of_vars, expr, result, type=type, is_retry=is_retry)
+            raise
+    else:
+        try:
+            return _explain_result_gemini(img, dict_of_vars, expr, result, type=type, is_retry=is_retry)
+        except Exception as e:
+            error_msg = str(e).lower()
+            if ("402" in error_msg or "resource_exhausted" in error_msg or "quota" in error_msg) and GROQ_API_KEY:
+                logger.warning("Gemini credit/quota error in explanation. Falling back to Groq Vision.")
+                return _explain_result_groq(img, dict_of_vars, expr, result, type=type, is_retry=is_retry)
+            raise
+
+
+# =====================================================================
+# Groq Implementation
+# =====================================================================
+
+def _analyze_image_groq(img: Image.Image, dict_of_vars: dict, is_retry: bool = False):
+    dict_of_vars_str = json.dumps(dict_of_vars, ensure_ascii=False)
+    prompt = (
+        f"You are a fast, high-accuracy mathematical OCR and solving engine. "
+        f"Analyze the mathematical expression, equation, or drawing in the provided image.\n\n"
+        f"User-assigned variables: {dict_of_vars_str}.\n"
+        f"Rules:\n"
+        f"1. Follow standard PEMDAS order of operations.\n"
+        f"2. For equations (e.g. 4x = 16), solve for the variable.\n"
+        f"3. Return a JSON list of objects. Each object MUST contain:\n"
+        f"   - 'expr': the variable or expression solved (e.g. 'x' or '2+3')\n"
+        f"   - 'result': the computed numeric or algebraic answer (e.g. 4 or 5)\n"
+        f"   - 'type': 'math' (or 'text' for abstract drawings)\n"
+        f"   - 'assign': true if a variable was solved or assigned, false otherwise\n"
+        f"   - 'confidence_score': integer between 0 and 100\n\n"
+        f"CRITICAL: Return ONLY the raw JSON array or an object with an 'answers' list. DO NOT use markdown or code fences."
+    )
+    if is_retry:
+        prompt += "\n\nIMPORTANT: Your previous response was not valid JSON. Output strictly valid JSON."
+
+    raw_response = _generate_groq_vision_content(prompt, img, model=GROQ_VISION_MODEL)
+    logger.debug("Groq response text: %s", raw_response)
+
+    # Clean markdown fences if any
+    cleaned_text = raw_response.strip()
+    if cleaned_text.startswith("```"):
+        lines = cleaned_text.splitlines()
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        cleaned_text = "\n".join(lines).strip()
+
+    answers = []
+    try:
+        parsed = json.loads(cleaned_text)
+        if isinstance(parsed, list):
+            answers = parsed
+        elif isinstance(parsed, dict):
+            # If wrapped in a dict like {"answers": [...] or "results": [...]}
+            for key in ("answers", "results", "solutions", "data"):
+                if key in parsed and isinstance(parsed[key], list):
+                    answers = parsed[key]
+                    break
+            if not answers:
+                # Single item returned as dict
+                answers = [parsed]
+    except Exception as e:
+        logger.warning("Error parsing Groq vision response on attempt %s: %s", "2" if is_retry else "1", e)
+        if not is_retry:
+            return _analyze_image_groq(img, dict_of_vars, is_retry=True)
+        raise AIParsingError("The AI provider returned a response that could not be parsed as JSON.", raw_response)
+
+    for answer in answers:
+        answer["assign"] = bool(answer.get("assign", False))
+        answer["thought_process"] = None
+        answer["steps"] = None
+        if "confidence_score" not in answer:
+            answer["confidence_score"] = 95
+        if "type" not in answer:
+            answer["type"] = "math"
+
+    return answers
+
+
+def _explain_result_groq(
+    img: Image.Image, dict_of_vars: dict, expr: str, result: Any, type: str | None = None, is_retry: bool = False
+):
+    dict_of_vars_str = json.dumps(dict_of_vars, ensure_ascii=False)
+    prompt = (
+        f"You are given an image with mathematical expressions, equations, graphical problems, or abstract concepts, "
+        f"along with user-defined variables: {dict_of_vars_str}.\n"
+        f"The expression/content in the image has already been calculated/identified:\n"
+        f"Expression: {expr}\n"
+        f"Result: {result}\n\n"
+        f"Your task is to generate the detailed explanation and step-by-step breakdown for this result.\n"
+        f"You MUST return a JSON object with exactly two keys:\n"
+        f"1. 'thought_process': A detailed explanation of the solution, reasoning, or visual elements (string).\n"
+        f"2. 'steps': A list of dicts: {{'order': int, 'description': str, 'expression': Optional[str]}} where 'expression' holds any LaTeX/math for that specific step (or null if no equation applies).\n\n"
+        f"CRITICAL: Output valid JSON object only. No markdown fences."
+    )
+    if type == "text":
+        prompt += "\n\nThe problem classification is 'text'. Return 'steps' as null and rely on 'thought_process' alone."
+
+    if is_retry:
+        prompt += "\n\nIMPORTANT: Your last response was not valid JSON. Return ONLY valid JSON."
+
+    raw_response = _generate_groq_vision_content(prompt, img, model=GROQ_VISION_MODEL, as_json_object=True)
+    logger.debug("Groq explanation response text: %s", raw_response)
+
+    cleaned_text = raw_response.strip()
+    if cleaned_text.startswith("```"):
+        lines = cleaned_text.splitlines()
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        cleaned_text = "\n".join(lines).strip()
+
+    try:
+        explanation = json.loads(cleaned_text)
+    except Exception as e:
+        logger.warning("Error parsing Groq explanation: %s", e)
+        if not is_retry:
+            return _explain_result_groq(img, dict_of_vars, expr, result, type=type, is_retry=True)
+        raise AIParsingError("The AI provider returned a response that could not be parsed as JSON.", raw_response)
+
+    if "thought_process" not in explanation:
+        explanation["thought_process"] = f"The expression {expr} was calculated to be {result}."
+    if "steps" not in explanation:
+        explanation["steps"] = None
+
+    return explanation
+
+
+# =====================================================================
+# Gemini Implementation (Existing Unchanged Logic)
+# =====================================================================
+
+def _analyze_image_gemini(img: Image.Image, dict_of_vars: dict, is_retry: bool = False):
     dict_of_vars_str = json.dumps(dict_of_vars, ensure_ascii=False)
     prompt = (
         f"You have been given an image with some mathematical expressions, equations, or graphical problems, and you need to solve them quickly. "
@@ -89,7 +359,7 @@ def analyze_image(img: Image, dict_of_vars: dict, is_retry: bool = False):
     if is_retry:
         prompt += "\n\nIMPORTANT: Your last response was not valid JSON. Return ONLY valid JSON, no other text."
 
-    response = _generate_content_with_retry(prompt, img, model=GEMINI_MODEL_FAST)
+    response = _generate_gemini_content(prompt, img, model=GEMINI_MODEL_FAST)
     logger.debug("Gemini response text: %s", response.text)
     answers = []
     try:
@@ -98,9 +368,8 @@ def analyze_image(img: Image, dict_of_vars: dict, is_retry: bool = False):
         logger.warning("Error in parsing response on attempt %s: %s", "2" if is_retry else "1", e)
         if not is_retry:
             logger.info("[AIParsingError] First attempt failed. Retrying with explicit JSON guidelines...")
-            return analyze_image(img, dict_of_vars, is_retry=True)
+            return _analyze_image_gemini(img, dict_of_vars, is_retry=True)
         else:
-            # Structurally log the failure context
             timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
             logger.error(
                 "AIParsingError Debug Context - Timestamp: %s, Prompt: v1.0 (PEMDAS-JSON-Rules), Raw Response: %s",
@@ -120,8 +389,8 @@ def analyze_image(img: Image, dict_of_vars: dict, is_retry: bool = False):
     return answers
 
 
-def explain_result(
-    img: Image, dict_of_vars: dict, expr: str, result: Any, type: str | None = None, is_retry: bool = False
+def _explain_result_gemini(
+    img: Image.Image, dict_of_vars: dict, expr: str, result: Any, type: str | None = None, is_retry: bool = False
 ):
     dict_of_vars_str = json.dumps(dict_of_vars, ensure_ascii=False)
     prompt = (
@@ -150,14 +419,14 @@ def explain_result(
     if is_retry:
         prompt += "\n\nIMPORTANT: Your last response was not valid JSON. Return ONLY valid JSON, no other text."
 
-    response = _generate_content_with_retry(prompt, img, model=GEMINI_MODEL_EXPLAIN)
+    response = _generate_gemini_content(prompt, img, model=GEMINI_MODEL_EXPLAIN)
     logger.debug("Gemini explanation response text: %s", response.text)
     try:
         explanation = json.loads(response.text)
     except Exception as e:
         logger.warning("Error in parsing explanation response: %s", e)
         if not is_retry:
-            return explain_result(img, dict_of_vars, expr, result, type=type, is_retry=True)
+            return _explain_result_gemini(img, dict_of_vars, expr, result, type=type, is_retry=True)
         else:
             raise AIParsingError("The AI provider returned a response that could not be parsed as JSON.", response.text)
 

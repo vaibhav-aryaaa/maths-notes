@@ -11,6 +11,11 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 SENTRY_DSN = os.getenv("SENTRY_DSN")
 
+# AI Solver Provider Configuration ('groq' or 'gemini')
+# Defaults to 'groq' to avoid prepayment/billing issues, with zero code change needed to toggle back to 'gemini'
+SOLVER_PROVIDER = os.getenv("SOLVER_PROVIDER", "groq").lower()
+GROQ_VISION_MODEL = os.getenv("GROQ_VISION_MODEL", "qwen/qwen3.8-27b")
+
 GEMINI_MODEL_FAST = os.getenv("GEMINI_MODEL_FAST", "gemini-3.5-flash-lite")
 GEMINI_MODEL_EXPLAIN = os.getenv("GEMINI_MODEL_EXPLAIN", "gemini-3.5-flash")
 
