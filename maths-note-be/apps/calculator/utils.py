@@ -6,6 +6,7 @@ import logging
 import time
 from typing import Any
 
+import httpx
 from google import genai
 from google.genai import types
 from google.genai.errors import APIError, ServerError
@@ -16,7 +17,6 @@ from groq import (
     InternalServerError,
     RateLimitError,
 )
-import httpx
 from PIL import Image
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
