@@ -1,11 +1,37 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import '@mantine/core/styles.css';
-import { MantineProvider, useMantineColorScheme } from '@mantine/core';
+import { MantineProvider, useMantineColorScheme, createTheme, type MantineColorsTuple } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import '@mantine/notifications/styles.css';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+
+// Warm amber primary palette for Mantine
+const amberPalette: MantineColorsTuple = [
+    '#fffbeb',
+    '#fef3c7',
+    '#fde68a',
+    '#fcd34d',
+    '#fbbf24',
+    '#f59e0b',
+    '#d97706',
+    '#b45309',
+    '#92400e',
+    '#78350f'
+];
+
+const mantineTheme = createTheme({
+    primaryColor: 'amber',
+    colors: {
+        amber: amberPalette,
+    },
+    defaultRadius: 6,
+    fontFamily: "'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    headings: {
+        fontFamily: "'Instrument Serif', Georgia, serif",
+    },
+});
 
 import Home from '@/screens/home';
 import Landing from '@/screens/landing';
@@ -20,8 +46,8 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import '@/index.css';
 
 const RouteFallback = () => (
-    <div className="w-full h-screen flex items-center justify-center bg-slate-50 dark:bg-black">
-        <Loader2 className="w-8 h-8 animate-spin text-teal-600 dark:text-teal-400" />
+    <div className="w-full h-screen flex items-center justify-center bg-[var(--lib-bg-page)] text-[var(--lib-accent)]">
+        <Loader2 className="w-7 h-7 animate-spin text-[var(--lib-accent)]" />
     </div>
 );
 
@@ -134,7 +160,7 @@ const CanvasRoute = () => {
 
 const App = () => {
     return (
-        <MantineProvider defaultColorScheme="dark">
+        <MantineProvider theme={mantineTheme} defaultColorScheme="dark">
             <Notifications />
             <ThemeSync>
                 <BrowserRouter>
