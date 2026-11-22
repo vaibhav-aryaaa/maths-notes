@@ -72,7 +72,8 @@ export function useSolveHistory(activeCanvasId: string = DEFAULT_CANVAS_ID) {
         try {
             const apiHost = getApiHost();
             const response = await axios.get(`${apiHost}/history`, {
-                headers: getAuthHeaders(token)
+                headers: getAuthHeaders(token),
+                timeout: 10000
             });
             if (response.data && Array.isArray(response.data.entries)) {
                 const entries = response.data.entries as HistoryEntry[];
@@ -182,7 +183,8 @@ export function useSolveHistory(activeCanvasId: string = DEFAULT_CANVAS_ID) {
                     await axios.post(`${apiHost}/history/sync`, {
                         entries: guestHistory
                     }, {
-                        headers: getAuthHeaders(token)
+                        headers: getAuthHeaders(token),
+                        timeout: 10000
                     });
                 } catch (e) {
                     console.warn('Backend history sync failed:', e);
@@ -215,11 +217,12 @@ export function useSolveHistory(activeCanvasId: string = DEFAULT_CANVAS_ID) {
             console.error('Failed to migrate guest session data to account:', error);
             await loadBackendHistory(token);
         }
-    }, [activeCanvasId, loadBackendHistory]);
+    }, [loadBackendHistory]);
 
     const loadHistoryRef = useRef(loadHistory);
     const loadLocalHistoryRef = useRef(loadLocalHistory);
     const migrateGuestDataToUserRef = useRef(migrateGuestDataToUser);
+    const prevUserIdRef = useRef<string | null>(null);
 
     useEffect(() => {
         loadHistoryRef.current = loadHistory;
@@ -238,40 +241,126 @@ export function useSolveHistory(activeCanvasId: string = DEFAULT_CANVAS_ID) {
             return;
         }
 
-        // Fetch initial session
-        supabase.auth.getSession().then(async ({ data: { session } }) => {
+        // Fetch initial session (reads local storage)
+        supabase.auth.getSession().then(({ data: { session } }) => {
             if (!isMounted) return;
-            if (session) {
+            if (session?.user) {
+                prevUserIdRef.current = session.user.id;
                 setUser(session.user);
                 setJwt(session.access_token);
-                await loadHistoryRef.current(session.access_token, session.user);
+                setTimeout(async () => {
+                    if (!isMounted) return;
+                    try {
+                        await loadHistoryRef.current(session.access_token, session.user);
+                    } catch (e) {
+                        console.warn('[history] Failed to load history on session init:', e);
+                    } finally {
+                        if (isMounted) setIsDbReady(true);
+                    }
+                }, 0);
             } else {
+                prevUserIdRef.current = null;
                 setUser(null);
                 setJwt(null);
-                await loadLocalHistoryRef.current(null);
+                setTimeout(async () => {
+                    if (!isMounted) return;
+                    try {
+                        await loadLocalHistoryRef.current(null);
+                    } catch (e) {
+                        console.warn('[history] Failed to load local history on session init:', e);
+                    } finally {
+                        if (isMounted) setIsDbReady(true);
+                    }
+                }, 0);
             }
+        }).catch((err) => {
+            console.warn('[history] getSession error on init:', err);
+            if (!isMounted) return;
+            prevUserIdRef.current = null;
+            setUser(null);
+            setJwt(null);
             setIsDbReady(true);
         });
 
-        // Set up subscription listener
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        // Set up subscription listener - strictly non-blocking & synchronous
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             if (!isMounted) return;
-            if (session) {
-                const isNewSignIn = event === 'SIGNED_IN' || event === 'USER_UPDATED';
-                setUser(session.user);
-                setJwt(session.access_token);
-                if (isNewSignIn) {
-                    await migrateGuestDataToUserRef.current(session.access_token, session.user);
-                    if (event === 'SIGNED_IN') {
-                        navigate('/library');
-                    }
-                } else {
-                    await loadHistoryRef.current(session.access_token, session.user);
-                }
-            } else {
+
+            if (event === 'SIGNED_OUT' || !session?.user) {
+                prevUserIdRef.current = null;
                 setUser(null);
                 setJwt(null);
-                await loadLocalHistoryRef.current(null);
+                setTimeout(async () => {
+                    if (!isMounted) return;
+                    try {
+                        await loadLocalHistoryRef.current(null);
+                    } catch (err) {
+                        console.error('[history] Error loading local history on sign out:', err);
+                    }
+                }, 0);
+                return;
+            }
+
+            if (event === 'TOKEN_REFRESHED') {
+                // TOKEN_REFRESHED only updates the stored JWT. It never reloads history.
+                setJwt(session.access_token);
+                return;
+            }
+
+            const currentUserId = session.user.id;
+            const isNewSignIn = prevUserIdRef.current === null && Boolean(currentUserId);
+            const isSameUser = prevUserIdRef.current === currentUserId;
+
+            // Set state synchronously
+            setUser(session.user);
+            setJwt(session.access_token);
+
+            if (isSameUser && !isNewSignIn) {
+                // Repeat SIGNED_IN for the same user id is a no-op (set user/token above, nothing else)
+                return;
+            }
+
+            if (isNewSignIn) {
+                prevUserIdRef.current = currentUserId;
+
+                // Schedule heavy migration and history loading non-blocking
+                setTimeout(async () => {
+                    if (!isMounted) return;
+                    try {
+                        const guestCanvas = loadGuestCanvasData();
+                        const guestHistory = loadGuestHistory();
+                        const hasGuestData = Boolean(
+                            (guestCanvas && ((guestCanvas.elements && guestCanvas.elements.length > 0) || (guestCanvas.results && guestCanvas.results.length > 0))) ||
+                            (guestHistory && guestHistory.length > 0)
+                        );
+
+                        if (hasGuestData) {
+                            await migrateGuestDataToUserRef.current(session.access_token, session.user);
+                        } else {
+                            await loadHistoryRef.current(session.access_token, session.user);
+                        }
+
+                        // Guarded sign-up navigation from 69A:
+                        // Navigate to /library only when both hold: it is a new sign-in, and the current path is / or /canvas/guest.
+                        const currentPath = window.location.pathname;
+                        if (currentPath === '/' || currentPath === '/canvas/guest') {
+                            navigate('/library');
+                        }
+                    } catch (err) {
+                        console.error('[history] Error during post-sign-in migration/history load:', err);
+                    }
+                }, 0);
+            } else {
+                // User account switch
+                prevUserIdRef.current = currentUserId;
+                setTimeout(async () => {
+                    if (!isMounted) return;
+                    try {
+                        await loadHistoryRef.current(session.access_token, session.user);
+                    } catch (err) {
+                        console.error('[history] Error loading history on account switch:', err);
+                    }
+                }, 0);
             }
         });
 
@@ -279,7 +368,7 @@ export function useSolveHistory(activeCanvasId: string = DEFAULT_CANVAS_ID) {
             isMounted = false;
             subscription.unsubscribe();
         };
-    }, []);
+    }, [navigate]);
 
     // 6. Save history entry
     const saveHistoryEntry = useCallback(async (

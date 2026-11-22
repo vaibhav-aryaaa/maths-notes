@@ -2,7 +2,7 @@ import React from 'react';
 import { NotebookCard } from './NotebookCard';
 import { SidebarItem } from './SidebarItem';
 import { EmptyState } from './EmptyState';
-import { Button } from './Button';
+import { Button } from './button';
 import { Modal } from './Modal';
 import { DropdownMenu } from './DropdownMenu';
 import { formatRelativeTime, formatFullDate } from '@/lib/dateUtils';

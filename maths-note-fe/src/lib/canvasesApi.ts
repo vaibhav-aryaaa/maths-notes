@@ -33,6 +33,8 @@ export interface TrashData {
 const getApiHost = () => import.meta.env.VITE_API_URL || 'http://localhost:8900';
 const getAppSecret = () => import.meta.env.VITE_APP_KEY || '';
 
+const DEFAULT_TIMEOUT = 10000;
+
 export async function getAuthHeaders(providedToken?: string | null): Promise<Record<string, string>> {
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -63,37 +65,37 @@ export async function getAuthHeaders(providedToken?: string | null): Promise<Rec
 export async function fetchFolders(token?: string | null): Promise<Folder[]> {
     const headers = await getAuthHeaders(token);
     if (!headers['Authorization']) return [];
-    const res = await axios.get(`${getApiHost()}/folders`, { headers });
+    const res = await axios.get(`${getApiHost()}/folders`, { headers, timeout: DEFAULT_TIMEOUT });
     return res.data || [];
 }
 
 export async function createFolder(name: string, token?: string | null): Promise<Folder> {
     const headers = await getAuthHeaders(token);
-    const res = await axios.post(`${getApiHost()}/folders`, { name }, { headers });
+    const res = await axios.post(`${getApiHost()}/folders`, { name }, { headers, timeout: DEFAULT_TIMEOUT });
     return res.data;
 }
 
 export async function updateFolder(folderId: string, name: string, token?: string | null): Promise<Folder> {
     const headers = await getAuthHeaders(token);
-    const res = await axios.patch(`${getApiHost()}/folders/${folderId}`, { name }, { headers });
+    const res = await axios.patch(`${getApiHost()}/folders/${folderId}`, { name }, { headers, timeout: DEFAULT_TIMEOUT });
     return res.data;
 }
 
 export async function deleteFolder(folderId: string, token?: string | null): Promise<{ status: string }> {
     const headers = await getAuthHeaders(token);
-    const res = await axios.delete(`${getApiHost()}/folders/${folderId}`, { headers });
+    const res = await axios.delete(`${getApiHost()}/folders/${folderId}`, { headers, timeout: DEFAULT_TIMEOUT });
     return res.data;
 }
 
 export async function restoreFolder(folderId: string, token?: string | null): Promise<{ status: string }> {
     const headers = await getAuthHeaders(token);
-    const res = await axios.post(`${getApiHost()}/folders/${folderId}/restore`, {}, { headers });
+    const res = await axios.post(`${getApiHost()}/folders/${folderId}/restore`, {}, { headers, timeout: DEFAULT_TIMEOUT });
     return res.data;
 }
 
 export async function permanentlyDeleteFolder(folderId: string, token?: string | null): Promise<{ status: string }> {
     const headers = await getAuthHeaders(token);
-    const res = await axios.delete(`${getApiHost()}/folders/${folderId}/permanent`, { headers });
+    const res = await axios.delete(`${getApiHost()}/folders/${folderId}/permanent`, { headers, timeout: DEFAULT_TIMEOUT });
     return res.data;
 }
 
@@ -105,14 +107,14 @@ export async function fetchCanvasesMetadata(folderId?: string | null, token?: st
     const url = folderId
         ? `${getApiHost()}/canvases?folder_id=${encodeURIComponent(folderId)}`
         : `${getApiHost()}/canvases`;
-    const res = await axios.get(url, { headers });
+    const res = await axios.get(url, { headers, timeout: DEFAULT_TIMEOUT });
     return res.data || [];
 }
 
 export async function fetchCanvasDetail(canvasId: string, token?: string | null): Promise<CanvasDetail | null> {
     const headers = await getAuthHeaders(token);
     if (!headers['Authorization']) return null;
-    const res = await axios.get(`${getApiHost()}/canvases/${canvasId}`, { headers });
+    const res = await axios.get(`${getApiHost()}/canvases/${canvasId}`, { headers, timeout: DEFAULT_TIMEOUT });
     return res.data;
 }
 
@@ -121,7 +123,7 @@ export async function createCanvas(
     token?: string | null
 ): Promise<CanvasDetail> {
     const headers = await getAuthHeaders(token);
-    const res = await axios.post(`${getApiHost()}/canvases`, payload, { headers });
+    const res = await axios.post(`${getApiHost()}/canvases`, payload, { headers, timeout: DEFAULT_TIMEOUT });
     return res.data;
 }
 
@@ -131,25 +133,25 @@ export async function updateCanvas(
     token?: string | null
 ): Promise<CanvasDetail> {
     const headers = await getAuthHeaders(token);
-    const res = await axios.patch(`${getApiHost()}/canvases/${canvasId}`, payload, { headers });
+    const res = await axios.patch(`${getApiHost()}/canvases/${canvasId}`, payload, { headers, timeout: DEFAULT_TIMEOUT });
     return res.data;
 }
 
 export async function deleteCanvas(canvasId: string, token?: string | null): Promise<{ status: string }> {
     const headers = await getAuthHeaders(token);
-    const res = await axios.delete(`${getApiHost()}/canvases/${canvasId}`, { headers });
+    const res = await axios.delete(`${getApiHost()}/canvases/${canvasId}`, { headers, timeout: DEFAULT_TIMEOUT });
     return res.data;
 }
 
 export async function restoreCanvas(canvasId: string, token?: string | null): Promise<{ status: string }> {
     const headers = await getAuthHeaders(token);
-    const res = await axios.post(`${getApiHost()}/canvases/${canvasId}/restore`, {}, { headers });
+    const res = await axios.post(`${getApiHost()}/canvases/${canvasId}/restore`, {}, { headers, timeout: DEFAULT_TIMEOUT });
     return res.data;
 }
 
 export async function permanentlyDeleteCanvas(canvasId: string, token?: string | null): Promise<{ status: string }> {
     const headers = await getAuthHeaders(token);
-    const res = await axios.delete(`${getApiHost()}/canvases/${canvasId}/permanent`, { headers });
+    const res = await axios.delete(`${getApiHost()}/canvases/${canvasId}/permanent`, { headers, timeout: DEFAULT_TIMEOUT });
     return res.data;
 }
 
@@ -158,6 +160,6 @@ export async function permanentlyDeleteCanvas(canvasId: string, token?: string |
 export async function fetchTrash(token?: string | null): Promise<TrashData> {
     const headers = await getAuthHeaders(token);
     if (!headers['Authorization']) return { folders: [], canvases: [] };
-    const res = await axios.get(`${getApiHost()}/canvases/trash`, { headers });
+    const res = await axios.get(`${getApiHost()}/canvases/trash`, { headers, timeout: DEFAULT_TIMEOUT });
     return res.data || { folders: [], canvases: [] };
 }

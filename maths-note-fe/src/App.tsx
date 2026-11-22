@@ -5,7 +5,6 @@ import { MantineProvider, useMantineColorScheme, createTheme, type MantineColors
 import { Notifications } from '@mantine/notifications';
 import '@mantine/notifications/styles.css';
 import { Loader2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 
 // Warm amber primary palette for Mantine
 const amberPalette: MantineColorsTuple = [
@@ -36,6 +35,7 @@ const mantineTheme = createTheme({
 import Home from '@/screens/home';
 import Landing from '@/screens/landing';
 import { AuthManager } from '@/components/AuthManager';
+import { AuthProvider, useAuth } from '@/lib/AuthProvider';
 
 const LibraryScreen = lazy(() => import('@/screens/library'));
 const ShareView = lazy(() => import('@/screens/share'));
@@ -70,29 +70,15 @@ const ThemeSync = ({ children }: { children: React.ReactNode }) => {
 
 const AppContent = () => {
     const navigate = useNavigate();
-    const [authChecking, setAuthChecking] = useState(Boolean(supabase));
+    const { status } = useAuth();
     const [authModalOpened, setAuthModalOpened] = useState(false);
     const [authInitialSignUp, setAuthInitialSignUp] = useState(false);
 
     useEffect(() => {
-        if (!supabase) return;
-
-        supabase.auth.getUser().then(({ data: { user } }) => {
-            if (user) {
-                navigate('/library', { replace: true });
-            } else {
-                setAuthChecking(false);
-            }
-        });
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (session?.user) {
-                navigate('/library', { replace: true });
-            }
-        });
-
-        return () => subscription.unsubscribe();
-    }, [navigate]);
+        if (status === 'signedIn') {
+            navigate('/library', { replace: true });
+        }
+    }, [status, navigate]);
 
     const handleStartGuest = () => {
         navigate('/canvas/guest');
@@ -103,7 +89,7 @@ const AppContent = () => {
         setAuthModalOpened(true);
     };
 
-    if (authChecking) {
+    if (status === 'loading') {
         return <RouteFallback />;
     }
 
@@ -129,29 +115,25 @@ const CanvasRoute = () => {
     const { id } = useParams<{ id?: string }>();
     const navigate = useNavigate();
     const isGuestRoute = id === 'guest';
-    const [authChecking, setAuthChecking] = useState(isGuestRoute && Boolean(supabase));
+    const { status } = useAuth();
 
     useEffect(() => {
-        if (!isGuestRoute || !supabase) {
+        if (status === 'loading') {
             return;
         }
 
-        let isMounted = true;
-        supabase.auth.getUser().then(({ data: { user } }) => {
-            if (!isMounted) return;
-            if (user) {
+        if (isGuestRoute) {
+            if (status === 'signedIn') {
                 navigate('/library', { replace: true });
-            } else {
-                setAuthChecking(false);
             }
-        });
+        } else {
+            if (status === 'signedOut') {
+                navigate('/', { replace: true });
+            }
+        }
+    }, [isGuestRoute, status, navigate]);
 
-        return () => {
-            isMounted = false;
-        };
-    }, [isGuestRoute, navigate]);
-
-    if (authChecking) {
+    if (status === 'loading') {
         return <RouteFallback />;
     }
 
@@ -163,18 +145,20 @@ const App = () => {
         <MantineProvider theme={mantineTheme} defaultColorScheme="dark">
             <Notifications />
             <ThemeSync>
-                <BrowserRouter>
-                    <Suspense fallback={<RouteFallback />}>
-                        <Routes>
-                            <Route path="/" element={<ErrorBoundary name="Home Screen"><AppContent /></ErrorBoundary>} />
-                            <Route path="/canvas/:id" element={<ErrorBoundary name="Canvas Screen"><CanvasRoute /></ErrorBoundary>} />
-                            <Route path="/library" element={<ErrorBoundary name="Library Screen"><LibraryScreen /></ErrorBoundary>} />
-                            <Route path="/library/folder/:folderId" element={<ErrorBoundary name="Library Folder Screen"><LibraryScreen /></ErrorBoundary>} />
-                            <Route path="/share/:shareId" element={<ErrorBoundary name="Share View"><ShareView /></ErrorBoundary>} />
-                            <Route path="/reset-password" element={<ErrorBoundary name="Reset Password"><ResetPassword /></ErrorBoundary>} />
-                        </Routes>
-                    </Suspense>
-                </BrowserRouter>
+                <AuthProvider>
+                    <BrowserRouter>
+                        <Suspense fallback={<RouteFallback />}>
+                            <Routes>
+                                <Route path="/" element={<ErrorBoundary name="Home Screen"><AppContent /></ErrorBoundary>} />
+                                <Route path="/canvas/:id" element={<ErrorBoundary name="Canvas Screen"><CanvasRoute /></ErrorBoundary>} />
+                                <Route path="/library" element={<ErrorBoundary name="Library Screen"><LibraryScreen /></ErrorBoundary>} />
+                                <Route path="/library/folder/:folderId" element={<ErrorBoundary name="Library Folder Screen"><LibraryScreen /></ErrorBoundary>} />
+                                <Route path="/share/:shareId" element={<ErrorBoundary name="Share View"><ShareView /></ErrorBoundary>} />
+                                <Route path="/reset-password" element={<ErrorBoundary name="Reset Password"><ResetPassword /></ErrorBoundary>} />
+                            </Routes>
+                        </Suspense>
+                    </BrowserRouter>
+                </AuthProvider>
             </ThemeSync>
         </MantineProvider>
     );

@@ -35,8 +35,6 @@ import {
     useMantineColorScheme 
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { supabase } from '@/lib/supabase';
-import type { User } from '@supabase/supabase-js';
 import { 
     fetchFolders, 
     fetchCanvasesMetadata, 
@@ -57,15 +55,14 @@ import {
 } from '@/lib/canvasesApi';
 import { AuthManager } from '@/components/AuthManager';
 import { useSolveHistory } from '@/hooks/useSolveHistory';
+import { useAuth } from '@/lib/AuthProvider';
 
 export default function LibraryScreen() {
     const navigate = useNavigate();
     const { folderId: routeFolderId } = useParams<{ folderId?: string }>();
     const { colorScheme, toggleColorScheme } = useMantineColorScheme();
     const { clearHistory } = useSolveHistory();
-
-    const [user, setUser] = useState<User | null>(null);
-    const [authLoading, setAuthLoading] = useState(true);
+    const { user, status } = useAuth();
 
     const [folders, setFolders] = useState<Folder[]>([]);
     const [canvases, setCanvases] = useState<CanvasMetadata[]>([]);
@@ -94,35 +91,15 @@ export default function LibraryScreen() {
     const [trashData, setTrashData] = useState<TrashData>({ folders: [], canvases: [] });
     const [loadingTrash, setLoadingTrash] = useState(false);
 
-    // 1. Auth Gate: Listen to auth state
+    // 1. Auth Gate: Redirect to landing page only when truly signed out
     useEffect(() => {
-        if (!supabase) {
+        if (status === 'signedOut') {
             navigate('/', { replace: true });
-            return;
         }
-
-        supabase.auth.getUser().then(({ data: { user } }) => {
-            if (!user) {
-                navigate('/', { replace: true });
-            } else {
-                setUser(user);
-            }
-            setAuthLoading(false);
-        });
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (!session?.user) {
-                navigate('/', { replace: true });
-            } else {
-                setUser(session.user);
-            }
-        });
-
-        return () => subscription.unsubscribe();
-    }, [navigate]);
+    }, [status, navigate]);
 
     useEffect(() => {
-        if (!user) return;
+        if (!user || status !== 'signedIn') return;
         let isMounted = true;
         if (activeTab === 'all') {
             Promise.all([
@@ -139,6 +116,9 @@ export default function LibraryScreen() {
                 if (isMounted) setLoadingData(false);
             });
         } else {
+            Promise.resolve().then(() => {
+                if (isMounted) setLoadingTrash(true);
+            });
             fetchTrash().then(data => {
                 if (isMounted) {
                     setTrashData(data);
@@ -152,7 +132,7 @@ export default function LibraryScreen() {
         return () => {
             isMounted = false;
         };
-    }, [user, currentFolderId, activeTab]);
+    }, [user, status, currentFolderId, activeTab]);
 
     // Find current folder metadata for breadcrumb
     const currentFolder = useMemo(() => {
@@ -391,10 +371,33 @@ export default function LibraryScreen() {
         }
     };
 
-    if (authLoading) {
+    if (status === 'loading') {
         return (
-            <div className="flex h-screen w-full items-center justify-center bg-slate-50 dark:bg-[#0c0c0e]">
-                <Loader color="teal" size="lg" />
+            <div className="min-h-screen bg-slate-50 dark:bg-[#0c0c0e] text-slate-900 dark:text-stone-100 flex flex-col font-sans animate-pulse">
+                <div className="h-14 border-b border-stone-200 dark:border-stone-800 bg-white/50 dark:bg-[#121214]/50 px-6 flex items-center justify-between">
+                    <div className="h-5 w-24 bg-stone-300 dark:bg-stone-800 rounded" />
+                    <div className="h-8 w-64 bg-stone-200 dark:bg-stone-800 rounded" />
+                </div>
+                <div className="flex-1 flex max-w-7xl mx-auto w-full p-6 gap-8">
+                    <div className="w-56 hidden md:flex flex-col gap-3">
+                        <div className="h-9 w-full bg-stone-300 dark:bg-stone-800 rounded-lg" />
+                        <div className="h-4 w-28 bg-stone-200 dark:bg-stone-800/80 rounded mt-4" />
+                        <div className="h-6 w-full bg-stone-200 dark:bg-stone-800/60 rounded" />
+                        <div className="h-6 w-full bg-stone-200 dark:bg-stone-800/60 rounded" />
+                    </div>
+                    <div className="flex-1 flex flex-col gap-6">
+                        <div className="h-8 w-40 bg-stone-300 dark:bg-stone-800 rounded" />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                            {[...Array(6)].map((_, i) => (
+                                <div key={i} className="flex flex-col gap-2">
+                                    <div className="aspect-[4/3] w-full rounded-xl bg-stone-200 dark:bg-stone-800/80 border border-stone-300/40 dark:border-stone-700/40" />
+                                    <div className="h-4 w-3/4 bg-stone-200 dark:bg-stone-800 rounded" />
+                                    <div className="h-3 w-1/2 bg-stone-200/70 dark:bg-stone-800/50 rounded" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
             </div>
         );
     }
@@ -554,8 +557,14 @@ export default function LibraryScreen() {
                 {/* Content View */}
                 {activeTab === 'all' ? (
                     loadingData ? (
-                        <div className="flex h-64 w-full items-center justify-center">
-                            <Loader color="teal" />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 animate-pulse">
+                            {[...Array(6)].map((_, i) => (
+                                <div key={i} className="flex flex-col gap-2">
+                                    <div className="aspect-[4/3] w-full rounded-xl bg-stone-200 dark:bg-stone-800/80 border border-stone-300/40 dark:border-stone-700/40" />
+                                    <div className="h-4 w-3/4 bg-stone-200 dark:bg-stone-800 rounded" />
+                                    <div className="h-3 w-1/2 bg-stone-200/70 dark:bg-stone-800/50 rounded" />
+                                </div>
+                            ))}
                         </div>
                     ) : (
                         <div className="flex flex-col gap-6">

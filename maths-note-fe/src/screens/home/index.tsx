@@ -15,6 +15,7 @@ import axios from 'axios';
 import { clearLiveCanvas, DEFAULT_CANVAS_ID } from '@/lib/liveCanvasPersistence';
 import { fetchCanvasDetail, updateCanvas } from '@/lib/canvasesApi';
 import { useSolveHistory } from '@/hooks/useSolveHistory';
+import { useAuth } from '@/lib/AuthProvider';
 import { trackEvent } from '@/lib/analytics';
 import { HistorySidebar } from '@/components/HistorySidebar';
 import { AuthManager } from '@/components/AuthManager';
@@ -253,8 +254,11 @@ export default function Home() {
         clearHistory, 
         deleteHistoryItem,
         getHistoryEntryImage,
-        user
+        user: historyUser
     } = useSolveHistory(activeCanvasId);
+
+    const { user: authUser } = useAuth();
+    const user = authUser || historyUser;
 
     const isGuest = !user;
     const [clearCanvasModalOpen, setClearCanvasModalOpen] = useState(false);
@@ -604,7 +608,7 @@ export default function Home() {
 
     useEffect(() => {
         let isMounted = true;
-        if (routeCanvasId && user) {
+        if (routeCanvasId && authUser) {
             if (routeCanvasId === 'guest') {
                 navigate('/library', { replace: true });
                 return;
@@ -618,7 +622,7 @@ export default function Home() {
         return () => {
             isMounted = false;
         };
-    }, [routeCanvasId, user, navigate]);
+    }, [routeCanvasId, authUser, navigate]);
 
     const handleSaveTitle = async () => {
         if (!tempTitle.trim()) {
