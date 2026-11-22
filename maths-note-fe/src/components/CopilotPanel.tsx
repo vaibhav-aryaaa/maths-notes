@@ -2,6 +2,34 @@ import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { ErrorBoundary } from './ErrorBoundary';
 
+declare global {
+    interface Window {
+        MathJax?: {
+            Hub: {
+                Queue: (args: unknown[]) => void;
+                Config: (config: Record<string, unknown>) => void;
+            };
+        };
+    }
+}
+
+function renderMessageText(text: string) {
+    if (!text) return null;
+    const formatted = text.replace(/\\n/g, '\n');
+    // Split by **bold** markdown tokens
+    const parts = formatted.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, index) => {
+        if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+            return (
+                <strong key={index} className="font-bold">
+                    {part.slice(2, -2)}
+                </strong>
+            );
+        }
+        return part;
+    });
+}
+
 interface CopilotMessage {
     role: 'user' | 'ai';
     text: string;
@@ -39,10 +67,38 @@ function CopilotPanelInner({
     onClose
 }: CopilotPanelProps) {
     const chatEndRef = useRef<HTMLDivElement>(null);
+    const chatContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [copilotMessages, isCopilotLoading]);
+
+    useEffect(() => {
+        if (!chatContainerRef.current) return;
+        const containerEl = chatContainerRef.current;
+
+        const typeset = () => {
+            if (window.MathJax?.Hub) {
+                try {
+                    window.MathJax.Hub.Queue(['Typeset', window.MathJax.Hub, containerEl]);
+                } catch (e) {
+                    console.error('MathJax typesetting in CopilotPanel failed:', e);
+                }
+            }
+        };
+
+        const timer = setTimeout(typeset, 60);
+
+        let retryTimer: ReturnType<typeof setTimeout> | null = null;
+        if (!window.MathJax?.Hub) {
+            retryTimer = setTimeout(typeset, 600);
+        }
+
+        return () => {
+            clearTimeout(timer);
+            if (retryTimer) clearTimeout(retryTimer);
+        };
+    }, [copilotMessages, isCopilotStreaming]);
 
     return (
         <div className="flex-1 flex flex-col overflow-hidden h-full relative">
@@ -79,7 +135,7 @@ function CopilotPanelInner({
             )}
 
             {/* Chat Messages / Empty State */}
-            <div className="flex-1 overflow-y-auto px-5 pb-4 pt-4 flex flex-col gap-4 scrollbar-thin">
+            <div ref={chatContainerRef} className="flex-1 overflow-y-auto px-5 pb-4 pt-4 flex flex-col gap-4 scrollbar-thin">
                 {copilotMessages.length <= 1 ? (
                     <div className="flex-1 flex flex-col items-center justify-center py-8 select-none my-auto">
                         <div className="relative w-20 h-20 mb-4 flex items-center justify-center">
@@ -104,7 +160,7 @@ function CopilotPanelInner({
                                         : 'bg-stone-50 dark:bg-stone-900 border border-stone-200 dark:border-stone-800 text-stone-850 dark:text-stone-100 rounded-tl-none'
                                 }`}>
                                     <div className="whitespace-pre-wrap">
-                                        {msg.text}
+                                        {renderMessageText(msg.text)}
                                         {msg.role === 'ai' && actualIdx === copilotMessages.length - 1 && isCopilotStreaming && (
                                             <span className="inline-block w-1.5 h-4 bg-stone-900 dark:bg-white ml-0.5 animate-pulse align-middle" />
                                         )}
