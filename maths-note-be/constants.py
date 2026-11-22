@@ -16,6 +16,10 @@ SENTRY_DSN = os.getenv("SENTRY_DSN")
 SOLVER_PROVIDER = os.getenv("SOLVER_PROVIDER", "groq").lower()
 GROQ_VISION_MODEL = os.getenv("GROQ_VISION_MODEL", "qwen/qwen3.8-27b")
 
+# AI Explanation & Verification Provider ('gemini' or 'groq')
+# Defaults to 'gemini' for independent checking against the fast solver
+EXPLAIN_PROVIDER = os.getenv("EXPLAIN_PROVIDER", "gemini").lower()
+
 GEMINI_MODEL_FAST = os.getenv("GEMINI_MODEL_FAST", "gemini-3.5-flash-lite")
 GEMINI_MODEL_EXPLAIN = os.getenv("GEMINI_MODEL_EXPLAIN", "gemini-3.5-flash")
 

@@ -21,6 +21,8 @@ export interface GeneratedResult {
     isSelection?: boolean;
     image?: string;
     dictOfVars?: DictOfVars;
+    corrected?: boolean;
+    verification_note?: string | null;
 }
 
 export type DictOfVars = Record<string, string | number>;

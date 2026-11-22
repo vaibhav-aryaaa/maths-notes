@@ -220,6 +220,7 @@ flowchart TD
 | `GROQ_API_KEY` | No | — | Groq API key for Llama 3.3 Co-Pilot chat |
 | `ALLOWED_ORIGINS` | No | `https://solveiq-two.vercel.app,http://localhost:5173` | Allowed CORS origins |
 | `SOLVER_PROVIDER` | No | `groq` | Math AI solver engine (`groq` or `gemini`). Set to `groq` for free, zero-prepay vision inference |
+| `EXPLAIN_PROVIDER` | No | `gemini` | Model engine for step-by-step explanation and verification (`gemini` or `groq`). Defaults to `gemini` for independent checking against the fast solver |
 | `GROQ_VISION_MODEL` | No | `qwen/qwen3.8-27b` | Model identifier for Groq vision solving |
 | `GEMINI_MODEL_FAST` | No | `gemini-3.5-flash-lite` | Model identifier for fast math recognition (when using Gemini) |
 | `GEMINI_MODEL_EXPLAIN` | No | `gemini-3.5-flash` | Model identifier for step-by-step reasoning (when using Gemini) |

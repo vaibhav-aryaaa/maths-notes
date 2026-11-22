@@ -146,7 +146,12 @@ async def explain(request: Request, data: ExplainRequest):
         from apps.calculator.utils import explain_result
 
         explanation = explain_result(
-            image, dict_of_vars=data.dict_of_vars, expr=data.expr, result=data.result, type=data.type
+            image,
+            dict_of_vars=data.dict_of_vars,
+            expr=data.expr,
+            result=data.result,
+            type=data.type,
+            solutions=data.solutions,
         )
         return explanation
     except Exception:

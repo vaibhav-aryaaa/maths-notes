@@ -121,4 +121,5 @@ def test_explain_endpoint(mock_explain):
         expr="some expression",
         result="some result",
         type="text",
+        solutions=None,
     )

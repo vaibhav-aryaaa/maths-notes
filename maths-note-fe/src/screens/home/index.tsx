@@ -681,7 +681,8 @@ export default function Home() {
 
     const handleUpdateResult = useCallback((id: string, updates: Partial<GeneratedResult>) => {
         setResults(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
-    }, [setResults]);
+        scheduleAutosave();
+    }, [setResults, scheduleAutosave]);
 
     const [cardOffsets, setCardOffsets] = useState<Record<string, { x: number; y: number }>>({});
 
@@ -1235,15 +1236,14 @@ export default function Home() {
 
             {/* Sidebar Toggle, Logo & Library Navigation (Top-Left) */}
             <div className={`absolute z-controls top-[calc(1.25rem+env(safe-area-inset-top))] left-[calc(1.25rem+env(safe-area-inset-left))] flex items-center gap-2 pointer-events-auto transition-opacity duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-                <Button
+                <button
                     onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                    className={`bg-white dark:bg-[#1e1e1e] hover:bg-slate-50 dark:hover:bg-[#2e2e2e] text-stone-700 dark:text-white border border-stone-200 dark:border-[#333] transition-all shadow-lg p-2.5 h-10 w-10 rounded-lg flex items-center justify-center ${isSidebarOpen ? 'bg-slate-100 dark:bg-[#333] border-stone-300 dark:border-white/20' : ''}`}
-                    variant="default"
+                    className={`bg-white dark:bg-[#1e1e1e] hover:bg-slate-50 dark:hover:bg-[#2e2e2e] text-stone-700 dark:text-white border border-stone-200 dark:border-[#333] transition-all shadow-lg p-2.5 h-10 w-10 rounded-lg flex items-center justify-center cursor-pointer ${isSidebarOpen ? 'bg-slate-100 dark:bg-[#333] border-stone-300 dark:border-white/20' : ''}`}
                     title="Toggle Sidebar"
                     aria-label={isSidebarOpen ? "Close history and memory sidebar" : "Open history and memory sidebar"}
                 >
                     {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
-                </Button>
+                </button>
 
                 {/* Standalone Logo & Title when Sidebar is closed */}
                 {!isSidebarOpen && (
@@ -1288,15 +1288,14 @@ export default function Home() {
                 )}
 
                 {user && (
-                    <Button
+                    <button
                         onClick={() => navigate('/library')}
                         className="bg-white/90 dark:bg-black/80 hover:bg-slate-50 dark:hover:bg-[#1e1e1e] text-stone-700 dark:text-stone-300 hover:text-teal-600 dark:hover:text-teal-400 border border-stone-200 dark:border-[#333] transition-all shadow-lg px-3 h-10 rounded-xl flex items-center gap-1.5 font-bold text-xs cursor-pointer"
-                        variant="default"
                         title="Open Library"
                     >
                         <BookOpen size={15} />
                         <span className="hidden sm:inline">Library</span>
-                    </Button>
+                    </button>
                 )}
             </div>
 
@@ -1498,15 +1497,14 @@ export default function Home() {
                 <div className="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 mx-1" />
 
                 {/* Clear Canvas Button */}
-                <Button
+                <button
                     onClick={() => setClearCanvasModalOpen(true)}
-                    className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-stone-300 transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg"
-                    variant="default"
+                    className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-stone-300 transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg cursor-pointer"
                     title="Clear this canvas (cannot be undone)"
                     aria-label="Clear Canvas"
                 >
                     <Trash2 size={16} className="text-stone-600 dark:text-stone-300" />
-                </Button>
+                </button>
 
 
                 {/* Shape Tool Selector Button */}
@@ -1562,21 +1560,19 @@ export default function Home() {
 
 
                 {/* Keyboard Shortcuts Button */}
-                <Button
+                <button
                     onClick={() => setIsShortcutsOpen(true)}
                     className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg cursor-pointer font-bold font-sans text-xs"
-                    variant="default"
                     title="Keyboard Shortcuts (?)"
                     aria-label="Open Keyboard Shortcuts Reference list"
                 >
                     ?
-                </Button>
+                </button>
 
                 {/* Theme Toggle Button */}
-                <Button
+                <button
                     onClick={toggleColorScheme}
                     className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg cursor-pointer group"
-                    variant="default"
                     title={colorScheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                     aria-label={colorScheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                 >
@@ -1594,18 +1590,17 @@ export default function Home() {
                             }`}
                         />
                     </div>
-                </Button>
+                </button>
 
                 {/* Focus/Presentation Mode Button */}
-                <Button
+                <button
                     onClick={toggleFocusMode}
                     className={`bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-9 w-9 p-0 flex items-center justify-center rounded-lg cursor-pointer ${isFocusMode ? 'bg-stone-100 dark:bg-stone-800 border-stone-300 dark:border-stone-700' : ''}`}
-                    variant="default"
                     title="Focus Mode (F)"
                     aria-label="Toggle Fullscreen Focus Mode"
                 >
                     <Eye size={14} className={isFocusMode ? 'text-stone-955 dark:text-white' : 'text-stone-500 dark:text-gray-300'} />
-                </Button>
+                </button>
             </div>
 
 
@@ -1771,15 +1766,14 @@ export default function Home() {
                 {/* Zoom Control Group */}
                 <div className="flex items-center bg-white/95 dark:bg-[#1c1c1f]/95 border border-stone-200/80 dark:border-stone-800/80 h-10 rounded-xl shadow-lg px-1.5 gap-0.5">
                     {/* Zoom Out */}
-                    <Button
+                    <button
                         onClick={zoomOut}
                         className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-7 w-7 p-0 flex items-center justify-center rounded-lg cursor-pointer"
-                        variant="default"
                         title="Zoom Out"
                         aria-label="Zoom Out"
                     >
                         <Minus size={14} className="text-stone-500 dark:text-gray-300" />
-                    </Button>
+                    </button>
                     
                     {/* Current Zoom Menu trigger */}
                     <MantineMenu shadow="md" width={160} position="top-start">
@@ -1842,42 +1836,39 @@ export default function Home() {
                     </MantineMenu>
 
                     {/* Zoom In */}
-                    <Button
+                    <button
                         onClick={zoomIn}
                         className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-7 w-7 p-0 flex items-center justify-center rounded-lg cursor-pointer"
-                        variant="default"
                         title="Zoom In"
                         aria-label="Zoom In"
                     >
                         <Plus size={14} className="text-stone-500 dark:text-gray-300" />
-                    </Button>
+                    </button>
                 </div>
 
                 {/* Undo/Redo Control Group */}
                 <div className="flex items-center bg-white/95 dark:bg-[#1c1c1f]/95 border border-stone-200/80 dark:border-stone-800/80 h-10 rounded-xl shadow-lg px-1.5 gap-0.5">
                     {/* Undo */}
-                    <Button
+                    <button
                         onClick={undo}
                         disabled={!canUndo}
                         className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-7 w-7 p-0 flex items-center justify-center rounded-lg disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
-                        variant="default"
                         title="Undo (Ctrl+Z / ⌘+Z)"
                         aria-label="Undo last canvas stroke"
                     >
                         <Undo2 size={14} className="text-stone-500 dark:text-gray-300" />
-                    </Button>
+                    </button>
 
                     {/* Redo */}
-                    <Button
+                    <button
                         onClick={redo}
                         disabled={!canRedo}
                         className="bg-transparent hover:bg-stone-100 dark:hover:bg-white/5 text-stone-700 dark:text-white transition-all h-7 w-7 p-0 flex items-center justify-center rounded-lg disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
-                        variant="default"
                         title="Redo (Ctrl+Shift+Z / ⌘+Shift+Z)"
                         aria-label="Redo last undone canvas stroke"
                     >
                         <Redo2 size={14} className="text-stone-500 dark:text-gray-300" />
-                    </Button>
+                    </button>
                 </div>
             </div>
 

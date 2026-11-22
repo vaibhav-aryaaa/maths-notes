@@ -58,6 +58,7 @@ class ExplainRequest(BaseModel):
     expr: str
     result: Any
     type: str | None = None
+    solutions: list[dict[str, Any]] | None = None
 
     @field_validator("image")
     @classmethod
@@ -80,9 +81,18 @@ class ExplainRequest(BaseModel):
         return v
 
 
+class VerificationResult(BaseModel):
+    agrees: bool
+    corrected_answers: list[str] | None = None
+    confidence: int | None = None
+    note: str | None = None
+
+
 class ExplainResponse(BaseModel):
     thought_process: str | None = None
     steps: list[SolutionStep] | None = None
+    verification: VerificationResult | None = None
+    provider: str | None = None
 
 
 # --- Folders & Canvases Schemas ---

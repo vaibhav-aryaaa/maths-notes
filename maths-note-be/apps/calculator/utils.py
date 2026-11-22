@@ -21,6 +21,7 @@ from PIL import Image
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from constants import (
+    EXPLAIN_PROVIDER,
     GEMINI_API_KEY,
     GEMINI_MODEL_EXPLAIN,
     GEMINI_MODEL_FAST,
@@ -184,25 +185,39 @@ def analyze_image(img: Image.Image, dict_of_vars: dict, is_retry: bool = False):
 
 
 def explain_result(
-    img: Image.Image, dict_of_vars: dict, expr: str, result: Any, type: str | None = None, is_retry: bool = False
+    img: Image.Image,
+    dict_of_vars: dict,
+    expr: str,
+    result: Any,
+    type: str | None = None,
+    solutions: list | None = None,
+    is_retry: bool = False,
 ):
-    provider = SOLVER_PROVIDER
+    provider = EXPLAIN_PROVIDER
     if provider == "groq":
         try:
-            return _explain_result_groq(img, dict_of_vars, expr, result, type=type, is_retry=is_retry)
+            return _explain_result_groq(
+                img, dict_of_vars, expr, result, type=type, solutions=solutions, is_retry=is_retry
+            )
         except Exception as e:
             logger.warning("Groq explanation failed, checking Gemini fallback: %s", e)
             if GEMINI_API_KEY:
-                return _explain_result_gemini(img, dict_of_vars, expr, result, type=type, is_retry=is_retry)
+                return _explain_result_gemini(
+                    img, dict_of_vars, expr, result, type=type, solutions=solutions, is_retry=is_retry
+                )
             raise
     else:
         try:
-            return _explain_result_gemini(img, dict_of_vars, expr, result, type=type, is_retry=is_retry)
+            return _explain_result_gemini(
+                img, dict_of_vars, expr, result, type=type, solutions=solutions, is_retry=is_retry
+            )
         except Exception as e:
             error_msg = str(e).lower()
             if ("402" in error_msg or "resource_exhausted" in error_msg or "quota" in error_msg) and GROQ_API_KEY:
                 logger.warning("Gemini credit/quota error in explanation. Falling back to Groq Vision.")
-                return _explain_result_groq(img, dict_of_vars, expr, result, type=type, is_retry=is_retry)
+                return _explain_result_groq(
+                    img, dict_of_vars, expr, result, type=type, solutions=solutions, is_retry=is_retry
+                )
             raise
 
 
@@ -275,27 +290,138 @@ def _analyze_image_groq(img: Image.Image, dict_of_vars: dict, is_retry: bool = F
     return answers
 
 
-def _explain_result_groq(
-    img: Image.Image, dict_of_vars: dict, expr: str, result: Any, type: str | None = None, is_retry: bool = False
-):
+def _build_explain_prompt(
+    expr: str,
+    result: Any,
+    dict_of_vars: dict,
+    solutions: list | None = None,
+    type: str | None = None,
+    is_retry: bool = False,
+) -> str:
     dict_of_vars_str = json.dumps(dict_of_vars, ensure_ascii=False)
+
+    solutions_detail = ""
+    if solutions and len(solutions) > 0:
+        items = []
+        for s in solutions:
+            e = s.get("expression") or s.get("expr") or ""
+            a = s.get("answer") if s.get("answer") is not None else s.get("result", "")
+            items.append(f"  - Expression: {e}, Proposed Result: {a}")
+        solutions_detail = "Proposed solutions list:\n" + "\n".join(items) + "\n\n"
+
     prompt = (
+        f"You are an expert mathematical verification engine and tutor.\n"
         f"You are given an image with mathematical expressions, equations, graphical problems, or abstract concepts, "
-        f"along with user-defined variables: {dict_of_vars_str}.\n"
-        f"The expression/content in the image has already been calculated/identified:\n"
+        f"along with user-defined variables: {dict_of_vars_str}.\n\n"
+        f"A previous quick pass proposed:\n"
         f"Expression: {expr}\n"
         f"Result: {result}\n\n"
-        f"Your task is to generate the detailed explanation and step-by-step breakdown for this result.\n"
-        f"You MUST return a JSON object with exactly two keys:\n"
-        f"1. 'thought_process': A detailed explanation of the solution, reasoning, or visual elements (string).\n"
-        f"2. 'steps': A list of dicts: {{'order': int, 'description': str, 'expression': Optional[str]}} where 'expression' holds any LaTeX/math for that specific step (or null if no equation applies).\n\n"
-        f"CRITICAL: Output valid JSON object only. No markdown fences."
+        f"{solutions_detail}"
+        f"This may be wrong. Solve the problem yourself, step by step, from the image first. "
+        f"Check domain restrictions (division by zero, square roots of negatives, logs), extraneous roots, signs and arithmetic. "
+        f"Then compare your final answer to the proposed result.\n\n"
+        f"Your task is to generate the detailed explanation, step-by-step breakdown, and verification.\n"
+        f"You MUST return a JSON object with exactly three keys:\n"
+        f"1. 'thought_process': A detailed explanation of your independent solution, reasoning, or visual elements (string).\n"
+        f"2. 'steps': ONLY populate this for problems that are mathematical, procedural, or have a genuine "
+        f"multi-stage solution process (equations, word problems, geometry, calculations). For non-mathematical or single-fact tasks, return 'steps' as null. "
+        f"If populated, it must be a list of dicts: {{'order': int, 'description': str, 'expression': Optional[str]}} where 'expression' holds any LaTeX/math for that specific step (or null if no equation applies).\n"
+        f"CRITICAL: The steps must lead to your verified answer, NEVER to the proposed result when they differ. The final step must state the verified final answer.\n"
+        f"3. 'verification': A dict with keys:\n"
+        f"   - 'agrees': boolean (true if your independent final answer equals the proposed result, false if it differs or is invalid/extraneous)\n"
+        f"   - 'corrected_answers': list of strings containing your verified final answers (one per proposed solution, in the same order), or null if agrees is true\n"
+        f"   - 'confidence': integer between 0 and 100 representing your confidence in the verified result\n"
+        f"   - 'note': a concise one-sentence explanation of why the proposed result was rejected (e.g. 'x = 3 makes the denominator zero and is excluded'), or null if agrees is true\n\n"
+        f"DO NOT USE BACKTICKS OR MARKDOWN CODE FENCES. RETURN ONLY THE RAW JSON OBJECT."
     )
     if type == "text":
-        prompt += "\n\nThe problem classification is 'text'. Return 'steps' as null and rely on 'thought_process' alone."
+        prompt += (
+            "\n\nCRITICAL: The problem classification is 'text' (non-mathematical/abstract). "
+            "Therefore, you MUST return 'steps' as null and 'verification' as null, and rely on 'thought_process' alone."
+        )
 
     if is_retry:
-        prompt += "\n\nIMPORTANT: Your last response was not valid JSON. Return ONLY valid JSON."
+        prompt += "\n\nIMPORTANT: Your last response was not valid JSON. Return ONLY valid JSON, no other text."
+
+    return prompt
+
+
+def _validate_and_sanitize_verification(
+    explanation: dict,
+    num_solutions: int,
+    problem_type: str | None,
+    provider: str,
+) -> dict:
+    explanation["provider"] = provider
+
+    if problem_type == "text":
+        explanation["verification"] = None
+        explanation["steps"] = None
+        return explanation
+
+    verification = explanation.get("verification")
+    if not isinstance(verification, dict):
+        logger.warning("Verification key is missing or not a dict. Treating as unverified.")
+        explanation["verification"] = None
+        return explanation
+
+    agrees = verification.get("agrees")
+    if not isinstance(agrees, bool):
+        logger.warning("verification.agrees is not a boolean (%s). Treating as unverified.", agrees)
+        explanation["verification"] = None
+        return explanation
+
+    raw_conf = verification.get("confidence", 95)
+    try:
+        conf = int(float(raw_conf))
+        conf = max(0, min(100, conf))
+    except (TypeError, ValueError):
+        conf = 95
+    verification["confidence"] = conf
+
+    if not agrees:
+        corrected = verification.get("corrected_answers")
+        if not isinstance(corrected, list) or len(corrected) == 0:
+            logger.warning(
+                "verification.agrees is False but corrected_answers is missing or empty. Treating as unverified."
+            )
+            explanation["verification"] = None
+            return explanation
+        elif len(corrected) != num_solutions:
+            logger.warning(
+                "corrected_answers length (%d) does not match expected solutions count (%d). Treating as unverified.",
+                len(corrected),
+                num_solutions,
+            )
+            explanation["verification"] = None
+            return explanation
+        else:
+            verification["corrected_answers"] = [str(ans) for ans in corrected]
+            verification["note"] = str(verification["note"]) if verification.get("note") else None
+
+            if explanation.get("steps") is None:
+                logger.warning("Model provided correction with steps: null for math type. Returning empty steps list.")
+                explanation["steps"] = []
+    else:
+        verification["corrected_answers"] = None
+        verification["note"] = None
+
+    explanation["verification"] = verification
+    return explanation
+
+
+def _explain_result_groq(
+    img: Image.Image,
+    dict_of_vars: dict,
+    expr: str,
+    result: Any,
+    type: str | None = None,
+    solutions: list | None = None,
+    is_retry: bool = False,
+):
+    prompt = _build_explain_prompt(
+        expr, result, dict_of_vars, solutions=solutions, type=type, is_retry=is_retry
+    )
 
     raw_response = _generate_groq_vision_content(prompt, img, model=GROQ_VISION_MODEL, as_json_object=True)
     logger.debug("Groq explanation response text: %s", raw_response)
@@ -314,7 +440,9 @@ def _explain_result_groq(
     except Exception as e:
         logger.warning("Error parsing Groq explanation: %s", e)
         if not is_retry:
-            return _explain_result_groq(img, dict_of_vars, expr, result, type=type, is_retry=True)
+            return _explain_result_groq(
+                img, dict_of_vars, expr, result, type=type, solutions=solutions, is_retry=True
+            )
         raise AIParsingError("The AI provider returned a response that could not be parsed as JSON.", raw_response)
 
     if "thought_process" not in explanation:
@@ -322,7 +450,14 @@ def _explain_result_groq(
     if "steps" not in explanation:
         explanation["steps"] = None
 
-    return explanation
+    num_solutions = (
+        len(solutions)
+        if solutions and len(solutions) > 0
+        else (len([s for s in expr.split(",") if s.strip()]) if "," in expr else 1)
+    )
+    return _validate_and_sanitize_verification(
+        explanation, num_solutions=num_solutions, problem_type=type, provider="groq"
+    )
 
 
 # =====================================================================
@@ -390,34 +525,17 @@ def _analyze_image_gemini(img: Image.Image, dict_of_vars: dict, is_retry: bool =
 
 
 def _explain_result_gemini(
-    img: Image.Image, dict_of_vars: dict, expr: str, result: Any, type: str | None = None, is_retry: bool = False
+    img: Image.Image,
+    dict_of_vars: dict,
+    expr: str,
+    result: Any,
+    type: str | None = None,
+    solutions: list | None = None,
+    is_retry: bool = False,
 ):
-    dict_of_vars_str = json.dumps(dict_of_vars, ensure_ascii=False)
-    prompt = (
-        f"You are given an image with mathematical expressions, equations, graphical problems, or abstract concepts, "
-        f"along with user-defined variables: {dict_of_vars_str}.\n"
-        f"The expression/content in the image has already been calculated/identified:\n"
-        f"Expression: {expr}\n"
-        f"Result: {result}\n\n"
-        f"Your task is to generate the detailed explanation and step-by-step breakdown for this result.\n"
-        f"You MUST return a JSON object (not a list!) with exactly two keys:\n"
-        f"1. 'thought_process': A detailed explanation of the solution, reasoning, or visual elements (string).\n"
-        f"2. 'steps': ONLY populate this for problems that are mathematical, procedural, or have a genuine "
-        f"multi-stage solution process (equations, word problems, geometry, calculations). For anything else — "
-        f"general image description, abstract concept detection, single-fact answers — return 'steps' as null "
-        f"and rely on 'thought_process' alone. Do not invent artificial steps for content that doesn't have a "
-        f"real step-by-step solving process. If populated, it must be a list of dicts: {{'order': int, 'description': str, 'expression': Optional[str]}} where 'expression' holds any LaTeX/math for that specific step (or null if no equation applies).\n\n"
-        f"DO NOT USE BACKTICKS OR MARKDOWN FORMATTING.\n"
-        f"RETURN ONLY THE JSON OBJECT."
+    prompt = _build_explain_prompt(
+        expr, result, dict_of_vars, solutions=solutions, type=type, is_retry=is_retry
     )
-    if type == "text":
-        prompt += (
-            "\n\nCRITICAL: The problem classification is 'text' (non-mathematical/abstract). "
-            "Therefore, you MUST return 'steps' as null and rely on 'thought_process' alone."
-        )
-
-    if is_retry:
-        prompt += "\n\nIMPORTANT: Your last response was not valid JSON. Return ONLY valid JSON, no other text."
 
     response = _generate_gemini_content(prompt, img, model=GEMINI_MODEL_EXPLAIN)
     logger.debug("Gemini explanation response text: %s", response.text)
@@ -426,7 +544,9 @@ def _explain_result_gemini(
     except Exception as e:
         logger.warning("Error in parsing explanation response: %s", e)
         if not is_retry:
-            return _explain_result_gemini(img, dict_of_vars, expr, result, type=type, is_retry=True)
+            return _explain_result_gemini(
+                img, dict_of_vars, expr, result, type=type, solutions=solutions, is_retry=True
+            )
         else:
             raise AIParsingError("The AI provider returned a response that could not be parsed as JSON.", response.text)
 
@@ -436,4 +556,11 @@ def _explain_result_gemini(
     if "steps" not in explanation:
         explanation["steps"] = None
 
-    return explanation
+    num_solutions = (
+        len(solutions)
+        if solutions and len(solutions) > 0
+        else (len([s for s in expr.split(",") if s.strip()]) if "," in expr else 1)
+    )
+    return _validate_and_sanitize_verification(
+        explanation, num_solutions=num_solutions, problem_type=type, provider="gemini"
+    )

@@ -3,6 +3,7 @@ import { ChevronDown, Share2 } from 'lucide-react';
 import { RingProgress, Tooltip } from '@mantine/core';
 import axios from 'axios';
 import { notifications } from '@mantine/notifications';
+import { trackEvent } from '@/lib/analytics';
 
 import type { GeneratedResult, SolutionStep } from '@/types';
 
@@ -104,7 +105,8 @@ export const DraggableResultCard = ({
                         dict_of_vars: result.dictOfVars || {},
                         expr: result.solutions.map(s => s.expression).join(', '),
                         result: result.solutions.map(s => s.answer).join(', '),
-                        type: result.solutions[0]?.type || 'math'
+                        type: result.solutions[0]?.type || 'math',
+                        solutions: result.solutions.map(s => ({ expression: s.expression, answer: s.answer }))
                     },
                     headers: {
                         'X-App-Key': import.meta.env.VITE_APP_KEY || ''
@@ -114,10 +116,43 @@ export const DraggableResultCard = ({
                 const data = response.data;
                 const fetchedThoughtProcess = data.thought_process ?? null;
                 const fetchedSteps = data.steps && data.steps.length > 0 ? data.steps : null;
+                const verification = data.verification;
+                const provider = data.provider;
+
+                let updatedSolutions = result.solutions;
+                let isCorrected = result.corrected ?? false;
+                let updatedConfidence = result.confidence_score;
+                let verificationNote = result.verification_note ?? null;
+
+                if (
+                    verification &&
+                    verification.agrees === false &&
+                    Array.isArray(verification.corrected_answers) &&
+                    verification.corrected_answers.length === result.solutions.length
+                ) {
+                    updatedSolutions = result.solutions.map((s, idx) => ({
+                        ...s,
+                        answer: verification.corrected_answers[idx]
+                    }));
+                    isCorrected = true;
+                    if (typeof verification.confidence === 'number') {
+                        updatedConfidence = verification.confidence;
+                    }
+                    verificationNote = verification.note || null;
+
+                    trackEvent('answer_corrected', {
+                        type: result.solutions[0]?.type || 'math',
+                        provider: provider || 'gemini'
+                    });
+                }
 
                 onUpdateResult?.(result.id, {
                     thought_process: fetchedThoughtProcess,
-                    steps: fetchedSteps
+                    steps: fetchedSteps,
+                    solutions: updatedSolutions,
+                    corrected: isCorrected,
+                    confidence_score: updatedConfidence,
+                    verification_note: verificationNote
                 });
             } catch (error) {
                 console.error("Failed to fetch detailed explanation:", error);
@@ -368,7 +403,14 @@ export const DraggableResultCard = ({
             : `\\(${sol.expression} = ${sol.answer}\\)`;
 
         return (
-            <div key={index} className="text-stone-900 dark:text-white text-base sm:text-lg font-medium leading-relaxed">
+            <div 
+                key={index} 
+                className={`text-stone-900 dark:text-white text-base sm:text-lg font-medium leading-relaxed ${
+                    result.corrected 
+                        ? 'bg-[var(--lib-accent-subtle)]/60 text-[var(--lib-text-primary)] transition-colors duration-500 motion-reduce:transition-none rounded px-1.5 -mx-1.5 py-0.5 inline-block' 
+                        : ''
+                }`}
+            >
                 {latexStr}
             </div>
         );
@@ -492,6 +534,17 @@ export const DraggableResultCard = ({
                     <div className="latex-content text-stone-900 dark:text-white whitespace-normal break-words overflow-y-auto shrink-0 max-h-[45%] pr-1 flex flex-col gap-1.5 scrollbar-thin">
                         {renderedSolutions}
                     </div>
+
+                    {result.corrected && (
+                        <div className="flex items-center gap-1.5 py-0.5 select-none">
+                            <span 
+                                className="inline-flex items-center text-[11px] font-medium text-stone-600 dark:text-stone-300 bg-stone-100 dark:bg-white/10 border border-stone-200/80 dark:border-white/10 rounded-full px-2.5 py-0.5"
+                                title={result.verification_note || undefined}
+                            >
+                                Answer updated after checking the steps
+                            </span>
+                        </div>
+                    )}
 
 
                     {steps && steps.length > 1 ? (
