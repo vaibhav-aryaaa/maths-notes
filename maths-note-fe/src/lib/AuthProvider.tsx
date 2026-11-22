@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
-export type AuthStatus = 'loading' | 'signedIn' | 'signedOut';
+export type AuthStatus = 'loading' | 'unverified' | 'signedIn' | 'signedOut';
 
 export interface AuthContextValue {
     user: User | null;
@@ -32,36 +32,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             return;
         }
 
-        // 3-second fallback timer: if auth is still 'loading', unblock the UI to signed-out
+        // 3-second fallback timer: if auth is still 'loading', transition to 'unverified'
         const timeoutTimer = setTimeout(() => {
             if (!hasResolvedOnceRef.current) {
-                console.warn('[auth] Session resolution timed out after 3s; falling back to signedOut');
+                console.warn('[auth] Session resolution timed out after 3s; falling back to unverified');
                 setIsDegraded(true);
-                setStatus('signedOut');
-                hasResolvedOnceRef.current = true;
+                setStatus('unverified');
             }
         }, 3000);
 
         // Single getSession() call on mount: reads local storage, no network lock
         supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
             clearTimeout(timeoutTimer);
+            if (hasResolvedOnceRef.current) return;
+
             if (initialSession?.user) {
                 setUser(initialSession.user);
                 setSession(initialSession);
                 setStatus('signedIn');
+                setIsDegraded(false);
+                hasResolvedOnceRef.current = true;
             } else {
                 setUser(null);
                 setSession(null);
                 setStatus('signedOut');
+                setIsDegraded(false);
+                hasResolvedOnceRef.current = true;
             }
-            hasResolvedOnceRef.current = true;
         }).catch((err) => {
             console.warn('[auth] getSession error on init:', err);
             clearTimeout(timeoutTimer);
-            setUser(null);
-            setSession(null);
-            setStatus('signedOut');
-            hasResolvedOnceRef.current = true;
+            if (hasResolvedOnceRef.current) return;
+
+            // A catch on getSession() also goes to unverified, not signedOut
+            setIsDegraded(true);
+            setStatus('unverified');
         });
 
         // Single onAuthStateChange subscription for entire app
@@ -72,11 +77,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setUser(null);
                 setSession(null);
                 setStatus('signedOut');
+                setIsDegraded(false);
                 hasResolvedOnceRef.current = true;
             } else if (newSession?.user) {
                 setUser(newSession.user);
                 setSession(newSession);
                 setStatus('signedIn');
+                setIsDegraded(false);
                 hasResolvedOnceRef.current = true;
             }
         });
@@ -89,10 +96,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return (
         <AuthContext.Provider value={{ user, session, status, isDegraded }}>
-            {isDegraded && status === 'signedOut' && (
+            {status === 'unverified' && (
                 <div 
                     role="alert" 
-                    className="fixed bottom-4 right-4 z-50 rounded-md bg-stone-800 text-stone-200 border border-stone-700 px-3 py-2 text-xs shadow-md animate-fade-in"
+                    className="fixed bottom-4 right-4 z-50 rounded-[var(--lib-radius-sm)] bg-[var(--lib-bg-surface)] text-[var(--lib-text-secondary)] border border-[var(--lib-border)] px-3 py-2 text-xs shadow-md animate-fade-in"
                 >
                     Having trouble reaching the server. Retrying.
                 </div>

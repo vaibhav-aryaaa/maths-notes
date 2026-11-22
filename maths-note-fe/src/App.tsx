@@ -118,7 +118,7 @@ const CanvasRoute = () => {
     const { status } = useAuth();
 
     useEffect(() => {
-        if (status === 'loading') {
+        if (status === 'loading' || status === 'unverified') {
             return;
         }
 

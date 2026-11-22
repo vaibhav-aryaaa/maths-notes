@@ -371,7 +371,7 @@ export default function LibraryScreen() {
         }
     };
 
-    if (status === 'loading') {
+    if (status === 'loading' || status === 'unverified') {
         return (
             <div className="min-h-screen bg-slate-50 dark:bg-[#0c0c0e] text-slate-900 dark:text-stone-100 flex flex-col font-sans animate-pulse">
                 <div className="h-14 border-b border-stone-200 dark:border-stone-800 bg-white/50 dark:bg-[#121214]/50 px-6 flex items-center justify-between">
