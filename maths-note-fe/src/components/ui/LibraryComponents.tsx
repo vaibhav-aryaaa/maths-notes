@@ -139,7 +139,7 @@ export const NotebookRow: React.FC<NotebookRowProps> = ({
                 <div className="overflow-hidden min-w-0">
                     <h4 className="text-sm font-medium text-[var(--lib-text-primary)] truncate">{name}</h4>
                     {folderName && (
-                        <span className="text-[11px] text-[var(--lib-text-tertiary)] flex items-center gap-1">
+                        <span className="text-[11px] text-[var(--lib-text-secondary)] flex items-center gap-1">
                             <Folder size={11} strokeWidth={1.5} />
                             <span className="truncate">{folderName}</span>
                         </span>

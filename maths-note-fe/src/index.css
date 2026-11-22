@@ -5,6 +5,7 @@
 @import "@fontsource-variable/inter";
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant light (&:is(.light *));
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -149,10 +150,11 @@
     --lib-text-secondary: #78716C;
     --lib-text-tertiary: #A8A29E;
 
-    --lib-accent: #D97706;
-    --lib-accent-hover: #B45309;
+    --lib-accent: #B45309;
+    --lib-accent-hover: #92400E;
     --lib-accent-subtle: #FEF3C7;
-    --lib-accent-ring: rgba(217, 119, 6, 0.35);
+    --lib-accent-ring: rgba(180, 83, 9, 0.35);
+    --lib-on-accent: #FFFFFF;
 
     --lib-danger: #DC2626;
     --lib-danger-subtle: #FEE2E2;
@@ -181,6 +183,7 @@
     --lib-accent-hover: #D97706;
     --lib-accent-subtle: rgba(245, 158, 11, 0.12);
     --lib-accent-ring: rgba(245, 158, 11, 0.35);
+    --lib-on-accent: #1C1917;
 
     --lib-danger: #EF4444;
     --lib-danger-subtle: rgba(239, 68, 68, 0.12);

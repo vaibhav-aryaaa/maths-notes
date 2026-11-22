@@ -52,7 +52,7 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
 
             <div className="flex items-center gap-1.5 shrink-0 ml-1">
                 {count !== undefined && count > 0 && (
-                    <span className="text-[11px] text-[var(--lib-text-tertiary)] px-1.5 py-0.2 rounded font-normal">
+                    <span className="text-[11px] text-[var(--lib-text-secondary)] px-1.5 py-0.2 rounded font-normal">
                         {count}
                     </span>
                 )}
