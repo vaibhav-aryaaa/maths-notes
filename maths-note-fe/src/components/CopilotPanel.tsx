@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -13,20 +13,37 @@ declare global {
     }
 }
 
-function renderMessageText(text: string) {
+export function renderMessageText(text: string) {
     if (!text) return null;
-    const formatted = text.replace(/\\n/g, '\n');
-    // Split by **bold** markdown tokens
-    const parts = formatted.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, index) => {
-        if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
-            return (
-                <strong key={index} className="font-bold">
-                    {part.slice(2, -2)}
-                </strong>
-            );
+
+    // Isolate LaTeX math blocks: $$...$$, \[...\], \(...\), and $...$
+    // Content inside math delimiters must NOT undergo bold splitting or character stripping.
+    const mathRegex = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$(?:(?!\$)[^$]+?)\$)/g;
+    const segments = text.split(mathRegex);
+
+    return segments.map((segment, segIdx) => {
+        // If segment is a math delimiter block, preserve exactly as is
+        if (
+            (segment.startsWith('$$') && segment.endsWith('$$')) ||
+            (segment.startsWith('\\[') && segment.endsWith('\\]')) ||
+            (segment.startsWith('\\(') && segment.endsWith('\\)')) ||
+            (segment.startsWith('$') && segment.endsWith('$') && segment.length >= 2)
+        ) {
+            return segment;
         }
-        return part;
+
+        // Non-math text: split by **bold** markdown tokens
+        const parts = segment.split(/(\*\*.*?\*\*)/g);
+        return parts.map((part, partIdx) => {
+            if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+                return (
+                    <strong key={`bold-${segIdx}-${partIdx}`} className="font-bold">
+                        {part.slice(2, -2)}
+                    </strong>
+                );
+            }
+            return part;
+        });
     });
 }
 
@@ -46,6 +63,42 @@ interface CopilotPanelProps {
     sendCopilotMessage: () => void;
     onClose?: () => void;
 }
+
+const MessageItem = memo(function MessageItem({
+    msg,
+    isStreamingLast
+}: {
+    msg: CopilotMessage;
+    isStreamingLast: boolean;
+}) {
+    return (
+        <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-200`}>
+            <div className={`max-w-[85%] px-4 py-2.5 rounded-3xl text-sm leading-relaxed shadow-sm ${
+                msg.role === 'user'
+                    ? 'bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-900 rounded-tr-none'
+                    : 'bg-stone-50 dark:bg-stone-900 border border-stone-200 dark:border-stone-800 text-stone-850 dark:text-stone-100 rounded-tl-none'
+            }`}>
+                <div className="whitespace-pre-wrap">
+                    {renderMessageText(msg.text)}
+                    {msg.role === 'ai' && isStreamingLast && (
+                        <span className="inline-block w-1.5 h-4 bg-stone-900 dark:bg-white ml-0.5 animate-pulse align-middle" />
+                    )}
+                </div>
+                
+                {msg.role === 'ai' && (msg.confidence !== undefined || msg.latency !== undefined) && (
+                    <div className="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-stone-200/50 dark:border-stone-800 text-[10px] text-stone-500 dark:text-stone-400 font-sans font-semibold select-none">
+                        {msg.confidence !== undefined && (
+                            <span>{msg.confidence}% Confident</span>
+                        )}
+                        {msg.latency !== undefined && (
+                            <span>{msg.confidence !== undefined ? '• ' : ''}{msg.latency}ms</span>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+});
 
 export function CopilotPanel(props: CopilotPanelProps) {
     return (
@@ -152,32 +205,13 @@ function CopilotPanelInner({
                 ) : (
                     copilotMessages.slice(1).map((msg, i) => {
                         const actualIdx = i + 1;
+                        const isStreamingLast = msg.role === 'ai' && actualIdx === copilotMessages.length - 1 && isCopilotStreaming;
                         return (
-                            <div key={actualIdx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-200`}>
-                                <div className={`max-w-[85%] px-4 py-2.5 rounded-3xl text-sm leading-relaxed shadow-sm ${
-                                    msg.role === 'user'
-                                        ? 'bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-900 rounded-tr-none'
-                                        : 'bg-stone-50 dark:bg-stone-900 border border-stone-200 dark:border-stone-800 text-stone-850 dark:text-stone-100 rounded-tl-none'
-                                }`}>
-                                    <div className="whitespace-pre-wrap">
-                                        {renderMessageText(msg.text)}
-                                        {msg.role === 'ai' && actualIdx === copilotMessages.length - 1 && isCopilotStreaming && (
-                                            <span className="inline-block w-1.5 h-4 bg-stone-900 dark:bg-white ml-0.5 animate-pulse align-middle" />
-                                        )}
-                                    </div>
-                                    
-                                    {msg.role === 'ai' && (msg.confidence !== undefined || msg.latency !== undefined) && (
-                                        <div className="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-stone-200/50 dark:border-stone-800 text-[10px] text-stone-500 dark:text-stone-400 font-sans font-semibold select-none">
-                                            {msg.confidence !== undefined && (
-                                                <span>{msg.confidence}% Confident</span>
-                                            )}
-                                            {msg.latency !== undefined && (
-                                                <span>{msg.confidence !== undefined ? '• ' : ''}{msg.latency}ms</span>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
+                            <MessageItem
+                                key={actualIdx}
+                                msg={msg}
+                                isStreamingLast={isStreamingLast}
+                            />
                         );
                     })
                 )}
