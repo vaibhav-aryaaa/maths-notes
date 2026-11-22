@@ -452,6 +452,121 @@ export function useSolveHistory(activeCanvasId: string = DEFAULT_CANVAS_ID) {
         }
     }, [user, jwt, activeCanvasId, loadBackendHistory, loadLocalHistory]);
 
+    // 6b. Update existing history entry with corrected results
+    const updateHistoryEntry = useCallback(async (
+        resultIdOrEntryId: string,
+        updates: Partial<GeneratedResult>
+    ) => {
+        if (!resultIdOrEntryId) return;
+
+        // Guest Mode: Update in sessionStorage and local state
+        if (!user) {
+            const guestEntries = loadGuestHistory();
+            const target = guestEntries.find(e =>
+                e.id === resultIdOrEntryId ||
+                (e.results && e.results.some(r => r.id === resultIdOrEntryId))
+            );
+            if (!target) return;
+
+            const updatedResults = (target.results || []).map(r => {
+                if (r.id === resultIdOrEntryId || target.id === resultIdOrEntryId) {
+                    return { ...r, ...updates };
+                }
+                return r;
+            });
+
+            const updatedEntry: HistoryEntry = {
+                ...target,
+                results: updatedResults
+            };
+
+            const updatedList = guestEntries.map(e => e.id === updatedEntry.id ? updatedEntry : e);
+            saveGuestHistory(updatedList);
+            setAllHistory(prev => prev.map(e => e.id === updatedEntry.id ? { ...e, results: updatedResults } : e));
+            return;
+        }
+
+        // Authenticated: Find in IndexedDB or allHistory
+        const db = await openDB();
+        let targetEntry: HistoryEntry | null = null;
+
+        if (db) {
+            targetEntry = await new Promise<HistoryEntry | null>((resolve) => {
+                try {
+                    const tx = db.transaction(STORE_NAME, 'readonly');
+                    const store = tx.objectStore(STORE_NAME);
+                    // First try direct lookup by entry id
+                    const req = store.get(resultIdOrEntryId);
+                    req.onsuccess = () => {
+                        if (req.result) {
+                            resolve(req.result as HistoryEntry);
+                        } else {
+                            // Scan all entries for matching result.id
+                            const allReq = store.getAll();
+                            allReq.onsuccess = () => {
+                                const all = (allReq.result || []) as HistoryEntry[];
+                                const found = all.find(e => e.results && e.results.some(r => r.id === resultIdOrEntryId));
+                                resolve(found || null);
+                            };
+                            allReq.onerror = () => resolve(null);
+                        }
+                    };
+                    req.onerror = () => resolve(null);
+                } catch {
+                    resolve(null);
+                }
+            });
+        }
+
+        // Fallback to in-memory allHistory if DB didn't find it
+        if (!targetEntry) {
+            targetEntry = allHistory.find(e =>
+                e.id === resultIdOrEntryId ||
+                (e.results && e.results.some(r => r.id === resultIdOrEntryId))
+            ) || null;
+        }
+
+        if (!targetEntry) return;
+
+        const updatedResults = (targetEntry.results || []).map(r => {
+            if (r.id === resultIdOrEntryId || targetEntry.id === resultIdOrEntryId) {
+                return { ...r, ...updates };
+            }
+            return r;
+        });
+
+        const updatedEntry: HistoryEntry = {
+            ...targetEntry,
+            results: updatedResults
+        };
+
+        // Update in-memory state
+        setAllHistory(prev => prev.map(e => e.id === updatedEntry.id ? { ...e, results: updatedResults } : e));
+
+        // Save to IndexedDB (upsert by id)
+        if (db) {
+            try {
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                store.put(updatedEntry);
+            } catch (error) {
+                console.error('Failed to update history entry in IndexedDB:', error);
+            }
+        }
+
+        // Sync to backend (upsert by id)
+        if (jwt) {
+            try {
+                const apiHost = getApiHost();
+                await axios.post(`${apiHost}/history`, { entry: updatedEntry }, {
+                    headers: getAuthHeaders(jwt)
+                });
+            } catch (error) {
+                console.error('Failed to update history entry on backend:', error);
+            }
+        }
+    }, [user, jwt, allHistory]);
+
     // 7. Delete single item
     const deleteHistoryItem = useCallback(async (id: string) => {
         if (!user) {
@@ -563,6 +678,7 @@ export function useSolveHistory(activeCanvasId: string = DEFAULT_CANVAS_ID) {
         setShowAllNotebooks,
         isDbReady,
         saveHistoryEntry,
+        updateHistoryEntry,
         deleteHistoryItem,
         clearHistory,
         getHistoryEntryImage,

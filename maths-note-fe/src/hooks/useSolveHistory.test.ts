@@ -312,4 +312,78 @@ describe('useSolveHistory', () => {
         await new Promise((r) => setTimeout(r, 50));
         expect(mockNavigate).not.toHaveBeenCalled();
     });
+
+    it('should update an existing history entry in place with corrected solutions (Task 72 0.1)', async () => {
+        sessionStorage.clear();
+        const { result } = renderHook(() => useSolveHistory('canvas-1'));
+
+        await waitFor(() => {
+            expect(result.current.isDbReady).toBe(true);
+        });
+
+        const mockCanvas = {
+            width: 100,
+            height: 100,
+            getContext: () => ({
+                fillStyle: '',
+                fillRect: () => {},
+                drawImage: () => {}
+            }),
+            toDataURL: () => 'data:image/png;base64,mock'
+        } as unknown as HTMLCanvasElement;
+
+        const initialResult = {
+            id: 'res-123',
+            solutions: [{ expression: 'x', answer: '3' }],
+            confidence_score: 95
+        };
+
+        await act(async () => {
+            await result.current.saveHistoryEntry(mockCanvas, [initialResult], {});
+        });
+
+        expect(result.current.history.length).toBe(1);
+        expect(result.current.history[0].results[0].solutions[0].answer).toBe('3');
+
+        // Call updateHistoryEntry with resultId 'res-123'
+        await act(async () => {
+            await result.current.updateHistoryEntry('res-123', {
+                solutions: [{ expression: 'x', answer: '-3' }],
+                corrected: true,
+                confidence_score: 100,
+                verification_note: 'Domain restriction excludes 3'
+            });
+        });
+
+        // Exactly one entry exists (no duplicate)
+        expect(result.current.history.length).toBe(1);
+        const updated = result.current.history[0].results[0];
+        expect(updated.solutions[0].answer).toBe('-3');
+        expect(updated.corrected).toBe(true);
+        expect(updated.confidence_score).toBe(100);
+        expect(updated.verification_note).toBe('Domain restriction excludes 3');
+
+        // Guest history in sessionStorage is also updated
+        const guestHistory = JSON.parse(sessionStorage.getItem('guest_history') || '[]');
+        expect(guestHistory.length).toBe(1);
+        expect(guestHistory[0].results[0].solutions[0].answer).toBe('-3');
+    });
+
+    it('updateHistoryEntry with unknown id does nothing and does not throw', async () => {
+        sessionStorage.clear();
+        const { result } = renderHook(() => useSolveHistory('canvas-1'));
+
+        await waitFor(() => {
+            expect(result.current.isDbReady).toBe(true);
+        });
+
+        await act(async () => {
+            await result.current.updateHistoryEntry('non-existent-id', {
+                solutions: [{ expression: 'x', answer: '-3' }],
+                corrected: true
+            });
+        });
+
+        expect(result.current.history).toEqual([]);
+    });
 });

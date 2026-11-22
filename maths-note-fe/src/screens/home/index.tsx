@@ -251,6 +251,7 @@ export default function Home() {
         showAllNotebooks,
         setShowAllNotebooks,
         saveHistoryEntry, 
+        updateHistoryEntry,
         clearHistory, 
         deleteHistoryItem,
         getHistoryEntryImage,
@@ -682,7 +683,10 @@ export default function Home() {
     const handleUpdateResult = useCallback((id: string, updates: Partial<GeneratedResult>) => {
         setResults(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
         scheduleAutosave();
-    }, [setResults, scheduleAutosave]);
+        if (updates.corrected || updates.solutions) {
+            updateHistoryEntry(id, updates);
+        }
+    }, [setResults, scheduleAutosave, updateHistoryEntry]);
 
     const [cardOffsets, setCardOffsets] = useState<Record<string, { x: number; y: number }>>({});
 
