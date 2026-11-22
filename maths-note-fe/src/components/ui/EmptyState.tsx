@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from './button';
+import { LibButton } from './LibButton';
 
 export interface EmptyStateProps {
     title: string;
@@ -20,9 +20,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ title, description, acti
             )}
 
             {actionLabel && onAction && (
-                <Button variant="primary" size="sm" onClick={onAction}>
+                <LibButton variant="primary" size="sm" onClick={onAction}>
                     {actionLabel}
-                </Button>
+                </LibButton>
             )}
         </div>
     );

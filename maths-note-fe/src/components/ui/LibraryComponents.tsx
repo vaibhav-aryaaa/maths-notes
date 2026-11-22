@@ -2,7 +2,7 @@ import React from 'react';
 import { NotebookCard } from './NotebookCard';
 import { SidebarItem } from './SidebarItem';
 import { EmptyState } from './EmptyState';
-import { Button } from './button';
+import { LibButton } from './LibButton';
 import { Modal } from './Modal';
 import { DropdownMenu } from './DropdownMenu';
 import { formatRelativeTime, formatFullDate } from '@/lib/dateUtils';
@@ -58,12 +58,12 @@ export const TrashItemRow: React.FC<TrashItemRowProps> = ({
             </div>
 
             <div className="flex items-center gap-2 shrink-0 ml-3">
-                <Button variant="secondary" size="sm" onClick={onRestore}>
+                <LibButton variant="secondary" size="sm" onClick={onRestore}>
                     Restore
-                </Button>
-                <Button variant="danger" size="sm" onClick={onPermanentDelete}>
+                </LibButton>
+                <LibButton variant="danger" size="sm" onClick={onPermanentDelete}>
                     Delete permanently
-                </Button>
+                </LibButton>
             </div>
         </div>
     );
@@ -172,4 +172,4 @@ export const NotebookRow: React.FC<NotebookRowProps> = ({
     );
 };
 
-export { NotebookCard, SidebarItem, EmptyState, Button, Modal, DropdownMenu };
+export { NotebookCard, SidebarItem, EmptyState, LibButton, Modal, DropdownMenu };
