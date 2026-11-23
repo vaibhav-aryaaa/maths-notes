@@ -1,0 +1,443 @@
+[
+  {
+    "id": "cat1_01",
+    "category": "extraneous_roots_from_cancelling",
+    "problem": "(x^2 - 9)/(x - 3) = 0",
+    "expected": "-3",
+    "type": "math",
+    "has_handwritten_crop": true,
+    "crop_file": "cat1_01_ext_cancelling.png"
+  },
+  {
+    "id": "cat1_02",
+    "category": "extraneous_roots_from_cancelling",
+    "problem": "(x^2 - 4)/(x - 2) = 0",
+    "expected": "-2",
+    "type": "math",
+    "has_handwritten_crop": true,
+    "crop_file": "cat1_02_ext_cancelling.png"
+  },
+  {
+    "id": "cat1_03",
+    "category": "extraneous_roots_from_cancelling",
+    "problem": "(x^2 - 16)/(x + 4) = 0",
+    "expected": "4",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat1_04",
+    "category": "extraneous_roots_from_cancelling",
+    "problem": "(x^2 - 5x + 6)/(x - 2) = 0",
+    "expected": "3",
+    "type": "math",
+    "has_handwritten_crop": true,
+    "crop_file": "cat1_04_ext_cancelling.png"
+  },
+  {
+    "id": "cat1_05",
+    "category": "extraneous_roots_from_cancelling",
+    "problem": "(x^2 - x - 2)/(x - 2) = 0",
+    "expected": "-1",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat2_01",
+    "category": "domain_exclusions",
+    "problem": "1/(x - 5) = 0",
+    "expected": "no solution",
+    "type": "math",
+    "has_handwritten_crop": true,
+    "crop_file": "cat2_01_domain_exclusion.png"
+  },
+  {
+    "id": "cat2_02",
+    "category": "domain_exclusions",
+    "problem": "sqrt(x - 4) = -2",
+    "expected": "no solution",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat2_03",
+    "category": "domain_exclusions",
+    "problem": "sqrt(2x + 6) = x - 1",
+    "expected": "5",
+    "type": "math",
+    "has_handwritten_crop": true,
+    "crop_file": "cat2_03_domain_exclusion.png"
+  },
+  {
+    "id": "cat2_04",
+    "category": "domain_exclusions",
+    "problem": "x/(x - 1) = 1/(x - 1)",
+    "expected": "no solution",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat2_05",
+    "category": "domain_exclusions",
+    "problem": "log(x - 2) + log(x - 3) = log(2)",
+    "expected": "4",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat3_01",
+    "category": "quadratics_two_or_no_roots",
+    "problem": "x^2 - 5x + 6 = 0",
+    "expected": "2, 3",
+    "type": "math",
+    "has_handwritten_crop": true,
+    "crop_file": "cat3_01_quad_roots.png"
+  },
+  {
+    "id": "cat3_02",
+    "category": "quadratics_two_or_no_roots",
+    "problem": "x^2 - 4 = 0",
+    "expected": "-2, 2",
+    "type": "math",
+    "has_handwritten_crop": true,
+    "crop_file": "cat3_02_quad_roots.png"
+  },
+  {
+    "id": "cat3_03",
+    "category": "quadratics_two_or_no_roots",
+    "problem": "x^2 + 9 = 0",
+    "expected": "no real solution",
+    "type": "math",
+    "has_handwritten_crop": true,
+    "crop_file": "cat3_03_quad_roots.png"
+  },
+  {
+    "id": "cat3_04",
+    "category": "quadratics_two_or_no_roots",
+    "problem": "2x^2 + 3x - 2 = 0",
+    "expected": "-2, 0.5",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat3_05",
+    "category": "quadratics_two_or_no_roots",
+    "problem": "x^2 + 2x + 5 = 0",
+    "expected": "no real solution",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat4_01",
+    "category": "sign_errors_and_negative_numbers",
+    "problem": "-3 * (-4) - 5",
+    "expected": "7",
+    "type": "math",
+    "has_handwritten_crop": true,
+    "crop_file": "cat4_01_signs.png"
+  },
+  {
+    "id": "cat4_02",
+    "category": "sign_errors_and_negative_numbers",
+    "problem": "-(2^2)",
+    "expected": "-4",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat4_03",
+    "category": "sign_errors_and_negative_numbers",
+    "problem": "(-2)^2",
+    "expected": "4",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat4_04",
+    "category": "sign_errors_and_negative_numbers",
+    "problem": "-15 - (-8) + (-3)",
+    "expected": "-10",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat4_05",
+    "category": "sign_errors_and_negative_numbers",
+    "problem": "-5x + 15 = 0",
+    "expected": "3",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat5_01",
+    "category": "fractions_and_decimals",
+    "problem": "3/4 + 2/3",
+    "expected": "17/12",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat5_02",
+    "category": "fractions_and_decimals",
+    "problem": "(2/5)x = 10",
+    "expected": "25",
+    "type": "math",
+    "has_handwritten_crop": true,
+    "crop_file": "cat5_02_fractions.png"
+  },
+  {
+    "id": "cat5_03",
+    "category": "fractions_and_decimals",
+    "problem": "0.25x - 1.5 = 3.5",
+    "expected": "20",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat5_04",
+    "category": "fractions_and_decimals",
+    "problem": "5/8 - 1/4",
+    "expected": "3/8",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat5_05",
+    "category": "fractions_and_decimals",
+    "problem": "1.2 * 3.5",
+    "expected": "4.2",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat6_01",
+    "category": "absolute_value",
+    "problem": "|x - 3| = 7",
+    "expected": "-4, 10",
+    "type": "math",
+    "has_handwritten_crop": true,
+    "crop_file": "cat6_01_abs_val.png"
+  },
+  {
+    "id": "cat6_02",
+    "category": "absolute_value",
+    "problem": "|2x + 1| = 9",
+    "expected": "-5, 4",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat6_03",
+    "category": "absolute_value",
+    "problem": "|x + 5| = -3",
+    "expected": "no solution",
+    "type": "math",
+    "has_handwritten_crop": true,
+    "crop_file": "cat6_03_abs_val.png"
+  },
+  {
+    "id": "cat6_04",
+    "category": "absolute_value",
+    "problem": "|3x - 6| = 0",
+    "expected": "2",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat6_05",
+    "category": "absolute_value",
+    "problem": "2|x| - 4 = 6",
+    "expected": "-5, 5",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat7_01",
+    "category": "linear_systems",
+    "problem": "x + y = 10, x - y = 2",
+    "expected": "x = 6, y = 4",
+    "type": "math",
+    "has_handwritten_crop": true,
+    "crop_file": "cat7_01_systems.png"
+  },
+  {
+    "id": "cat7_02",
+    "category": "linear_systems",
+    "problem": "2x + y = 7, x - y = 2",
+    "expected": "x = 3, y = 1",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat7_03",
+    "category": "linear_systems",
+    "problem": "3x + 2y = 12, y = 3",
+    "expected": "x = 2, y = 3",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat7_04",
+    "category": "linear_systems",
+    "problem": "x + 2y = 8, 2x + 4y = 10",
+    "expected": "no solution",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat7_05",
+    "category": "linear_systems",
+    "problem": "4x - y = 5, 2x + 3y = 13",
+    "expected": "x = 2, y = 3",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat8_01",
+    "category": "simple_derivatives_and_integrals",
+    "problem": "d/dx(x^3)",
+    "expected": "3x^2",
+    "type": "math",
+    "has_handwritten_crop": true,
+    "crop_file": "cat8_01_calculus.png"
+  },
+  {
+    "id": "cat8_02",
+    "category": "simple_derivatives_and_integrals",
+    "problem": "d/dx(5x^2 - 4x + 7)",
+    "expected": "10x - 4",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat8_03",
+    "category": "simple_derivatives_and_integrals",
+    "problem": "d/dx(sin(x))",
+    "expected": "cos(x)",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat8_04",
+    "category": "simple_derivatives_and_integrals",
+    "problem": "int 2x dx",
+    "expected": "x^2",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat8_05",
+    "category": "simple_derivatives_and_integrals",
+    "problem": "d/dx(e^x)",
+    "expected": "e^x",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat9_01",
+    "category": "inequalities",
+    "problem": "2x - 4 > 6",
+    "expected": "x > 5",
+    "type": "math",
+    "has_handwritten_crop": true,
+    "crop_file": "cat9_01_inequalities.png"
+  },
+  {
+    "id": "cat9_02",
+    "category": "inequalities",
+    "problem": "-3x <= 9",
+    "expected": "x >= -3",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat9_03",
+    "category": "inequalities",
+    "problem": "5x + 3 < 18",
+    "expected": "x < 3",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat9_04",
+    "category": "inequalities",
+    "problem": "4 - x >= 1",
+    "expected": "x <= 3",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat9_05",
+    "category": "inequalities",
+    "problem": "3x + 7 > 2x + 12",
+    "expected": "x > 5",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat10_01",
+    "category": "word_problems",
+    "problem": "A train travels 180 miles in 3 hours. What is its average speed in miles per hour?",
+    "expected": "60",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat10_02",
+    "category": "word_problems",
+    "problem": "Alice has twice as many apples as Bob. Together they have 24 apples. How many apples does Bob have?",
+    "expected": "8",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat10_03",
+    "category": "word_problems",
+    "problem": "A rectangle has a perimeter of 30 cm and a length of 9 cm. What is its width in cm?",
+    "expected": "6",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  },
+  {
+    "id": "cat10_04",
+    "category": "word_problems",
+    "problem": "The sum of three consecutive integers is 42. What is the smallest of these integers?",
+    "expected": "13",
+    "type": "math",
+    "has_handwritten_crop": false,
+    "crop_file": null
+  }
+]
