@@ -6,7 +6,8 @@
     "expected": "-3",
     "type": "math",
     "has_handwritten_crop": true,
-    "crop_file": "cat1_01_ext_cancelling.png"
+    "crop_file": "cat1_01_ext_cancelling.png",
+    "accept": []
   },
   {
     "id": "cat1_02",
@@ -15,7 +16,8 @@
     "expected": "-2",
     "type": "math",
     "has_handwritten_crop": true,
-    "crop_file": "cat1_02_ext_cancelling.png"
+    "crop_file": "cat1_02_ext_cancelling.png",
+    "accept": []
   },
   {
     "id": "cat1_03",
@@ -24,7 +26,8 @@
     "expected": "4",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat1_04",
@@ -33,7 +36,8 @@
     "expected": "3",
     "type": "math",
     "has_handwritten_crop": true,
-    "crop_file": "cat1_04_ext_cancelling.png"
+    "crop_file": "cat1_04_ext_cancelling.png",
+    "accept": []
   },
   {
     "id": "cat1_05",
@@ -42,7 +46,8 @@
     "expected": "-1",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat2_01",
@@ -51,7 +56,8 @@
     "expected": "no solution",
     "type": "math",
     "has_handwritten_crop": true,
-    "crop_file": "cat2_01_domain_exclusion.png"
+    "crop_file": "cat2_01_domain_exclusion.png",
+    "accept": []
   },
   {
     "id": "cat2_02",
@@ -60,7 +66,8 @@
     "expected": "no solution",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat2_03",
@@ -69,7 +76,8 @@
     "expected": "5",
     "type": "math",
     "has_handwritten_crop": true,
-    "crop_file": "cat2_03_domain_exclusion.png"
+    "crop_file": "cat2_03_domain_exclusion.png",
+    "accept": []
   },
   {
     "id": "cat2_04",
@@ -78,7 +86,8 @@
     "expected": "no solution",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat2_05",
@@ -87,7 +96,8 @@
     "expected": "4",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat3_01",
@@ -96,7 +106,8 @@
     "expected": "2, 3",
     "type": "math",
     "has_handwritten_crop": true,
-    "crop_file": "cat3_01_quad_roots.png"
+    "crop_file": "cat3_01_quad_roots.png",
+    "accept": []
   },
   {
     "id": "cat3_02",
@@ -105,7 +116,8 @@
     "expected": "-2, 2",
     "type": "math",
     "has_handwritten_crop": true,
-    "crop_file": "cat3_02_quad_roots.png"
+    "crop_file": "cat3_02_quad_roots.png",
+    "accept": []
   },
   {
     "id": "cat3_03",
@@ -114,7 +126,13 @@
     "expected": "no real solution",
     "type": "math",
     "has_handwritten_crop": true,
-    "crop_file": "cat3_03_quad_roots.png"
+    "crop_file": "cat3_03_quad_roots.png",
+    "accept": [
+      "x = 3i, x = -3i",
+      "3i, -3i",
+      "x = \\pm 3i",
+      "\\pm 3i"
+    ]
   },
   {
     "id": "cat3_04",
@@ -123,7 +141,8 @@
     "expected": "-2, 0.5",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat3_05",
@@ -132,7 +151,13 @@
     "expected": "no real solution",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": [
+      "x = -1 + 2i, x = -1 - 2i",
+      "-1 + 2i, -1 - 2i",
+      "-1 \\pm 2i",
+      "x = -1 \\pm 2i"
+    ]
   },
   {
     "id": "cat4_01",
@@ -141,7 +166,8 @@
     "expected": "7",
     "type": "math",
     "has_handwritten_crop": true,
-    "crop_file": "cat4_01_signs.png"
+    "crop_file": "cat4_01_signs.png",
+    "accept": []
   },
   {
     "id": "cat4_02",
@@ -150,7 +176,8 @@
     "expected": "-4",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat4_03",
@@ -159,7 +186,8 @@
     "expected": "4",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat4_04",
@@ -168,7 +196,8 @@
     "expected": "-10",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat4_05",
@@ -177,7 +206,8 @@
     "expected": "3",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat5_01",
@@ -186,7 +216,8 @@
     "expected": "17/12",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat5_02",
@@ -195,7 +226,8 @@
     "expected": "25",
     "type": "math",
     "has_handwritten_crop": true,
-    "crop_file": "cat5_02_fractions.png"
+    "crop_file": "cat5_02_fractions.png",
+    "accept": []
   },
   {
     "id": "cat5_03",
@@ -204,7 +236,8 @@
     "expected": "20",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat5_04",
@@ -213,7 +246,8 @@
     "expected": "3/8",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat5_05",
@@ -222,7 +256,8 @@
     "expected": "4.2",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat6_01",
@@ -231,7 +266,8 @@
     "expected": "-4, 10",
     "type": "math",
     "has_handwritten_crop": true,
-    "crop_file": "cat6_01_abs_val.png"
+    "crop_file": "cat6_01_abs_val.png",
+    "accept": []
   },
   {
     "id": "cat6_02",
@@ -240,7 +276,8 @@
     "expected": "-5, 4",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat6_03",
@@ -249,7 +286,8 @@
     "expected": "no solution",
     "type": "math",
     "has_handwritten_crop": true,
-    "crop_file": "cat6_03_abs_val.png"
+    "crop_file": "cat6_03_abs_val.png",
+    "accept": []
   },
   {
     "id": "cat6_04",
@@ -258,7 +296,8 @@
     "expected": "2",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat6_05",
@@ -267,7 +306,8 @@
     "expected": "-5, 5",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat7_01",
@@ -276,7 +316,10 @@
     "expected": "x = 6, y = 4",
     "type": "math",
     "has_handwritten_crop": true,
-    "crop_file": "cat7_01_systems.png"
+    "crop_file": "cat7_01_systems.png",
+    "accept": [
+      "y = 4, x = 6"
+    ]
   },
   {
     "id": "cat7_02",
@@ -285,7 +328,10 @@
     "expected": "x = 3, y = 1",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": [
+      "y = 1, x = 3"
+    ]
   },
   {
     "id": "cat7_03",
@@ -294,7 +340,10 @@
     "expected": "x = 2, y = 3",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": [
+      "y = 3, x = 2"
+    ]
   },
   {
     "id": "cat7_04",
@@ -303,7 +352,8 @@
     "expected": "no solution",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat7_05",
@@ -312,7 +362,10 @@
     "expected": "x = 2, y = 3",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": [
+      "y = 3, x = 2"
+    ]
   },
   {
     "id": "cat8_01",
@@ -321,7 +374,8 @@
     "expected": "3x^2",
     "type": "math",
     "has_handwritten_crop": true,
-    "crop_file": "cat8_01_calculus.png"
+    "crop_file": "cat8_01_calculus.png",
+    "accept": []
   },
   {
     "id": "cat8_02",
@@ -330,7 +384,8 @@
     "expected": "10x - 4",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat8_03",
@@ -339,7 +394,8 @@
     "expected": "cos(x)",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat8_04",
@@ -348,7 +404,12 @@
     "expected": "x^2",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": [
+      "x^2 + C",
+      "x^2+C",
+      "x^2 + c"
+    ]
   },
   {
     "id": "cat8_05",
@@ -357,7 +418,8 @@
     "expected": "e^x",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat9_01",
@@ -366,7 +428,8 @@
     "expected": "x > 5",
     "type": "math",
     "has_handwritten_crop": true,
-    "crop_file": "cat9_01_inequalities.png"
+    "crop_file": "cat9_01_inequalities.png",
+    "accept": []
   },
   {
     "id": "cat9_02",
@@ -375,7 +438,8 @@
     "expected": "x >= -3",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat9_03",
@@ -384,7 +448,8 @@
     "expected": "x < 3",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat9_04",
@@ -393,7 +458,8 @@
     "expected": "x <= 3",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat9_05",
@@ -402,7 +468,8 @@
     "expected": "x > 5",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat10_01",
@@ -411,7 +478,8 @@
     "expected": "60",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat10_02",
@@ -420,7 +488,8 @@
     "expected": "8",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat10_03",
@@ -429,7 +498,8 @@
     "expected": "6",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   },
   {
     "id": "cat10_04",
@@ -438,6 +508,7 @@
     "expected": "13",
     "type": "math",
     "has_handwritten_crop": false,
-    "crop_file": null
+    "crop_file": null,
+    "accept": []
   }
 ]

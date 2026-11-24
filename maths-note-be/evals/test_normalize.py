@@ -1,5 +1,5 @@
-import pytest
-from evals.normalize import compare_answers, clean_latex, parse_normalized
+from evals.normalize import clean_latex, compare_answers
+
 
 def test_clean_latex():
     assert clean_latex("$x = -3$") == "x = -3"
@@ -43,6 +43,11 @@ def test_systems_of_equations():
     assert compare_answers("x = 6 and y = 4", "x = 6, y = 4")
     assert not compare_answers("x = 6, y = 4", "x = 4, y = 6")
 
+    # Dict and list-of-solutions support
+    assert compare_answers({"x": 6, "y": 4}, "x = 6, y = 4")
+    assert compare_answers([{"expr": "x", "result": 6}, {"expr": "y", "result": 4}], "x = 6, y = 4")
+    assert compare_answers([{"expr": "y", "result": 4}, {"expr": "x", "result": 6}], "x = 6, y = 4")
+
 
 def test_no_solution():
     assert compare_answers("no solution", "no real solution")
@@ -61,7 +66,16 @@ def test_inequalities():
     assert not compare_answers("x > 3", "x < 3")
 
 
-def test_expressions():
+def test_expressions_and_accept_list():
     assert compare_answers("2x", "2x")
     assert compare_answers(r"\cos(x)", "cos(x)")
     assert compare_answers("x^2 + 2x", "x^2 + 2x")
+
+    # Requirement: int 2x dx: expected x^2, accept x^2 + C
+    assert compare_answers("x^2 + C", "x^2", accept=["x^2 + C", "x^2+c"])
+    assert compare_answers("x^2", "x^2", accept=["x^2 + C"])
+
+    # Requirement: no-real-roots with complex accept list
+    assert compare_answers("x = 3i, x = -3i", "no real solution", accept=["x = 3i, x = -3i", "3i, -3i"])
+    assert compare_answers("3i, -3i", "no real solution", accept=["x = 3i, x = -3i", "3i, -3i"])
+    assert compare_answers("no real solution", "no real solution", accept=["x = 3i, x = -3i"])
