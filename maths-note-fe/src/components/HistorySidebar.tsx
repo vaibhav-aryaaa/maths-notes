@@ -19,7 +19,10 @@ interface HistorySidebarProps {
 
 export function HistorySidebar(props: HistorySidebarProps) {
     return (
-        <div className={`absolute top-[calc(4.5rem+env(safe-area-inset-top))] left-[calc(1.25rem+env(safe-area-inset-left))] w-80 max-h-[calc(100vh-10.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] bg-white/95 dark:bg-[#1c1c1f]/95 border border-stone-200/85 dark:border-stone-850 p-4 z-sidebar text-stone-800 dark:text-white shadow-2xl backdrop-blur-md rounded-2xl flex flex-col transition-all duration-300 origin-top-left ${props.isOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}`}>
+        <div 
+            className={`absolute top-[calc(4.5rem+env(safe-area-inset-top))] left-[calc(1.25rem+env(safe-area-inset-left))] w-80 max-h-[calc(100vh-10.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] bg-white/95 dark:bg-[#1c1c1f]/95 border border-stone-200/85 dark:border-stone-850 p-4 z-sidebar text-stone-800 dark:text-white shadow-2xl backdrop-blur-md rounded-2xl flex flex-col transition-all duration-300 origin-top-left ${props.isOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}`}
+            onWheel={(e) => e.stopPropagation()}
+        >
             <ErrorBoundary name="History Sidebar" onReset={props.onClose}>
                 <HistorySidebarInner {...props} />
             </ErrorBoundary>
@@ -107,7 +110,7 @@ function HistorySidebarInner({
                         )}
                     </div>
 
-                    <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-2 scrollbar-thin">
+                    <div className="flex-1 overflow-y-auto overscroll-contain pr-1 flex flex-col gap-2 scrollbar-thin">
                         {history.length > 0 ? (
                             history.map((entry) => (
                                 <div 

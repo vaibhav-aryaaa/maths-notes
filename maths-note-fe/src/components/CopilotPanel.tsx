@@ -116,7 +116,10 @@ const MessageItem = memo(function MessageItem({
 
 export function CopilotPanel(props: CopilotPanelProps) {
     return (
-        <div className="absolute bottom-24 right-4 left-4 sm:left-auto sm:right-6 z-controls w-auto sm:w-[360px] h-[480px] sm:h-[520px] flex flex-col rounded-3xl overflow-hidden shadow-2xl border border-stone-200 dark:border-white/10 bg-white dark:bg-[#18181c]">
+        <div 
+            className="absolute bottom-24 right-4 left-4 sm:left-auto sm:right-6 z-controls w-auto sm:w-[360px] h-[480px] sm:h-[520px] flex flex-col rounded-3xl overflow-hidden shadow-2xl border border-stone-200 dark:border-white/10 bg-white dark:bg-[#18181c]"
+            onWheel={(e) => e.stopPropagation()}
+        >
             <ErrorBoundary name="AI Copilot" onReset={props.onClose}>
                 <CopilotPanelInner {...props} />
             </ErrorBoundary>
@@ -202,7 +205,7 @@ function CopilotPanelInner({
             )}
 
             {/* Chat Messages / Empty State */}
-            <div ref={chatContainerRef} className="flex-1 overflow-y-auto px-5 pb-4 pt-4 flex flex-col gap-4 scrollbar-thin">
+            <div ref={chatContainerRef} className="flex-1 overflow-y-auto overscroll-contain px-5 pb-4 pt-4 flex flex-col gap-4 scrollbar-thin">
                 {copilotMessages.length <= 1 ? (
                     <div className="flex-1 flex flex-col items-center justify-center py-8 select-none my-auto">
                         <div className="relative w-20 h-20 mb-4 flex items-center justify-center">

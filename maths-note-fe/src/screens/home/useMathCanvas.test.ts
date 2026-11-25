@@ -360,5 +360,91 @@ describe('useMathCanvas', () => {
         // Stroke should be erased
         expect(result.current.elementsRef.current.length).toBe(0);
     });
+
+    it('ignores wheel events on draggable cards and UI controls, and only pans on canvas', () => {
+        const { result } = renderHook(() => useMathCanvas());
+
+        const mockCanvas = document.createElement('canvas');
+        mockCanvas.id = 'canvas';
+        mockCanvas.getBoundingClientRect = () => ({
+            left: 0,
+            top: 0,
+            right: 800,
+            bottom: 600,
+            width: 800,
+            height: 600,
+            x: 0,
+            y: 0,
+            toJSON: () => {}
+        });
+
+        Object.defineProperty(result.current.canvasRef, 'current', {
+            value: mockCanvas,
+            writable: true
+        });
+
+        const initialCamera = { ...result.current.camera };
+
+        // 1. Wheel on a draggable card element
+        const cardEl = document.createElement('div');
+        cardEl.className = 'z-draggable-card';
+        document.body.appendChild(cardEl);
+
+        const cardWheelEvent = new WheelEvent('wheel', {
+            bubbles: true,
+            cancelable: true,
+            deltaX: 0,
+            deltaY: 50,
+        });
+        Object.defineProperty(cardWheelEvent, 'target', { value: cardEl });
+
+        act(() => {
+            window.dispatchEvent(cardWheelEvent);
+        });
+
+        // Camera should NOT have moved
+        expect(result.current.camera.offsetX).toBe(initialCamera.offsetX);
+        expect(result.current.camera.offsetY).toBe(initialCamera.offsetY);
+
+        // 2. Wheel on a toolbar control element
+        const controlEl = document.createElement('div');
+        controlEl.className = 'z-controls';
+        document.body.appendChild(controlEl);
+
+        const controlWheelEvent = new WheelEvent('wheel', {
+            bubbles: true,
+            cancelable: true,
+            deltaX: 0,
+            deltaY: 50,
+        });
+        Object.defineProperty(controlWheelEvent, 'target', { value: controlEl });
+
+        act(() => {
+            window.dispatchEvent(controlWheelEvent);
+        });
+
+        expect(result.current.camera.offsetX).toBe(initialCamera.offsetX);
+        expect(result.current.camera.offsetY).toBe(initialCamera.offsetY);
+
+        // 3. Wheel directly on canvas
+        const canvasWheelEvent = new WheelEvent('wheel', {
+            bubbles: true,
+            cancelable: true,
+            deltaX: 10,
+            deltaY: 20,
+        });
+        Object.defineProperty(canvasWheelEvent, 'target', { value: mockCanvas });
+
+        act(() => {
+            window.dispatchEvent(canvasWheelEvent);
+        });
+
+        // Camera SHOULD have moved (delta * panMultiplier: 1.5)
+        expect(result.current.camera.offsetX).toBe(initialCamera.offsetX - 15);
+        expect(result.current.camera.offsetY).toBe(initialCamera.offsetY - 30);
+
+        document.body.removeChild(cardEl);
+        document.body.removeChild(controlEl);
+    });
 });
 

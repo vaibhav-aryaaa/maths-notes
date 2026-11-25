@@ -1166,27 +1166,21 @@ export const useMathCanvas = (
             if (!canvas) return;
 
             const targetEl = e.target as HTMLElement;
-            const isOnCanvas = targetEl.id === 'canvas';
-            const draggableCard = targetEl.closest('.z-draggable-card');
 
-            if (!isOnCanvas && !draggableCard) {
-                return; // Do not intercept wheel events on toolbars, sidebars, settings etc.
+            // Never intercept wheel events on interactive UI overlays (cards, controls, sidebar, modals, etc.)
+            if (
+                targetEl.closest('.z-draggable-card') ||
+                targetEl.closest('.z-controls') ||
+                targetEl.closest('.z-sidebar') ||
+                targetEl.closest('.mantine-Modal-root') ||
+                targetEl.closest('.mantine-Menu-dropdown')
+            ) {
+                return;
             }
 
-            // Helper to find if target is scrollable
-            const isScrollableElement = (el: HTMLElement | null): boolean => {
-                if (!el || el === document.body || el === document.documentElement) return false;
-                const style = window.getComputedStyle(el);
-                const overflowY = style.overflowY;
-                const isScrollableY = overflowY === 'auto' || overflowY === 'scroll';
-                if (isScrollableY && el.scrollHeight > el.clientHeight) {
-                    return true;
-                }
-                return isScrollableElement(el.parentElement);
-            };
-
-            if (isScrollableElement(targetEl)) {
-                return; // Let scrollable areas inside the card scroll normally
+            const isOnCanvas = targetEl.id === 'canvas';
+            if (!isOnCanvas) {
+                return; // Do not intercept wheel events on any other non-canvas elements
             }
 
             e.preventDefault();

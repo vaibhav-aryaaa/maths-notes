@@ -1210,8 +1210,22 @@ export default function Home() {
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+    // Lock document scroll while on the canvas screen to prevent margin/header scroll-off issues
+    useEffect(() => {
+        const originalOverflow = document.body.style.overflow;
+        const originalOverscroll = document.body.style.overscrollBehavior;
+        document.body.style.overflow = 'hidden';
+        document.body.style.overscrollBehavior = 'none';
+        window.scrollTo(0, 0);
+
+        return () => {
+            document.body.style.overflow = originalOverflow;
+            document.body.style.overscrollBehavior = originalOverscroll;
+        };
+    }, []);
+
     return (
-        <>
+        <div className="fixed inset-0 w-full h-full overflow-hidden select-none">
             {/* Left side collapsible Sidebar panel containing Memory and Solve History */}
             <HistorySidebar
                 isOpen={isSidebarOpen && !isFocusMode}
@@ -2073,6 +2087,6 @@ export default function Home() {
                     <span>Press <kbd className="px-1.5 py-0.5 bg-white/20 dark:bg-stone-200 rounded font-mono font-bold">F</kbd> to exit focus mode</span>
                 </div>
             )}
-        </>
+        </div>
     );
 }

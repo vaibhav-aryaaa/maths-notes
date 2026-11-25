@@ -156,4 +156,15 @@ describe('DraggableResultCard - Verification and Correction (Task 71)', () => {
 
         expect(analytics.trackEvent).not.toHaveBeenCalledWith('answer_corrected', expect.anything());
     });
+
+    it('stops wheel event propagation so canvas does not scroll', () => {
+        renderCard(mockResult);
+        const card = screen.getByLabelText(/AI Result Card/i);
+
+        const wheelEvent = new WheelEvent('wheel', { bubbles: true, cancelable: true });
+        const stopPropagationSpy = vi.spyOn(wheelEvent, 'stopPropagation');
+
+        card.dispatchEvent(wheelEvent);
+        expect(stopPropagationSpy).toHaveBeenCalled();
+    });
 });

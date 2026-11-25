@@ -377,6 +377,21 @@
 
 /* High-Performance Smooth Theme Transitions (Hardware Accelerated) */
 html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+#root {
+  width: 100%;
+  min-height: 100%;
+}
+
+html,
 body,
 #root {
   transition: background-color 0.25s ease, color 0.25s ease;

@@ -478,6 +478,7 @@ export const DraggableResultCard = ({
             }}
             onMouseDown={handleMouseDown}
             onTouchStart={handleTouchStart}
+            onWheel={(e) => e.stopPropagation()}
         >
             <div className="flex justify-between items-center gap-4 shrink-0">
                 <div className="flex items-center gap-2 overflow-hidden flex-1">
@@ -531,7 +532,7 @@ export const DraggableResultCard = ({
             
             {!isMinimized && (
                 <div className="mt-3 flex-1 flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 gap-2">
-                    <div className="latex-content text-stone-900 dark:text-white whitespace-normal break-words overflow-y-auto shrink-0 max-h-[45%] pr-1 flex flex-col gap-1.5 scrollbar-thin">
+                    <div className="latex-content text-stone-900 dark:text-white whitespace-normal break-words overflow-y-auto overscroll-contain shrink-0 max-h-[45%] pr-1 flex flex-col gap-1.5 scrollbar-thin">
                         {renderedSolutions}
                     </div>
 
@@ -549,7 +550,7 @@ export const DraggableResultCard = ({
 
                     {steps && steps.length > 1 ? (
                         <div className="flex-1 flex flex-col overflow-hidden border-t border-stone-200 dark:border-white/10 pt-2 min-h-0 gap-2">
-                            <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-2 min-h-0 scrollbar-thin">
+                            <div className="flex-1 overflow-y-auto overscroll-contain pr-1 flex flex-col gap-2 min-h-0 scrollbar-thin">
                                 {showAllSteps ? (
                                     steps.map(step => renderStep(step))
                                 ) : (
@@ -617,7 +618,7 @@ export const DraggableResultCard = ({
                                     <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showThoughtProcess ? 'rotate-180' : ''}`} />
                                 </button>
                                 {showThoughtProcess && (
-                                    <div className="text-stone-500 dark:text-gray-400 text-sm leading-relaxed whitespace-pre-wrap flex-1 overflow-y-auto pr-1 mt-1 min-h-0">
+                                    <div className="text-stone-500 dark:text-gray-400 text-sm leading-relaxed whitespace-pre-wrap flex-1 overflow-y-auto overscroll-contain pr-1 mt-1 min-h-0">
                                         {isFetchingExplanation ? (
                                             <div className="flex items-center gap-2 py-2 select-none pointer-events-none">
                                                 <svg
