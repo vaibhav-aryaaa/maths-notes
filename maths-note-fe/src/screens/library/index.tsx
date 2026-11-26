@@ -56,6 +56,7 @@ import {
 import { AuthManager } from '@/components/AuthManager';
 import { useSolveHistory } from '@/hooks/useSolveHistory';
 import { useAuth } from '@/lib/AuthProvider';
+import { FolderFloat } from '@/components/FolderFloat';
 
 export default function LibraryScreen() {
     const navigate = useNavigate();
@@ -74,6 +75,10 @@ export default function LibraryScreen() {
     // View layout
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [searchQuery, setSearchQuery] = useState('');
+
+    const isTouchDevice = useMemo(() => {
+        return typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    }, []);
 
     // Modal / Action states
     const [createFolderModalOpen, setCreateFolderModalOpen] = useState(false);
@@ -574,83 +579,186 @@ export default function LibraryScreen() {
                                     <h2 className="text-xs font-bold uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-3">
                                         Folders ({filteredFolders.length})
                                     </h2>
-                                    <div className={viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" : "flex flex-col gap-2"}>
-                                        {filteredFolders.map(folder => (
-                                            <div
-                                                key={folder.id}
-                                                onClick={() => navigate(`/library/folder/${folder.id}`)}
-                                                className="group relative flex items-center justify-between p-4 rounded-2xl border border-stone-200 dark:border-stone-800/80 bg-white dark:bg-[#141416] hover:border-teal-500/50 dark:hover:border-teal-500/50 hover:shadow-md transition-all cursor-pointer select-none"
-                                            >
-                                                <div className="flex items-center gap-3 overflow-hidden">
-                                                    <div className="p-2.5 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 shrink-0">
-                                                        <FolderIcon size={20} />
-                                                    </div>
-                                                    {editingId === folder.id ? (
-                                                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                                                            <TextInput
-                                                                value={editingName}
-                                                                onChange={(e) => setEditingName(e.target.value)}
-                                                                onKeyDown={(e) => {
-                                                                    if (e.key === 'Enter') handleSaveRename(folder.id, 'folder');
-                                                                    if (e.key === 'Escape') setEditingId(null);
-                                                                }}
-                                                                size="xs"
-                                                                autoFocus
-                                                                classNames={{ input: 'h-7 text-xs rounded-lg' }}
-                                                            />
-                                                            <button 
-                                                                onClick={() => handleSaveRename(folder.id, 'folder')}
-                                                                className="p-1 text-teal-600 hover:text-teal-700 cursor-pointer bg-transparent border-none"
-                                                            >
-                                                                <Check size={14} />
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => setEditingId(null)}
-                                                                className="p-1 text-stone-400 hover:text-stone-600 cursor-pointer bg-transparent border-none"
-                                                            >
-                                                                <X size={14} />
-                                                            </button>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="overflow-hidden">
-                                                            <h3 className="text-sm font-bold text-stone-900 dark:text-white truncate">
-                                                                {folder.name}
-                                                            </h3>
-                                                            <span className="text-[11px] text-stone-400">
-                                                                {formatTime(folder.updated_at)}
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                </div>
+                                    {viewMode === 'grid' ? (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-12 pt-8 pb-4">
+                                            {filteredFolders.map(folder => {
+                                                const folderCanvases = canvases.filter(c => c.folder_id === folder.id);
+                                                const floatItems = folderCanvases.length > 0
+                                                    ? [
+                                                        ...folderCanvases.slice(0, 4).map(c => ({ label: c.name, value: c.id })),
+                                                        ...(folderCanvases.length > 4 ? [{ label: `+${folderCanvases.length - 4} more →`, value: '__open_folder__' }] : [])
+                                                      ]
+                                                    : [{ label: '+ New Note', value: '__new_note__' }];
 
-                                                <Menu position="bottom-end" shadow="md">
-                                                    <Menu.Target>
-                                                        <button
-                                                            onClick={(e) => e.stopPropagation()}
-                                                            className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors border-none bg-transparent cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100"
-                                                        >
-                                                            <MoreVertical size={16} />
-                                                        </button>
-                                                    </Menu.Target>
-                                                    <Menu.Dropdown className="bg-white dark:bg-[#18181c] border-stone-200 dark:border-stone-800 text-xs">
-                                                        <Menu.Item
-                                                            leftSection={<Edit2 size={13} />}
-                                                            onClick={(e) => handleStartRename(folder.id, 'folder', folder.name, e)}
-                                                        >
-                                                            Rename
-                                                        </Menu.Item>
-                                                        <Menu.Item
-                                                            color="red"
-                                                            leftSection={<Trash2 size={13} />}
-                                                            onClick={(e) => handleDeleteFolder(folder, e)}
-                                                        >
-                                                            Move to Trash
-                                                        </Menu.Item>
-                                                    </Menu.Dropdown>
-                                                </Menu>
-                                            </div>
-                                        ))}
-                                    </div>
+                                                return (
+                                                    <div key={folder.id} className="relative flex justify-center py-1">
+                                                        {editingId === folder.id ? (
+                                                            <div className="w-full max-w-[175px] p-3 rounded-2xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-[#141416] flex items-center gap-1.5 shadow-sm">
+                                                                <TextInput
+                                                                    value={editingName}
+                                                                    onChange={(e) => setEditingName(e.target.value)}
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === 'Enter') handleSaveRename(folder.id, 'folder');
+                                                                        if (e.key === 'Escape') setEditingId(null);
+                                                                    }}
+                                                                    size="xs"
+                                                                    autoFocus
+                                                                    classNames={{ input: 'h-7 text-xs rounded-lg' }}
+                                                                    className="flex-1"
+                                                                />
+                                                                <button 
+                                                                    onClick={() => handleSaveRename(folder.id, 'folder')}
+                                                                    className="p-1 text-teal-600 hover:text-teal-700 cursor-pointer bg-transparent border-none"
+                                                                    aria-label="Confirm rename"
+                                                                >
+                                                                    <Check size={14} />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => setEditingId(null)}
+                                                                    className="p-1 text-stone-400 hover:text-stone-600 cursor-pointer bg-transparent border-none"
+                                                                    aria-label="Cancel rename"
+                                                                >
+                                                                    <X size={14} />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <FolderFloat
+                                                                label={folder.name}
+                                                                sublabel={`${folderCanvases.length} ${folderCanvases.length === 1 ? 'notebook' : 'notebooks'}`}
+                                                                items={floatItems}
+                                                                trigger={isTouchDevice ? 'click' : 'hover'}
+                                                                width={175}
+                                                                height={165}
+                                                                radius={16}
+                                                                spread={135}
+                                                                lift={22}
+                                                                onFolderClick={() => navigate(`/library/folder/${folder.id}`)}
+                                                                onSelect={(value) => {
+                                                                    if (value === '__open_folder__' || value === '__new_note__') {
+                                                                        navigate(`/library/folder/${folder.id}`);
+                                                                    } else {
+                                                                        navigate(`/canvas/${value}`);
+                                                                    }
+                                                                }}
+                                                                folderColor={colorScheme === 'dark' ? '#1c1c1f' : '#e7e5e4'}
+                                                                frontColor={colorScheme === 'dark' ? '#26262b' : '#f5f3ef'}
+                                                                paperColor={colorScheme === 'dark' ? '#2f2f36' : '#ffffff'}
+                                                                itemColor={colorScheme === 'dark' ? '#202024' : '#ffffff'}
+                                                                itemTextColor={colorScheme === 'dark' ? '#EDEDED' : '#1C1917'}
+                                                                labelColor={colorScheme === 'dark' ? '#FFFFFF' : '#1C1917'}
+                                                                actionsMenu={
+                                                                    <Menu position="bottom-end" shadow="md">
+                                                                        <Menu.Target>
+                                                                            <button
+                                                                                onClick={(e) => e.stopPropagation()}
+                                                                                className="p-1 rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200/50 dark:hover:bg-white/10 transition-colors border-none bg-transparent cursor-pointer"
+                                                                                aria-label="Folder actions"
+                                                                            >
+                                                                                <MoreVertical size={14} />
+                                                                            </button>
+                                                                        </Menu.Target>
+                                                                        <Menu.Dropdown className="bg-white dark:bg-[#18181c] border-stone-200 dark:border-stone-800 text-xs">
+                                                                            <Menu.Item
+                                                                                leftSection={<Edit2 size={13} />}
+                                                                                onClick={(e) => handleStartRename(folder.id, 'folder', folder.name, e)}
+                                                                            >
+                                                                                Rename
+                                                                            </Menu.Item>
+                                                                            <Menu.Item
+                                                                                color="red"
+                                                                                leftSection={<Trash2 size={13} />}
+                                                                                onClick={(e) => handleDeleteFolder(folder, e)}
+                                                                            >
+                                                                                Move to Trash
+                                                                            </Menu.Item>
+                                                                        </Menu.Dropdown>
+                                                                    </Menu>
+                                                                }
+                                                            />
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col gap-2">
+                                            {filteredFolders.map(folder => (
+                                                <div
+                                                    key={folder.id}
+                                                    onClick={() => navigate(`/library/folder/${folder.id}`)}
+                                                    className="group relative flex items-center justify-between p-4 rounded-2xl border border-stone-200 dark:border-stone-800/80 bg-white dark:bg-[#141416] hover:border-teal-500/50 dark:hover:border-teal-500/50 hover:shadow-md transition-all cursor-pointer select-none"
+                                                >
+                                                    <div className="flex items-center gap-3 overflow-hidden">
+                                                        <div className="p-2.5 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 shrink-0">
+                                                            <FolderIcon size={20} />
+                                                        </div>
+                                                        {editingId === folder.id ? (
+                                                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                                                <TextInput
+                                                                    value={editingName}
+                                                                    onChange={(e) => setEditingName(e.target.value)}
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === 'Enter') handleSaveRename(folder.id, 'folder');
+                                                                        if (e.key === 'Escape') setEditingId(null);
+                                                                    }}
+                                                                    size="xs"
+                                                                    autoFocus
+                                                                    classNames={{ input: 'h-7 text-xs rounded-lg' }}
+                                                                />
+                                                                <button 
+                                                                    onClick={() => handleSaveRename(folder.id, 'folder')}
+                                                                    className="p-1 text-teal-600 hover:text-teal-700 cursor-pointer bg-transparent border-none"
+                                                                >
+                                                                    <Check size={14} />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => setEditingId(null)}
+                                                                    className="p-1 text-stone-400 hover:text-stone-600 cursor-pointer bg-transparent border-none"
+                                                                >
+                                                                    <X size={14} />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="overflow-hidden">
+                                                                <h3 className="text-sm font-bold text-stone-900 dark:text-white truncate">
+                                                                    {folder.name}
+                                                                </h3>
+                                                                <span className="text-[11px] text-stone-400">
+                                                                    {formatTime(folder.updated_at)}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <Menu position="bottom-end" shadow="md">
+                                                        <Menu.Target>
+                                                            <button
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors border-none bg-transparent cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                                            >
+                                                                <MoreVertical size={16} />
+                                                            </button>
+                                                        </Menu.Target>
+                                                        <Menu.Dropdown className="bg-white dark:bg-[#18181c] border-stone-200 dark:border-stone-800 text-xs">
+                                                            <Menu.Item
+                                                                leftSection={<Edit2 size={13} />}
+                                                                onClick={(e) => handleStartRename(folder.id, 'folder', folder.name, e)}
+                                                            >
+                                                                Rename
+                                                            </Menu.Item>
+                                                            <Menu.Item
+                                                                color="red"
+                                                                leftSection={<Trash2 size={13} />}
+                                                                onClick={(e) => handleDeleteFolder(folder, e)}
+                                                            >
+                                                                Move to Trash
+                                                            </Menu.Item>
+                                                        </Menu.Dropdown>
+                                                    </Menu>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </section>
                             )}
 

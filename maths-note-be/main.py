@@ -108,7 +108,7 @@ app.add_middleware(LimitUploadSizeMiddleware, max_upload_size=8 * 1024 * 1024)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_origin_regex=r"^https:\/\/([a-zA-Z0-9_-]+\.)?vercel\.app$",
+    allow_origin_regex=r"^(https:\/\/([a-zA-Z0-9_-]+\.)?vercel\.app|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)$",
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],

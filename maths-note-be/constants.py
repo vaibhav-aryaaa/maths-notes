@@ -23,7 +23,7 @@ EXPLAIN_PROVIDER = os.getenv("EXPLAIN_PROVIDER", "gemini").lower()
 GEMINI_MODEL_FAST = os.getenv("GEMINI_MODEL_FAST", "gemini-3.5-flash-lite")
 GEMINI_MODEL_EXPLAIN = os.getenv("GEMINI_MODEL_EXPLAIN", "gemini-3.5-flash")
 
-allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "https://solveiq-two.vercel.app,http://localhost:5173")
+allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "https://solveiq-two.vercel.app,http://localhost:5173,http://localhost:5174")
 ALLOWED_ORIGINS = [origin.strip() for origin in allowed_origins_str.split(",") if origin.strip()]
 
 APP_SECRET = os.getenv("APP_SECRET")
