@@ -14,6 +14,7 @@ interface AuthManagerProps {
     onOpenedChange?: (opened: boolean) => void;
     initialSignUp?: boolean;
     modalOnly?: boolean;
+    pillTrigger?: boolean;
 }
 
 export function AuthManager({
@@ -23,7 +24,8 @@ export function AuthManager({
     opened: externalOpened,
     onOpenedChange,
     initialSignUp = false,
-    modalOnly = false
+    modalOnly = false,
+    pillTrigger = false
 }: AuthManagerProps) {
     const [internalOpened, setInternalOpened] = useState(false);
     const isControlled = typeof externalOpened === 'boolean';
@@ -546,27 +548,56 @@ export function AuthManager({
                 /* Signed In: Avatar (Google image or initials) with Dropdown Menu */
                 <Menu shadow="md" width={220} position="bottom-end" transitionProps={{ transition: 'fade', duration: 150 }}>
                     <Menu.Target>
-                        <button
-                            className="bg-amber-500 hover:bg-amber-600 text-white font-bold h-9 w-9 rounded-full flex items-center justify-center cursor-pointer shadow-md select-none hover:scale-105 active:scale-95 transition-all font-sans text-sm border-none outline-none relative"
-                            title={`Signed in as ${user.email}`}
-                            aria-label={`Signed in as ${user.email}`}
-                        >
-                            <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-amber-500">
-                                {user.user_metadata?.avatar_url ? (
-                                    <img 
-                                        src={user.user_metadata.avatar_url} 
-                                        alt="Profile" 
-                                        className="w-full h-full object-cover" 
-                                        referrerPolicy="no-referrer"
-                                    />
-                                ) : (
-                                    getInitials()
-                                )}
-                            </div>
-                            <span className="absolute bottom-0 right-0 flex h-2.5 w-2.5 translate-x-0.5 translate-y-0.5">
-                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-teal-400 border-2 border-slate-50 dark:border-black"></span>
-                            </span>
-                        </button>
+                        {pillTrigger ? (
+                            <button
+                                className="h-9 pl-3.5 pr-1.5 py-0.5 rounded-full bg-white dark:bg-stone-900 border border-stone-200/70 dark:border-stone-800 hover:border-stone-300 dark:hover:border-stone-700 transition-all flex items-center gap-2.5 cursor-pointer outline-none shadow-[0_1px_2px_rgba(0,0,0,0.02)] select-none"
+                                title={`Signed in as ${user.email}`}
+                                aria-label={`Signed in as ${user.email}`}
+                            >
+                                <span className="text-xs font-semibold text-stone-750 dark:text-stone-200 max-w-[110px] truncate">
+                                    {displayName || user.email?.split('@')[0]}
+                                </span>
+                                <div className="relative">
+                                    <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center bg-teal-500 text-white font-bold text-xs shadow-xs">
+                                        {user.user_metadata?.avatar_url ? (
+                                            <img 
+                                                src={user.user_metadata.avatar_url} 
+                                                alt="Profile" 
+                                                className="w-full h-full object-cover" 
+                                                referrerPolicy="no-referrer"
+                                            />
+                                        ) : (
+                                            getInitials()
+                                        )}
+                                    </div>
+                                    <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
+                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400 border-2 border-white dark:border-black"></span>
+                                    </span>
+                                </div>
+                            </button>
+                        ) : (
+                            <button
+                                className="bg-amber-500 hover:bg-amber-600 text-white font-bold h-9 w-9 rounded-full flex items-center justify-center cursor-pointer shadow-md select-none hover:scale-105 active:scale-95 transition-all font-sans text-sm border-none outline-none relative"
+                                title={`Signed in as ${user.email}`}
+                                aria-label={`Signed in as ${user.email}`}
+                            >
+                                <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-amber-500">
+                                    {user.user_metadata?.avatar_url ? (
+                                        <img 
+                                            src={user.user_metadata.avatar_url} 
+                                            alt="Profile" 
+                                            className="w-full h-full object-cover" 
+                                            referrerPolicy="no-referrer"
+                                        />
+                                    ) : (
+                                        getInitials()
+                                    )}
+                                </div>
+                                <span className="absolute bottom-0 right-0 flex h-2.5 w-2.5 translate-x-0.5 translate-y-0.5">
+                                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-teal-400 border-2 border-slate-50 dark:border-black"></span>
+                                </span>
+                            </button>
+                        )}
                     </Menu.Target>
 
                     <Menu.Dropdown className="bg-white dark:bg-[#18181c] border border-stone-200 dark:border-[#2d2d30] p-1.5 rounded-xl shadow-2xl z-50">
@@ -633,12 +664,15 @@ export function AuthManager({
                         setIsForgotPassword(false);
                         setOpened(true);
                     }}
-                    className="sketch-button h-9 px-4.5 rounded-full transition-all cursor-pointer flex items-center justify-center gap-1.5 border-[1.5px] border-stone-800 text-stone-850 bg-white hover:bg-stone-50/50 dark:border-stone-300 dark:text-stone-100 dark:bg-[#18181c] dark:hover:bg-white/5 font-bold text-base select-none outline-none shadow-sm"
+                    className={pillTrigger 
+                        ? "h-9 px-4 rounded-full transition-all cursor-pointer flex items-center justify-center gap-1.5 border border-stone-200/70 dark:border-stone-800 text-stone-800 dark:text-stone-200 bg-white hover:bg-stone-50 dark:bg-stone-900 dark:hover:bg-stone-800 font-semibold text-xs select-none outline-none shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
+                        : "sketch-button h-9 px-4.5 rounded-full transition-all cursor-pointer flex items-center justify-center gap-1.5 border-[1.5px] border-stone-800 text-stone-850 bg-white hover:bg-stone-50/50 dark:border-stone-300 dark:text-stone-100 dark:bg-[#18181c] dark:hover:bg-white/5 font-bold text-base select-none outline-none shadow-sm"
+                    }
                     title="Sign in to sync history across devices"
                     aria-label="Sign in to sync history across devices"
                 >
-                    <LogIn size={14} strokeWidth={2} className="shrink-0" />
-                    <span className="font-bold text-base tracking-wide">Sign In</span>
+                    <LogIn size={pillTrigger ? 13 : 14} strokeWidth={2} className="shrink-0" />
+                    <span className={pillTrigger ? "font-semibold text-xs tracking-normal" : "font-bold text-base tracking-wide"}>Sign In</span>
                 </button>
             )}
             {modalElement}

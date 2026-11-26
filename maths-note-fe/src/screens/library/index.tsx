@@ -1,27 +1,20 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { 
     Folder as FolderIcon, 
-    FolderPlus, 
     FilePlus, 
     Trash2, 
     RotateCcw, 
     Edit2, 
-    Search, 
-    LayoutGrid, 
-    List as ListIcon, 
-    ChevronRight, 
     ArrowLeft, 
     Clock, 
     MoreVertical, 
     Sparkles, 
-    BookOpen, 
-    Sun, 
-    Moon,
-    AlertCircle,
-    Check,
-    X,
-    Flame
+    AlertCircle, 
+    Check, 
+    X, 
+    Flame, 
+    Heart 
 } from 'lucide-react';
 import { 
     Modal, 
@@ -29,9 +22,6 @@ import {
     Button, 
     Menu, 
     Loader, 
-    Tabs, 
-    Badge, 
-    Tooltip,
     useMantineColorScheme 
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -53,10 +43,10 @@ import {
     type CanvasMetadata,
     type TrashData
 } from '@/lib/canvasesApi';
-import { AuthManager } from '@/components/AuthManager';
 import { useSolveHistory } from '@/hooks/useSolveHistory';
 import { useAuth } from '@/lib/AuthProvider';
 import { FolderFloat } from '@/components/FolderFloat';
+import { FloatingNavbar } from '@/components/FloatingNavbar';
 
 export default function LibraryScreen() {
     const navigate = useNavigate();
@@ -75,6 +65,28 @@ export default function LibraryScreen() {
     // View layout
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [searchQuery, setSearchQuery] = useState('');
+    const [favorites, setFavorites] = useState<string[]>(() => {
+        try {
+            const saved = localStorage.getItem('math_note_favorites');
+            return saved ? JSON.parse(saved) : [];
+        } catch {
+            return [];
+        }
+    });
+    const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+
+    const toggleFavorite = (canvasId: string, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        setFavorites(prev => {
+            const next = prev.includes(canvasId) ? prev.filter(id => id !== canvasId) : [...prev, canvasId];
+            try {
+                localStorage.setItem('math_note_favorites', JSON.stringify(next));
+            } catch {
+                // Ignore storage errors
+            }
+            return next;
+        });
+    };
 
     const isTouchDevice = useMemo(() => {
         return typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
@@ -153,9 +165,13 @@ export default function LibraryScreen() {
     }, [folders, currentFolderId, searchQuery]);
 
     const filteredCanvases = useMemo(() => {
-        if (!searchQuery.trim()) return canvases;
-        return canvases.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
-    }, [canvases, searchQuery]);
+        let list = canvases;
+        if (showFavoritesOnly) {
+            list = list.filter(c => favorites.includes(c.id));
+        }
+        if (!searchQuery.trim()) return list;
+        return list.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    }, [canvases, searchQuery, showFavoritesOnly, favorites]);
 
     // Format relative time helper
     const formatTime = (dateStr?: string) => {
@@ -409,153 +425,82 @@ export default function LibraryScreen() {
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-[#0c0c0e] text-slate-900 dark:text-stone-100 flex flex-col font-sans transition-colors duration-200">
-            {/* Top Navigation Bar */}
-            <header className="sticky top-0 z-30 flex items-center justify-between border-b border-stone-200 dark:border-stone-800/80 bg-white/80 dark:bg-[#121214]/80 px-6 py-3.5 backdrop-blur-md">
-                <div className="flex items-center gap-4">
-                    <Link to="/" className="flex items-center gap-2 group cursor-pointer select-none">
-                        <span className="text-xl font-black tracking-tight font-sans text-stone-900 dark:text-white">
-                            solve<span className="text-amber-500">IQ</span>
-                        </span>
-                        <Badge variant="light" color="teal" size="sm" className="font-semibold tracking-wide">
-                            Library
-                        </Badge>
-                    </Link>
-
-                    <div className="h-4 w-[1px] bg-stone-300 dark:bg-stone-700" />
-
-                    {/* Breadcrumbs */}
-                    <div className="flex items-center gap-1.5 text-sm font-medium">
-                        <button
-                            onClick={() => navigate('/library')}
-                            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors cursor-pointer border-none bg-transparent ${
-                                !currentFolderId 
-                                    ? 'font-bold text-stone-900 dark:text-white' 
-                                    : 'text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white'
-                            }`}
-                        >
-                            <BookOpen size={16} />
-                            <span>My Notebooks</span>
-                        </button>
-                        {currentFolder && (
-                            <>
-                                <ChevronRight size={14} className="text-stone-400 dark:text-stone-600" />
-                                <span className="flex items-center gap-1.5 px-2 py-1 rounded-lg font-bold text-teal-600 dark:text-teal-400">
-                                    <FolderIcon size={16} />
-                                    <span>{currentFolder.name}</span>
-                                </span>
-                            </>
-                        )}
-                    </div>
-                </div>
-
-                {/* Right controls: Theme, Actions, User */}
-                <div className="flex items-center gap-3">
-                    <Tooltip label={colorScheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
-                        <button
-                            onClick={() => toggleColorScheme()}
-                            className="p-2 rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
-                        >
-                            {colorScheme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
-                        </button>
-                    </Tooltip>
-
-                    <Button
-                        leftSection={<FilePlus size={16} />}
-                        onClick={() => setCreateCanvasModalOpen(true)}
-                        className="bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl shadow-sm border-none cursor-pointer text-xs h-9 px-3.5"
-                    >
-                        New Notebook
-                    </Button>
-
-                    {!currentFolderId && (
-                        <Button
-                            leftSection={<FolderPlus size={16} />}
-                            variant="default"
-                            onClick={() => setCreateFolderModalOpen(true)}
-                            className="border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-200 font-bold rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 shadow-sm cursor-pointer text-xs h-9 px-3.5"
-                        >
-                            New Folder
-                        </Button>
-                    )}
-
-                    <AuthManager user={user} clearHistory={clearHistory} />
-                </div>
-            </header>
+            {/* Minimal Floating Glassmorphic Stadium Navbar */}
+            <FloatingNavbar
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                currentFolder={currentFolder}
+                folders={folders}
+                notebookCount={canvases.length}
+                trashCount={trashData.folders.length + trashData.canvases.length}
+                onSelectFolder={(fId) => navigate(fId ? `/library/folder/${fId}` : '/library')}
+                viewMode={viewMode}
+                onToggleViewMode={() => setViewMode(prev => prev === 'grid' ? 'list' : 'grid')}
+                showFavoritesOnly={showFavoritesOnly}
+                onToggleFavorites={() => setShowFavoritesOnly(prev => !prev)}
+                onCreateCanvas={() => setCreateCanvasModalOpen(true)}
+                onCreateFolder={() => setCreateFolderModalOpen(true)}
+                user={user}
+                clearHistory={clearHistory}
+                colorScheme={colorScheme === 'dark' ? 'dark' : 'light'}
+                onToggleColorScheme={() => toggleColorScheme()}
+            />
 
             {/* Main Library Container */}
-            <main className="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8 flex flex-col gap-6">
-                {/* Tabs, Search & Layout Bar */}
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <Tabs value={activeTab} onChange={(val) => setActiveTab((val as 'all' | 'trash') || 'all')} variant="pills">
-                        <Tabs.List className="bg-stone-200/60 dark:bg-stone-900/60 p-1 rounded-xl border border-stone-200/50 dark:border-stone-800/40">
-                            <Tabs.Tab 
-                                value="all" 
-                                leftSection={<BookOpen size={15} />}
-                                className="rounded-lg text-xs font-bold px-3 py-1.5 data-[active]:bg-white dark:data-[active]:bg-stone-800 data-[active]:text-stone-900 dark:data-[active]:text-white shadow-none"
-                            >
-                                All Items
-                            </Tabs.Tab>
-                            <Tabs.Tab 
-                                value="trash" 
-                                leftSection={<Trash2 size={15} />}
-                                className="rounded-lg text-xs font-bold px-3 py-1.5 data-[active]:bg-white dark:data-[active]:bg-stone-800 data-[active]:text-red-500 shadow-none"
-                            >
-                                Trash
-                            </Tabs.Tab>
-                        </Tabs.List>
-                    </Tabs>
+            <main className="flex-1 max-w-[1440px] w-full mx-auto p-4 sm:p-8 flex flex-col gap-6 pt-5">
+                {/* Trash Header */}
+                {activeTab === 'trash' && (
+                    <div className="flex items-center justify-between pb-3 border-b border-stone-200 dark:border-stone-800">
+                        <div className="flex items-center gap-2">
+                            <Trash2 size={18} className="text-red-500" />
+                            <h1 className="text-base font-bold text-stone-900 dark:text-white m-0">Trash</h1>
+                            <span className="text-xs text-stone-400">({trashData.folders.length + trashData.canvases.length} items)</span>
+                        </div>
+                        <button
+                            onClick={() => setActiveTab('all')}
+                            className="text-xs font-semibold text-teal-600 dark:text-teal-400 hover:underline cursor-pointer bg-transparent border-none"
+                        >
+                            Back to All Items
+                        </button>
+                    </div>
+                )}
 
-                    {activeTab === 'all' && (
-                        <div className="flex items-center gap-3 w-full sm:w-auto">
-                            <TextInput
-                                placeholder="Search notebooks and folders..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                leftSection={<Search size={15} className="text-stone-400" />}
-                                className="w-full sm:w-64"
-                                classNames={{
-                                    input: 'bg-white dark:bg-[#18181c] border-stone-200 dark:border-stone-800 rounded-xl text-xs h-9',
-                                }}
-                            />
+                {/* Favorites Active Banner */}
+                {showFavoritesOnly && activeTab === 'all' && (
+                    <div className="flex items-center justify-between pb-2 border-b border-rose-200/50 dark:border-rose-900/30">
+                        <div className="flex items-center gap-2">
+                            <Heart size={16} className="text-rose-500 fill-rose-500" />
+                            <span className="text-xs font-bold text-rose-600 dark:text-rose-400">Filtered by Favorites</span>
+                            <span className="text-xs text-stone-400">({filteredCanvases.length} notes)</span>
+                        </div>
+                        <button
+                            onClick={() => setShowFavoritesOnly(false)}
+                            className="text-xs font-semibold text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 cursor-pointer bg-transparent border-none"
+                        >
+                            Clear Filter
+                        </button>
+                    </div>
+                )}
 
-                            <div className="flex items-center rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-[#18181c] p-0.5">
-                                <button
-                                    onClick={() => setViewMode('grid')}
-                                    className={`p-1.5 rounded-lg border-none cursor-pointer transition-colors ${
-                                        viewMode === 'grid' 
-                                            ? 'bg-stone-100 dark:bg-stone-800 text-stone-900 dark:text-white font-bold' 
-                                            : 'bg-transparent text-stone-400 hover:text-stone-600 dark:hover:text-stone-300'
-                                    }`}
-                                    title="Grid view"
-                                >
-                                    <LayoutGrid size={16} />
-                                </button>
-                                <button
-                                    onClick={() => setViewMode('list')}
-                                    className={`p-1.5 rounded-lg border-none cursor-pointer transition-colors ${
-                                        viewMode === 'list' 
-                                            ? 'bg-stone-100 dark:bg-stone-800 text-stone-900 dark:text-white font-bold' 
-                                            : 'bg-transparent text-stone-400 hover:text-stone-600 dark:hover:text-stone-300'
-                                    }`}
-                                    title="List view"
-                                >
-                                    <ListIcon size={16} />
-                                </button>
+                {/* Folder Breadcrumb */}
+                {currentFolder && activeTab === 'all' && (
+                    <div className="flex items-center justify-between pb-2 border-b border-stone-200/60 dark:border-stone-800/60">
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => navigate('/library')}
+                                className="inline-flex items-center gap-1.5 text-xs font-bold text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white transition-colors cursor-pointer bg-transparent border-none p-0"
+                            >
+                                <ArrowLeft size={14} />
+                                <span>Back to Root Library</span>
+                            </button>
+                            <span className="text-stone-300 dark:text-stone-700">/</span>
+                            <div className="flex items-center gap-1.5 font-bold text-sm text-teal-600 dark:text-teal-400">
+                                <FolderIcon size={16} />
+                                <span>{currentFolder.name}</span>
                             </div>
                         </div>
-                    )}
-                </div>
-
-                {/* Back to Root button when inside folder */}
-                {currentFolderId && activeTab === 'all' && (
-                    <div>
-                        <button
-                            onClick={() => navigate('/library')}
-                            className="inline-flex items-center gap-1.5 text-xs font-bold text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white transition-colors cursor-pointer bg-transparent border-none p-0"
-                        >
-                            <ArrowLeft size={14} />
-                            <span>Back to Root Library</span>
-                        </button>
                     </div>
                 )}
 
@@ -884,37 +829,69 @@ export default function LibraryScreen() {
                                                             )}
                                                         </div>
 
-                                                        <Menu position="bottom-end" shadow="md">
-                                                            <Menu.Target>
-                                                                <button
-                                                                    onClick={(e) => e.stopPropagation()}
-                                                                    className="p-1 rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors border-none bg-transparent cursor-pointer shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100"
-                                                                >
-                                                                    <MoreVertical size={15} />
-                                                                </button>
-                                                            </Menu.Target>
-                                                            <Menu.Dropdown className="bg-white dark:bg-[#18181c] border-stone-200 dark:border-stone-800 text-xs">
-                                                                <Menu.Item
-                                                                    leftSection={<Edit2 size={13} />}
-                                                                    onClick={(e) => handleStartRename(canvas.id, 'canvas', canvas.name, e)}
-                                                                >
-                                                                    Rename
-                                                                </Menu.Item>
-                                                                <Menu.Item
-                                                                    color="red"
-                                                                    leftSection={<Trash2 size={13} />}
-                                                                    onClick={(e) => handleDeleteCanvas(canvas, e)}
-                                                                >
-                                                                    Move to Trash
-                                                                </Menu.Item>
-                                                            </Menu.Dropdown>
-                                                        </Menu>
+                                                        <div className="flex items-center gap-0.5 shrink-0">
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => toggleFavorite(canvas.id, e)}
+                                                                className={`p-1 rounded-lg transition-colors border-none bg-transparent cursor-pointer ${
+                                                                    favorites.includes(canvas.id)
+                                                                        ? 'text-rose-500 opacity-100'
+                                                                        : 'text-stone-400 hover:text-rose-500 opacity-0 group-hover:opacity-100'
+                                                                }`}
+                                                                title={favorites.includes(canvas.id) ? 'Remove from favorites' : 'Add to favorites'}
+                                                            >
+                                                                <Heart size={14} className={favorites.includes(canvas.id) ? 'fill-rose-500' : ''} />
+                                                            </button>
+                                                            <Menu position="bottom-end" shadow="md">
+                                                                <Menu.Target>
+                                                                    <button
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                        className="p-1 rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors border-none bg-transparent cursor-pointer shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                                                    >
+                                                                        <MoreVertical size={15} />
+                                                                    </button>
+                                                                </Menu.Target>
+                                                                <Menu.Dropdown className="bg-white dark:bg-[#18181c] border-stone-200 dark:border-stone-800 text-xs">
+                                                                    <Menu.Item
+                                                                        leftSection={<Heart size={13} className={favorites.includes(canvas.id) ? 'fill-rose-500 text-rose-500' : ''} />}
+                                                                        onClick={(e) => toggleFavorite(canvas.id, e)}
+                                                                    >
+                                                                        {favorites.includes(canvas.id) ? 'Unstar Notebook' : 'Star Notebook'}
+                                                                    </Menu.Item>
+                                                                    <Menu.Item
+                                                                        leftSection={<Edit2 size={13} />}
+                                                                        onClick={(e) => handleStartRename(canvas.id, 'canvas', canvas.name, e)}
+                                                                    >
+                                                                        Rename
+                                                                    </Menu.Item>
+                                                                    <Menu.Item
+                                                                        color="red"
+                                                                        leftSection={<Trash2 size={13} />}
+                                                                        onClick={(e) => handleDeleteCanvas(canvas, e)}
+                                                                    >
+                                                                        Move to Trash
+                                                                    </Menu.Item>
+                                                                </Menu.Dropdown>
+                                                            </Menu>
+                                                        </div>
                                                     </div>
                                                 )}
 
                                                 {/* Card actions (for list view) */}
                                                 {viewMode === 'list' && (
                                                     <div className="flex items-center gap-1">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => toggleFavorite(canvas.id, e)}
+                                                            className={`p-1.5 rounded-lg transition-colors border-none bg-transparent cursor-pointer ${
+                                                                favorites.includes(canvas.id)
+                                                                    ? 'text-rose-500'
+                                                                    : 'text-stone-400 hover:text-rose-500'
+                                                            }`}
+                                                            title={favorites.includes(canvas.id) ? 'Remove from favorites' : 'Add to favorites'}
+                                                        >
+                                                            <Heart size={15} className={favorites.includes(canvas.id) ? 'fill-rose-500' : ''} />
+                                                        </button>
                                                         <Menu position="bottom-end" shadow="md">
                                                             <Menu.Target>
                                                                 <button
@@ -925,6 +902,12 @@ export default function LibraryScreen() {
                                                                 </button>
                                                             </Menu.Target>
                                                             <Menu.Dropdown className="bg-white dark:bg-[#18181c] border-stone-200 dark:border-stone-800 text-xs">
+                                                                <Menu.Item
+                                                                    leftSection={<Heart size={13} className={favorites.includes(canvas.id) ? 'fill-rose-500 text-rose-500' : ''} />}
+                                                                    onClick={(e) => toggleFavorite(canvas.id, e)}
+                                                                >
+                                                                    {favorites.includes(canvas.id) ? 'Unstar Notebook' : 'Star Notebook'}
+                                                                </Menu.Item>
                                                                 <Menu.Item
                                                                     leftSection={<Edit2 size={13} />}
                                                                     onClick={(e) => handleStartRename(canvas.id, 'canvas', canvas.name, e)}
