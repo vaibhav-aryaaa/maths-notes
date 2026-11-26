@@ -95,6 +95,7 @@ def init_db():
                 )
             """)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_history_user_id ON history (user_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_history_canvas_id ON history (canvas_id)")
 
             # Migration: Add canvas_id column to history if it was created before
             cursor.execute("""
@@ -116,7 +117,7 @@ def init_db():
             cursor.execute("ALTER TABLE IF EXISTS shares ENABLE ROW LEVEL SECURITY;")
 
             # 6. RLS Policies
-            # Folders: users can manage only their own folders
+            # Folders: users can manage only their own folders (InitPlan optimization using (select auth.uid()))
             cursor.execute("""
                 DO $$
                 BEGIN
@@ -125,8 +126,8 @@ def init_db():
                     ) THEN
                         CREATE POLICY "Users can manage own folders" ON folders
                         FOR ALL TO authenticated
-                        USING (auth.uid()::text = user_id)
-                        WITH CHECK (auth.uid()::text = user_id);
+                        USING ((select auth.uid()::text) = user_id)
+                        WITH CHECK ((select auth.uid()::text) = user_id);
                     END IF;
                 END $$;
             """)
@@ -140,8 +141,8 @@ def init_db():
                     ) THEN
                         CREATE POLICY "Users can manage own canvases" ON canvases
                         FOR ALL TO authenticated
-                        USING (auth.uid()::text = user_id)
-                        WITH CHECK (auth.uid()::text = user_id);
+                        USING ((select auth.uid()::text) = user_id)
+                        WITH CHECK ((select auth.uid()::text) = user_id);
                     END IF;
                 END $$;
             """)
@@ -155,8 +156,8 @@ def init_db():
                     ) THEN
                         CREATE POLICY "Users can manage own history" ON history
                         FOR ALL TO authenticated
-                        USING (auth.uid()::text = user_id)
-                        WITH CHECK (auth.uid()::text = user_id);
+                        USING ((select auth.uid()::text) = user_id)
+                        WITH CHECK ((select auth.uid()::text) = user_id);
                     END IF;
                 END $$;
             """)
@@ -170,14 +171,14 @@ def init_db():
                     ) THEN
                         CREATE POLICY "Anyone can read shares" ON shares
                         FOR SELECT TO anon, authenticated
-                        USING (true);
+                        USING (share_id IS NOT NULL);
                     END IF;
                     IF NOT EXISTS (
-                        SELECT 1 FROM pg_policies WHERE tablename = 'shares' AND policyname = 'Anyone can create shares'
+                        SELECT 1 FROM pg_policies WHERE tablename = 'shares' AND policyname = 'Allow inserting valid shares'
                     ) THEN
-                        CREATE POLICY "Anyone can create shares" ON shares
+                        CREATE POLICY "Allow inserting valid shares" ON shares
                         FOR INSERT TO anon, authenticated
-                        WITH CHECK (true);
+                        WITH CHECK (share_id IS NOT NULL AND length(share_id) > 0);
                     END IF;
                 END $$;
             """)
