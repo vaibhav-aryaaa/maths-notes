@@ -168,8 +168,10 @@ export const FolderFloat: React.FC<FolderFloatProps> = ({
     zone: null,
     live: false
   });
-  const latest = useRef<Latest>({} as Latest);
-  latest.current = { onSelect, onOpenChange, drift, reduce: false };
+  const latest = useRef<Latest>({ onSelect, onOpenChange, drift, reduce: false });
+  useEffect(() => {
+    latest.current = { onSelect, onOpenChange, drift, reduce: latest.current.reduce ?? false };
+  }, [onSelect, onOpenChange, drift]);
   const popTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const liveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const list: Entry[] = items.map(item => (typeof item === 'string' ? { label: item, value: item } : item));
@@ -304,12 +306,13 @@ export const FolderFloat: React.FC<FolderFloatProps> = ({
   useEffect(() => {
     clearTimeout(liveTimer.current);
     if (!open || !physics || latest.current.reduce) {
-      if (!open) stopPhysics();
-      else if (!physics) stopPhysics();
       return undefined;
     }
     liveTimer.current = setTimeout(startPhysics, openDuration + (n - 1) * stagger + 80);
-    return () => clearTimeout(liveTimer.current);
+    return () => {
+      clearTimeout(liveTimer.current);
+      stopPhysics();
+    };
   }, [open, physics, openDuration, stagger, n, startPhysics, stopPhysics]);
 
   useEffect(() => {
@@ -359,7 +362,9 @@ export const FolderFloat: React.FC<FolderFloatProps> = ({
     };
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {}
+    } catch {
+      // Ignore pointer capture errors if pointer already released
+    }
   };
   const move = (e: PointerEvent<HTMLButtonElement>, i: number) => {
     const w = world.current;
@@ -387,7 +392,9 @@ export const FolderFloat: React.FC<FolderFloatProps> = ({
     e.currentTarget.removeAttribute('data-drag');
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {}
+    } catch {
+      // Ignore release pointer capture errors if pointer already released
+    }
     if (!d.moved && e.type === 'pointerup') pick(item, i);
   };
 
