@@ -108,6 +108,79 @@ def init_db():
                     END IF;
                 END $$;
             """)
+
+            # 5. Enable Row Level Security (RLS) on all public tables
+            cursor.execute("ALTER TABLE IF EXISTS folders ENABLE ROW LEVEL SECURITY;")
+            cursor.execute("ALTER TABLE IF EXISTS canvases ENABLE ROW LEVEL SECURITY;")
+            cursor.execute("ALTER TABLE IF EXISTS history ENABLE ROW LEVEL SECURITY;")
+            cursor.execute("ALTER TABLE IF EXISTS shares ENABLE ROW LEVEL SECURITY;")
+
+            # 6. RLS Policies
+            # Folders: users can manage only their own folders
+            cursor.execute("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_policies WHERE tablename = 'folders' AND policyname = 'Users can manage own folders'
+                    ) THEN
+                        CREATE POLICY "Users can manage own folders" ON folders
+                        FOR ALL TO authenticated
+                        USING (auth.uid()::text = user_id)
+                        WITH CHECK (auth.uid()::text = user_id);
+                    END IF;
+                END $$;
+            """)
+
+            # Canvases: users can manage only their own canvases
+            cursor.execute("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_policies WHERE tablename = 'canvases' AND policyname = 'Users can manage own canvases'
+                    ) THEN
+                        CREATE POLICY "Users can manage own canvases" ON canvases
+                        FOR ALL TO authenticated
+                        USING (auth.uid()::text = user_id)
+                        WITH CHECK (auth.uid()::text = user_id);
+                    END IF;
+                END $$;
+            """)
+
+            # History: users can manage only their own history
+            cursor.execute("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_policies WHERE tablename = 'history' AND policyname = 'Users can manage own history'
+                    ) THEN
+                        CREATE POLICY "Users can manage own history" ON history
+                        FOR ALL TO authenticated
+                        USING (auth.uid()::text = user_id)
+                        WITH CHECK (auth.uid()::text = user_id);
+                    END IF;
+                END $$;
+            """)
+
+            # Shares: anyone can view shares, authenticated/anon can create
+            cursor.execute("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_policies WHERE tablename = 'shares' AND policyname = 'Anyone can read shares'
+                    ) THEN
+                        CREATE POLICY "Anyone can read shares" ON shares
+                        FOR SELECT TO anon, authenticated
+                        USING (true);
+                    END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_policies WHERE tablename = 'shares' AND policyname = 'Anyone can create shares'
+                    ) THEN
+                        CREATE POLICY "Anyone can create shares" ON shares
+                        FOR INSERT TO anon, authenticated
+                        WITH CHECK (true);
+                    END IF;
+                END $$;
+            """)
         else:
             # 1. Shares table (SQLite)
             cursor.execute("""
