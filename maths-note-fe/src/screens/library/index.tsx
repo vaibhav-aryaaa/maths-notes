@@ -74,6 +74,10 @@ export default function LibraryScreen() {
         }
     });
     const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+    const [showAllNotebooks, setShowAllNotebooks] = useState(false);
+    const [mountTime] = useState(() => Date.now());
+    const RECENT_LIMIT = 4;
+    const RECENT_DAYS_THRESHOLD = 30; // Days threshold for recent notebooks
 
     const toggleFavorite = (canvasId: string, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
@@ -172,6 +176,32 @@ export default function LibraryScreen() {
         if (!searchQuery.trim()) return list;
         return list.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
     }, [canvases, searchQuery, showFavoritesOnly, favorites]);
+
+    const sortedCanvases = useMemo(() => {
+        return [...filteredCanvases].sort((a, b) => {
+            const tA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+            const tB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+            return tB - tA;
+        });
+    }, [filteredCanvases]);
+
+    const displayedCanvases = useMemo(() => {
+        if (searchQuery.trim() || currentFolderId || showAllNotebooks) {
+            return sortedCanvases;
+        }
+        const cutoff = mountTime - RECENT_DAYS_THRESHOLD * 24 * 60 * 60 * 1000;
+        const recentOnly = sortedCanvases.filter(c => {
+            if (!c.updated_at) return false;
+            return new Date(c.updated_at).getTime() >= cutoff;
+        });
+
+        // Show notebooks active within threshold up to RECENT_LIMIT
+        if (recentOnly.length > 0) {
+            return recentOnly.slice(0, RECENT_LIMIT);
+        }
+        // Fallback: if all existing notebooks are older than threshold, show latest 2
+        return sortedCanvases.slice(0, Math.min(RECENT_LIMIT, 2));
+    }, [sortedCanvases, searchQuery, currentFolderId, showAllNotebooks, mountTime]);
 
     // Format relative time helper
     const formatTime = (dateStr?: string) => {
@@ -525,7 +555,7 @@ export default function LibraryScreen() {
                                         Folders ({filteredFolders.length})
                                     </h2>
                                     {viewMode === 'grid' ? (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-12 pt-8 pb-4">
+                                        <div className="flex flex-wrap gap-x-8 sm:gap-x-10 gap-y-12 pt-6 pb-4 items-start">
                                             {filteredFolders.map(folder => {
                                                 const folderCanvases = canvases.filter(c => c.folder_id === folder.id);
                                                 const floatItems = folderCanvases.length > 0
@@ -592,7 +622,7 @@ export default function LibraryScreen() {
                                                                 itemTextColor={colorScheme === 'dark' ? '#EDEDED' : '#1C1917'}
                                                                 labelColor={colorScheme === 'dark' ? '#FFFFFF' : '#1C1917'}
                                                                 actionsMenu={
-                                                                    <Menu position="bottom-end" shadow="md">
+                                                                    <Menu position="right-start" offset={8} shadow="lg" radius="md" withinPortal>
                                                                         <Menu.Target>
                                                                             <button
                                                                                 onClick={(e) => e.stopPropagation()}
@@ -602,7 +632,7 @@ export default function LibraryScreen() {
                                                                                 <MoreVertical size={14} />
                                                                             </button>
                                                                         </Menu.Target>
-                                                                        <Menu.Dropdown className="bg-white dark:bg-[#18181c] border-stone-200 dark:border-stone-800 text-xs">
+                                                                        <Menu.Dropdown className="bg-white dark:bg-[#18181c] border-stone-200 dark:border-stone-800 text-xs shadow-xl z-50">
                                                                             <Menu.Item
                                                                                 leftSection={<Edit2 size={13} />}
                                                                                 onClick={(e) => handleStartRename(folder.id, 'folder', folder.name, e)}
@@ -709,11 +739,24 @@ export default function LibraryScreen() {
 
                             {/* Notebooks Section */}
                             <section>
-                                <h2 className="text-xs font-bold uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-3">
-                                    Notebooks ({filteredCanvases.length})
-                                </h2>
+                                <div className="flex items-center justify-between mb-3">
+                                    <h2 className="text-xs font-bold uppercase tracking-wider text-stone-400 dark:text-stone-500 m-0">
+                                        {!currentFolderId && !searchQuery.trim()
+                                            ? (showAllNotebooks ? `All Notebooks (${sortedCanvases.length})` : `Recent Notebooks (${displayedCanvases.length})`)
+                                            : `Notebooks (${displayedCanvases.length})`}
+                                    </h2>
+                                    {!currentFolderId && !searchQuery.trim() && (sortedCanvases.length > displayedCanvases.length || showAllNotebooks) && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowAllNotebooks(prev => !prev)}
+                                            className="text-xs font-semibold text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 transition-colors cursor-pointer bg-transparent border-none p-0 select-none"
+                                        >
+                                            {showAllNotebooks ? 'Show recent only' : `View all (${sortedCanvases.length}) →`}
+                                        </button>
+                                    )}
+                                </div>
 
-                                {filteredCanvases.length === 0 && filteredFolders.length === 0 ? (
+                                {displayedCanvases.length === 0 && filteredFolders.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center p-12 border border-dashed border-stone-300 dark:border-stone-800 rounded-3xl bg-white/50 dark:bg-[#121214]/50 text-center">
                                         <div className="p-4 rounded-full bg-amber-500/10 text-amber-500 mb-3">
                                             <Sparkles size={28} />
@@ -738,7 +781,7 @@ export default function LibraryScreen() {
                                     </div>
                                 ) : (
                                     <div className={viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5" : "flex flex-col gap-2.5"}>
-                                        {filteredCanvases.map(canvas => (
+                                        {displayedCanvases.map(canvas => (
                                             <div
                                                 key={canvas.id}
                                                 onClick={() => navigate(`/canvas/${canvas.id}`)}

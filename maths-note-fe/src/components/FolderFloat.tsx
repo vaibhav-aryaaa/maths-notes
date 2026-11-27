@@ -530,7 +530,7 @@ export const FolderFloat: React.FC<FolderFloatProps> = ({
 
         {/* Optional 3-dots actions menu pinned top-right */}
         {actionsMenu && (
-          <div className="absolute top-1 right-2 z-[4] pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="absolute top-1.5 right-1.5 z-[4] pointer-events-auto" onClick={(e) => e.stopPropagation()}>
             {actionsMenu}
           </div>
         )}
